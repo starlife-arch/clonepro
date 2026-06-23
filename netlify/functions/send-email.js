@@ -683,11 +683,24 @@ export default async (req, context) => {
     case 'campaign_selected':
     case 'campaign_rejected': {
       const selected = type === 'campaign_selected';
+      const campaignDate = fmtDateParts(data.timestamp).date;
+      const rewardSummary = data.rewardSummary || 'To be confirmed';
+      const rejectionMessage = `Thank you for applying to ${data.campaignTitle || 'this campaign'}. Unfortunately you were not selected this time. We encourage you to keep an eye out for future campaigns on Starlife.`;
       subject = selected ? `Selected for ${data.campaignTitle || 'campaign'}` : `Application update for ${data.campaignTitle || 'campaign'}`;
       html = layout(selected ? 'Campaign application selected' : 'Campaign application update', `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">${esc(data.message || (selected ? 'Congratulations! Your campaign application was selected.' : 'Thank you for applying. You were not selected this time.'))}</p>
-        ${txRows([['Campaign', data.campaignTitle || 'Campaign']])}
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">${esc(selected ? (data.message || 'Congratulations! Your campaign application was selected.') : rejectionMessage)}</p>
+        ${selected ? rows([
+          ['Campaign', data.campaignTitle || 'Campaign'],
+          ['What you will receive', rewardSummary],
+          ['Delivery', data.rewardDelivery || 'To be confirmed'],
+          ['Date', campaignDate],
+        ]) : rows([
+          ['Campaign', data.campaignTitle || 'Campaign'],
+          ['Date', campaignDate],
+        ])}
+        ${selected && data.rewardNotes ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.6"><strong>Note:</strong> ${esc(data.rewardNotes)}</p>` : ''}
+        ${selected ? '<p style="margin:0;font-size:15px;line-height:1.6">The platform team will be in touch with next steps.</p>' : `<p style="margin:0;font-size:15px;line-height:1.6">${esc(rejectionMessage)}</p>`}
       `);
       break;
     }
