@@ -19,6 +19,8 @@ const REQUIRED_FROM_BY_TYPE = {
   kyc_submitted: 'verify@starlifeadvert.com',
   kyc_approved: 'verify@starlifeadvert.com',
   kyc_rejected: 'verify@starlifeadvert.com',
+  campaign_selected: 'noreply@starlifeadvert.com',
+  campaign_rejected: 'noreply@starlifeadvert.com',
 };
 
 const REQUIRED_FROM_NAME_BY_TYPE = {
@@ -34,6 +36,8 @@ const REQUIRED_FROM_NAME_BY_TYPE = {
   kyc_submitted: 'Starlife Advert Verify',
   kyc_approved: 'Starlife Advert Verify',
   kyc_rejected: 'Starlife Advert Verify',
+  campaign_selected: 'Starlife Advert',
+  campaign_rejected: 'Starlife Advert',
 };
 
 function hardcodedSender(type) {
@@ -74,6 +78,8 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   card_unblocked: 'cards',
   card_transaction: 'cards',
   blue_badge_subscribed: 'cards',
+  campaign_selected: 'noreply',
+  campaign_rejected: 'noreply',
   balance_adjustment: 'broadcast',
   virtual_card_ready: 'cards',
   investment_confirmed: 'investments',
@@ -673,6 +679,18 @@ export default async (req, context) => {
         ${txRows([['Plan', data.plan || 'Monthly']])}
       `);
       break;
+
+    case 'campaign_selected':
+    case 'campaign_rejected': {
+      const selected = type === 'campaign_selected';
+      subject = selected ? `Selected for ${data.campaignTitle || 'campaign'}` : `Application update for ${data.campaignTitle || 'campaign'}`;
+      html = layout(selected ? 'Campaign application selected' : 'Campaign application update', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">${esc(data.message || (selected ? 'Congratulations! Your campaign application was selected.' : 'Thank you for applying. You were not selected this time.'))}</p>
+        ${txRows([['Campaign', data.campaignTitle || 'Campaign']])}
+      `);
+      break;
+    }
     default:
       subject = 'Update from Starlife';
       html = layout('Update from Starlife', `<p style="margin:0;font-size:15px;line-height:1.6">${esc(data.message || 'Please check your Starlife dashboard for updates.')}</p>`);
