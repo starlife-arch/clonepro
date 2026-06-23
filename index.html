@@ -5500,39 +5500,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <div id="my-codes-list"></div>
             </div>
 
-            <!-- REFERRAL CONTEST TAB -->
-            <div id="t-contest" class="itc" style="display:none">
-                <div class="ptitle">🏆 Referral Contest</div>
-                <div class="psub">Refer the most users this month and win!</div>
-                <div class="contest-banner" id="contest-banner">
-                    <div
-                        style="font-size:.78rem;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">
-                        This Month's Prize</div>
-                    <div class="contest-prize">$<span id="contest-prize-amt">0</span></div>
-                    <div style="font-size:.82rem;color:var(--t2);margin-top:8px">Time remaining: <span
-                            style="color:var(--gold);font-family:'JetBrains Mono',monospace"
-                            id="contest-timer">--</span></div>
-                    <div style="font-size:.75rem;color:var(--t3);margin-top:4px">Refer the most new users before the
-                        timer runs out to win!</div>
-                </div>
-                <div
-                    style="background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:14px">
-                    <div style="display:flex;justify-content:space-between;align-items:center">
-                        <div style="font-weight:700">Your Referrals This Month</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:1.2rem;color:var(--g)"
-                            id="my-monthly-refs">0</div>
-                    </div>
-                </div>
-                <div class="sh">
-                    <h3>🏆 Monthly Leaderboard</h3>
-                </div>
-                <div id="contest-lb-list"></div>
-                <div class="sh">
-                    <h3>Past Winners</h3>
-                </div>
-                <div id="contest-winners-list"></div>
-            </div>
-
             <!-- MESSAGES / DM TAB -->
             <div id="t-messages" class="itc" style="display:none">
                 <div class="ptitle">💬 Messages</div>
@@ -6222,35 +6189,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         </div><!-- /wrap -->
 
-        <!-- ═══ ASSETS: P2P MEMBER MARKETPLACE ═══ -->
-        <div id="t-p2p-assets" class="itc" style="display:none;padding:0 14px 80px">
-            <div class="ptitle">🤝 Member Marketplace</div>
-            <div class="psub">Assets listed by fellow Starlife members</div>
-            <div style="background:rgba(255,213,79,.08);border:1px solid rgba(255,213,79,.2);border-radius:10px;padding:10px;margin-bottom:14px;font-size:.75rem;color:var(--gold);line-height:1.5">
-                ⚠️ All listings below are from Starlife members, <strong>not from Starlife Advert</strong>. Starlife Advert is not liable for any disputes, asset conditions, or delivery issues. A 10% platform fee is charged on all transactions.
-            </div>
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-                <select class="fi" id="p2p-filter-type" style="flex:1;min-width:120px" onchange="loadP2PMarketplace()">
-                    <option value="">All Types</option>
-                    <option value="house">🏠 House</option>
-                    <option value="car">🚗 Car</option>
-                    <option value="land">🌍 Land</option>
-                    <option value="electronics">📱 Electronics</option>
-                    <option value="equipment">⚙️ Equipment</option>
-                    <option value="other">📦 Other</option>
-                </select>
-                <select class="fi" id="p2p-filter-mode" style="flex:1;min-width:120px" onchange="loadP2PMarketplace()">
-                    <option value="">All Modes</option>
-                    <option value="buy">For Sale</option>
-                    <option value="rent">For Rent</option>
-                </select>
-            </div>
-            <div id="asset-p2p-list" class="asset-grid"><div class="es">Loading listings…</div></div>
-        </div>
 
 
         <!-- ═══ CAMPAIGNS ═══ -->
-        <div id="t-campaigns" class="itc" style="display:none;padding:0 14px 80px">
+        <div id="t-campaigns" class="itc" style="padding:0 14px 80px">
             <div class="ptitle">🎗️ Campaigns</div>
             <div class="psub">Apply for active community support campaigns.</div>
             <div id="campaign-list"><div class="es">Loading campaigns…</div></div>
@@ -6269,13 +6211,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             style="display:none;position:fixed;bottom:65px;right:12px;z-index:400;background:var(--s1);border:1px solid var(--bds);border-radius:var(--r);padding:8px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
             <div class="more-item" onclick="tab('campaigns');loadCampaigns();hideMore()">🎗️ Campaigns</div>
             <div class="more-item" onclick="tab('surveys');hideMore()">📝 Surveys</div>
-            <div class="more-item" onclick="tab('p2p-assets');loadP2PMarketplace();hideMore()">🤝 Member Marketplace</div>
             <div class="more-item" onclick="tab('savings');hideMore()">🏦 Savings Wallet</div>
-            <div class="more-item" onclick="tab('withdraw');hideMore()">💳 Withdraw</div>
-            <div class="more-item" onclick="tab('deposit');hideMore()">💵 Deposit</div>
             <div class="more-item" onclick="tab('referral');hideMore()">👥 Referrals</div>
             <div class="more-item" onclick="tab('rewards');hideMore()">🎮 Rewards</div>
-            <div class="more-item" onclick="tab('contest');hideMore()">🏆 Contest</div>
             <div class="more-item" onclick="tab('tokens');hideMore()">🪙 Tokens</div>
             <div class="more-item" onclick="tab('gifts');hideMore()">🎁 Gift Coins</div>
             <div class="more-item" onclick="tab('paid-dm');hideMore()">💬 Paid DM</div>
@@ -6285,11 +6223,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             <div class="more-item" onclick="tab('blog');hideMore()">📰 Blog</div>
             <div class="more-item" onclick="tab('transfer');hideMore()">💸 Transfer / Gift</div>
             <div class="more-item" onclick="tab('my-cards');loadMyCards();hideMore()">💳 My Cards</div>
-            <div class="more-item" onclick="openModal('m-card-payment');hideMore()">💳 Card Payment</div>
             <div class="more-item" onclick="tab('p2p');loadP2P();hideMore()">💱 P2P Trading</div>
             <div class="more-item" onclick="tab('messages');loadDMList();hideMore()">💬 Messages</div>
             <div class="more-item" onclick="tab('followers');loadFollowers();hideMore()">👥 Following</div>
-            <div class="more-item" onclick="tab('messages');loadDMList();hideMore()">💬 Messages</div>
             <div class="more-item" onclick="tab('profile');hideMore()">👤 Profile</div>
             <div class="more-item" id="nav-agent" style="display:none" onclick="go('pg-agent');hideMore()">💼 Agent
                 Dashboard</div>
@@ -6886,35 +6822,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         style="color:var(--sky)">0</span></div>
                 <div id="at-luckydraw-tickets">
                     <div class="es">No tickets yet</div>
-                </div>
-            </div>
-
-            <!-- REFERRAL CONTEST ADMIN -->
-            <div id="at-contest" class="atab">
-                <div class="card" style="margin-bottom:14px">
-                    <div style="font-weight:700;margin-bottom:12px">🏆 Contest Settings</div>
-                    <div class="fg"><label class="fl">Prize Amount ($)</label><input class="fi" id="ct-prize"
-                            type="number" min="1" placeholder="e.g. 50"></div>
-                    <div class="fg"><label class="fl">Contest End Date</label><input class="fi" id="ct-end" type="date">
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="btn btn-p btn-sm" onclick="adminSaveContest()">💾 Save</button>
-                        <button class="btn btn-gold btn-sm" onclick="adminEndContest()">🏁 End & Pay Real
-                            Winner</button>
-                        <button class="btn btn-sky btn-sm" onclick="adminSeedContestFakes()">🌱 Seed 30 Fakes</button>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-                    <button class="btn btn-gh btn-sm" onclick="loadAdminContest('live')">📊 Live Leaderboard</button>
-                    <button class="btn btn-gh btn-sm" onclick="loadAdminContest('fakes')">👥 Fake Entries</button>
-                </div>
-                <div style="display:flex;gap:8px;margin-bottom:10px">
-                    <input class="fi" id="ct-fake-name" placeholder="Fake name" style="flex:1">
-                    <input class="fi" id="ct-fake-refs" type="number" placeholder="Refs" style="width:70px">
-                    <button class="btn btn-p btn-sm" onclick="adminAddContestFake()">+ Add</button>
-                </div>
-                <div id="at-contest-list">
-                    <div class="es">Loading…</div>
                 </div>
             </div>
 
@@ -9373,7 +9280,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             loadKYCStatus();
             loadScratchState();
             loadDraw();
-            loadContest();
+            loadCampaigns();
             loadNotifs();
             refreshSavings();
             loadAdBanner();
@@ -12234,7 +12141,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         const ADMIN_ROLES = {
             superadmin: {
                 label: '⭐ Super Admin', color: 'var(--gold)',
-                tabs: ['investments', 'deposits', 'withdrawals', 'users', 'kyc', 'campaigns', 'stakes', 'loans', 'tickets', 'surveys', 'redemptions', 'activity', 'virtualcards', 'revenue', 'analytics', 'security', 'maintenance', 'testi', 'prizecodes', 'luckydraw', 'contest', 'p2p', 'broadcast', 'targeted', 'moving', 'ads', 'admins', 'promocodes', 'fees', 'accounts', 'cancelrequests', 'tokens', 'gifts', 'paiddm', 'official']
+                tabs: ['investments', 'deposits', 'withdrawals', 'users', 'kyc', 'campaigns', 'stakes', 'loans', 'tickets', 'surveys', 'redemptions', 'activity', 'virtualcards', 'revenue', 'analytics', 'security', 'maintenance', 'testi', 'prizecodes', 'luckydraw', 'p2p', 'broadcast', 'targeted', 'moving', 'ads', 'admins', 'promocodes', 'fees', 'accounts', 'cancelrequests', 'tokens', 'gifts', 'paiddm', 'official']
             },
             finance: {
                 label: '💰 Finance', color: 'var(--g)',
@@ -12250,7 +12157,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             },
             operations: {
                 label: '⚙️ Operations', color: 'var(--gold)',
-                tabs: ['investments', 'stakes', 'loans', 'surveys', 'redemptions', 'prizecodes', 'luckydraw', 'contest', 'p2p', 'activity']
+                tabs: ['investments', 'stakes', 'loans', 'surveys', 'redemptions', 'prizecodes', 'luckydraw', 'p2p', 'activity']
             }
         };
 
@@ -12275,7 +12182,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             testi: () => loadAdminTestis(),
             prizecodes: () => loadAdminPrizeCodes(),
             luckydraw: () => loadAdminDraw(),
-            contest: () => loadAdminContest(),
             p2p: () => loadAdminP2P(),
             broadcast: () => loadAdminBroadcasts(),
             targeted: () => loadAdminTargetedAnnouncements(),
@@ -12314,7 +12220,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             { id: 'testi', label: 'Reviews' },
             { id: 'prizecodes', label: '🎫 Prize Codes' },
             { id: 'luckydraw', label: '🎰 Lucky Draw' },
-            { id: 'contest', label: '🏆 Contest' },
             { id: 'p2p', label: '💱 P2P' },
             { id: 'broadcast', label: 'Broadcast' },
             { id: 'targeted', label: '🎯 Targeted Notices' },
@@ -19034,235 +18939,6 @@ ${names}${ids.length > 6 ? ' ...' : ''}`;
             }).join('');
         }
 
-        // ════════════════════════════════════════════════════════
-        // REFERRAL CONTEST
-        // ════════════════════════════════════════════════════════
-        async function loadContest() {
-            const snap = await db.collection('contests').where('active', '==', true).limit(1).get();
-            if (snap.empty) { $('contest-banner') && ($('contest-banner').style.display = 'none'); return; }
-            const contest = { id: snap.docs[0].id, ...snap.docs[0].data() };
-            window._activeContest = contest;
-            $('contest-prize-amt') && ($('contest-prize-amt').textContent = fmt(contest.prize || 0));
-            const end = contest.endDate ? new Date(contest.endDate.seconds * 1000) : null;
-            if (end) {
-                function tickContest() {
-                    const diff = end - new Date();
-                    if (diff <= 0) { $('contest-timer') && ($('contest-timer').textContent = 'Contest ended!'); }
-                    else { const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000); $('contest-timer') && ($('contest-timer').textContent = d + 'd ' + h + 'h ' + m + 'm'); }
-                }
-                tickContest(); setInterval(tickContest, 60000);
-            }
-            // My refs this month
-            const u = window.CU;
-            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            const refSnap = await db.collection('users').where('referredBy', '==', u.uid).get();
-            const monthlyRefs = refSnap.docs.filter(function (d) {
-                const ct = d.data().createdAt;
-                return ct && new Date(ct.seconds * 1000) >= monthStart;
-            }).length;
-            $('my-monthly-refs') && ($('my-monthly-refs').textContent = monthlyRefs);
-            loadContestLeaderboard();
-            loadContestWinners();
-        }
-
-        async function loadContestLeaderboard() {
-            // Get real users referrals this month
-            const usersSnap = await db.collection('users').limit(200).get();
-            const contest = window._activeContest;
-            const monthStart = contest && contest.startedAt
-                ? new Date(contest.startedAt.seconds * 1000)
-                : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            const counts = {};
-            const nameMap = {};
-            usersSnap.docs.forEach(function (d) {
-                nameMap[d.id] = d.data().name || 'User';
-                const u = d.data();
-                if (u.referredBy) {
-                    const ct = u.createdAt;
-                    if (ct && new Date(ct.seconds * 1000) >= monthStart) {
-                        counts[u.referredBy] = (counts[u.referredBy] || 0) + 1;
-                    }
-                }
-            });
-            const realEntries = Object.entries(counts).map(function (e) {
-                return { uid: e[0], name: nameMap[e[0]] || 'User', refs: e[1], isReal: true };
-            });
-            // Get fake entries from Firestore
-            const fakeSnap = await db.collection('contestFakes').get();
-            const fakeEntries = fakeSnap.docs.map(function (d) {
-                return { id: d.id, name: d.data().name, refs: d.data().refs, isReal: false };
-            });
-            // Merge and sort
-            const all = [...realEntries, ...fakeEntries].sort(function (a, b) { return b.refs - a.refs; }).slice(0, 20);
-            const el = $('contest-lb-list'); if (!el) return;
-            if (!all.length) { el.innerHTML = '<div class="es">No referrals yet. Be first!</div>'; return; }
-            el.innerHTML = all.map(function (e, i) {
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
-                return '<div class="lb-item"><div class="lb-rank ' + (i < 3 ? 'r' + (i + 1) : '') + '">' + medal + '</div>'
-                    + '<div style="flex:1"><div style="font-weight:600;font-size:.88rem">' + e.name + '</div>'
-                    + '<div style="font-size:.72rem;color:var(--t3)">' + e.refs + ' referrals this month</div></div></div>';
-            }).join('');
-        }
-
-        async function loadContestWinners() {
-            const snap = await db.collection('contestWinners').limit(5).get();
-            const list = snap.docs.map(function (d) { return d.data(); }).sort(function (a, b) { return (b.paidAt?.seconds || 0) - (a.paidAt?.seconds || 0); });
-            const el = $('contest-winners-list'); if (!el) return;
-            el.innerHTML = list.length ? list.map(function (w) {
-                return '<div class="arow"><div class="ar-name">🏆 ' + w.winnerName + ' won $' + fmt(w.prize) + '</div><div class="ar-sub">' + fmtD(w.paidAt) + ' · ' + w.refs + ' referrals</div></div>';
-            }).join('') : '<div class="es"><div class="ei">🏆</div>No past winners yet</div>';
-        }
-
-        async function setContest() {
-            const prize = parseFloat($('contest-prize-input').value);
-            const endVal = $('contest-end-input').value;
-            if (!prize || !endVal) return toast('Enter prize and end date', 'ty');
-            const endDate = firebase.firestore.Timestamp.fromDate(new Date(endVal));
-            const prev = await db.collection('contests').where('active', '==', true).get();
-            const batch = db.batch();
-            prev.docs.forEach(function (d) { batch.update(d.ref, { active: false }); });
-            batch.set(db.collection('contests').doc(), { active: true, prize, endDate, startedAt: FS().serverTimestamp() });
-            await batch.commit();
-            toast('Contest set ✓'); loadContest();
-        }
-
-        async function endContest() {
-            if (!confirm('End the contest and pay the REAL winner now? Fake entries are ignored.')) return;
-            const contest = window._activeContest; if (!contest) return toast('No active contest', 'ty');
-            // Only count REAL users — ignore fake entries
-            const usersSnap = await db.collection('users').limit(200).get();
-            const monthStart = new Date(contest.startedAt ? contest.startedAt.seconds * 1000 : Date.now() - 30 * 86400000);
-            const counts = {};
-            usersSnap.docs.forEach(function (d) {
-                const u = d.data();
-                if (u.referredBy && !u.isAdmin) {
-                    const ct = u.createdAt;
-                    if (ct && new Date(ct.seconds * 1000) >= monthStart) counts[u.referredBy] = (counts[u.referredBy] || 0) + 1;
-                }
-            });
-            if (!Object.keys(counts).length) return toast('No real referrals found. Cannot pay a fake entry.', 'ty');
-            const sorted = Object.entries(counts).sort(function (a, b) { return b[1] - a[1]; });
-            const winnerId = sorted[0][0];
-            const winRefs = sorted[0][1];
-            const winSnap = await db.collection('users').doc(winnerId).get();
-            if (!winSnap.exists) return toast('Winner account not found', 'tr');
-            const winUser = winSnap.data();
-            if (!confirm('Real winner: ' + winUser.name + ' with ' + winRefs + ' referrals. Pay $' + fmt(contest.prize) + '?')) return;
-            const batch = db.batch();
-            batch.update(db.collection('users').doc(winnerId), { balance: FS().increment(contest.prize), totalEarned: FS().increment(contest.prize) });
-            batch.update(db.collection('contests').doc(contest.id), { active: false, winnerId, winnerName: winUser.name });
-            await batch.commit();
-            await db.collection('contestWinners').add({ winnerId, winnerName: winUser.name, prize: contest.prize, refs: winRefs, paidAt: FS().serverTimestamp() });
-            await db.collection('userNotifs').add({ uid: winnerId, msg: '🏆 You won the Referral Contest! $' + fmt(contest.prize) + ' added to your balance!', read: false, createdAt: FS().serverTimestamp() });
-            await db.collection('broadcasts').add({ title: '🏆 Referral Contest Winner!', message: winUser.name + ' won $' + fmt(contest.prize) + ' with ' + winRefs + ' referrals this month! Congratulations!', createdAt: FS().serverTimestamp() });
-            await logAct(winnerId, '🏆 Referral Contest winner! $' + fmt(contest.prize) + ' prize', contest.prize, '🏆', 'deposit');
-            tg('🏆 <b>Contest Winner!</b>\n' + winUser.name + ' won $' + fmt(contest.prize) + ' with ' + winRefs + ' real referrals');
-            toast('Winner paid $' + fmt(contest.prize) + ' ✓', 'tg', 5000);
-            loadAdminContest('live');
-        }
-
-        // Admin contest: load live leaderboard OR fake entries list
-        async function loadAdminContest(view = 'live') {
-            const listEl = $('at-contest-list'); if (!listEl) return;
-            listEl.innerHTML = '<div class="es">Loading…</div>';
-            if (view === 'fakes') {
-                const snap = await db.collection('contestFakes').get();
-                const list = snap.docs.map(function (d) { return { id: d.id, ...d.data() }; }).sort(function (a, b) { return b.refs - a.refs; });
-                if (!list.length) { listEl.innerHTML = '<div class="es">No fake entries yet — click + Add or 🌱 Seed 30 Fakes</div>'; return; }
-                listEl.innerHTML = list.map(function (f) {
-                    return '<div class="arow"><div style="flex:1"><div class="ar-name">' + f.name + '</div>'
-                        + '<div class="ar-sub">' + f.refs + ' referrals (fake)</div></div>'
-                        + '<button class="btn btn-d btn-sm" onclick="adminDeleteContestFake(\'' + f.id + '\')">🗑</button></div>';
-                }).join('');
-                // Pre-fill contest settings
-                const cSnap = await db.collection('contests').where('active', '==', true).limit(1).get();
-                if (!cSnap.empty) {
-                    const d = cSnap.docs[0].data();
-                    if ($('ct-prize')) $('ct-prize').value = d.prize || '';
-                    const end = d.endDate ? new Date(d.endDate.seconds * 1000).toISOString().split('T')[0] : '';
-                    if ($('ct-end')) $('ct-end').value = end;
-                }
-            } else {
-                // Build leaderboard directly — real users + fake entries
-                const usersSnap = await db.collection('users').limit(200).get();
-                const contest = window._activeContest;
-                const monthStart = contest && contest.startedAt
-                    ? new Date(contest.startedAt.seconds * 1000)
-                    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-                const counts = {}; const nameMap = {};
-                usersSnap.docs.forEach(function (d) {
-                    nameMap[d.id] = d.data().name || 'User';
-                    const u = d.data();
-                    if (u.referredBy) { const ct = u.createdAt; if (ct && new Date(ct.seconds * 1000) >= monthStart) counts[u.referredBy] = (counts[u.referredBy] || 0) + 1; }
-                });
-                const realEntries = Object.entries(counts).map(function (e) { return { name: nameMap[e[0]] || 'User', refs: e[1], isReal: true }; });
-                const fakeSnap = await db.collection('contestFakes').get();
-                const fakeEntries = fakeSnap.docs.map(function (d) { return { id: d.id, name: d.data().name, refs: d.data().refs, isReal: false }; });
-                const all = [...realEntries, ...fakeEntries].sort(function (a, b) { return b.refs - a.refs; }).slice(0, 20);
-                if (!all.length) { listEl.innerHTML = '<div class="es">No entries yet</div>'; }
-                else {
-                    listEl.innerHTML = all.map(function (e, i) {
-                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
-                        return '<div class="lb-item"><div class="lb-rank ' + (i < 3 ? 'r' + (i + 1) : '') + '">' + medal + '</div>'
-                            + '<div style="flex:1"><div style="font-weight:600;font-size:.88rem">' + e.name + '</div>'
-                            + '<div style="font-size:.72rem;color:var(--t3)">' + e.refs + ' referrals' + (e.isReal ? '' : ' ★') + '</div></div></div>';
-                    }).join('');
-                }
-                // Pre-fill settings form
-                const cSnap = await db.collection('contests').where('active', '==', true).limit(1).get();
-                if (!cSnap.empty) {
-                    const d = cSnap.docs[0].data();
-                    if ($('ct-prize')) $('ct-prize').value = d.prize || '';
-                    const end = d.endDate ? new Date(d.endDate.seconds * 1000).toISOString().split('T')[0] : '';
-                    if ($('ct-end')) $('ct-end').value = end;
-                }
-            }
-        }
-
-        // Add single fake entry
-        async function adminAddContestFake() {
-            const name = $('ct-fake-name')?.value.trim();
-            const refs = parseInt($('ct-fake-refs')?.value);
-            if (!name) return toast('Enter a name', 'ty');
-            if (!refs || refs < 1) return toast('Enter number of referrals', 'ty');
-            await db.collection('contestFakes').add({ name, refs, addedAt: FS().serverTimestamp() });
-            toast('✅ Fake entry added');
-            $('ct-fake-name').value = ''; $('ct-fake-refs').value = '';
-            loadAdminContest('fakes');
-        }
-
-        async function adminDeleteContestFake(id) {
-            if (!confirm('Remove this fake entry?')) return;
-            await db.collection('contestFakes').doc(id).delete();
-            toast('Removed'); loadAdminContest('fakes');
-        }
-
-        // Seed 30 realistic fake entries
-        const CONTEST_FAKE_NAMES = [
-            { name: 'Grace Wanjiku', refs: 47 }, { name: 'James Odhiambo', refs: 43 }, { name: 'Sarah Kamau', refs: 39 },
-            { name: 'David Mwangi', refs: 36 }, { name: 'Mary Achieng', refs: 34 }, { name: 'Peter Njoroge', refs: 31 },
-            { name: 'Alice Wairimu', refs: 29 }, { name: 'John Kipchoge', refs: 27 }, { name: 'Fatuma Hassan', refs: 25 },
-            { name: 'Samuel Otieno', refs: 23 }, { name: 'Rose Adhiambo', refs: 22 }, { name: 'Michael Kariuki', refs: 20 },
-            { name: 'Priscilla Njeri', refs: 19 }, { name: 'Victor Kimani', refs: 18 }, { name: 'Amina Yusuf', refs: 17 },
-            { name: 'George Luo', refs: 16 }, { name: 'Esther Muthoni', refs: 15 }, { name: 'Daniel Omondi', refs: 14 },
-            { name: 'Hellen Chebet', refs: 13 }, { name: 'Charles Mugo', refs: 12 }, { name: 'Agnes Wangari', refs: 11 },
-            { name: 'Brian Koskei', refs: 10 }, { name: 'Cynthia Auma', refs: 9 }, { name: 'Felix Mutua', refs: 9 },
-            { name: 'Gloria Nduta', refs: 8 }, { name: 'Henry Simiyu', refs: 8 }, { name: 'Irene Moraa', refs: 7 },
-            { name: 'Joel Barasa', refs: 7 }, { name: 'Karen Njenga', refs: 6 }, { name: 'Leo Ayieko', refs: 6 },
-        ];
-
-        async function adminSeedContestFakes() {
-            if (!confirm('Seed 30 fake referral contest entries?')) return;
-            toast('Seeding…', 'ty', 6000);
-            const batch = db.batch();
-            CONTEST_FAKE_NAMES.forEach(function (f) {
-                batch.set(db.collection('contestFakes').doc(), { name: f.name, refs: f.refs, addedAt: FS().serverTimestamp() });
-            });
-            await batch.commit();
-            toast('✅ 30 fake entries added!');
-            loadAdminContest('fakes');
-        }
-
         function previewReplyImg(input) {
             const file = input.files[0]; if (!file) return;
             if (file.size > 800 * 1024) { toast('Max 800KB', 'tr'); return; }
@@ -20666,7 +20342,7 @@ async function refreshSavings() {
             const el=$('campaign-list'); if(!el) return; el.innerHTML='<div class="es">Loading campaigns…</div>';
             try{ const snap=await db.collection('campaigns').where('status','in',['active','closed']).get();
                 const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.status==='closed')-(b.status==='closed') || ((a.deadline?.seconds||0)-(b.deadline?.seconds||0)));
-                if(!list.length){ el.innerHTML='<div class="es">No campaigns are available right now.</div>'; return; }
+                if(!list.some(c=>c.status==='active')){ el.innerHTML='<div class="es">No active campaigns at the moment. Check back soon.</div>'; return; }
                 el.innerHTML=list.map(c=>{ const full=c.maxApplications && (c.applicationCount||0)>=c.maxApplications; const closed=c.status==='closed'; return `<div class="card" style="margin-bottom:12px;opacity:${closed?'.58':'1'}">
                     <div style="display:flex;justify-content:space-between;gap:10px"><div style="font-weight:800;font-size:1.05rem">${escapeHtml(c.title)}</div><span style="font-size:.72rem;color:var(--gold);font-weight:700">${escapeHtml(campaignType(c))}</span></div>
                     <div style="font-size:.84rem;color:var(--t2);line-height:1.45;margin:8px 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(c.description)}</div>
@@ -21297,64 +20973,6 @@ Prize: $${fmt(pool)}`);
             }
         }
 
-        // ════════════════════════════════════════════════════════
-        // REFERRAL CONTEST
-        // ════════════════════════════════════════════════════════
-        async function loadContest() {
-            try {
-                const snap = await db.collection('settings').doc('contest').get();
-                if (!snap.exists) return;
-                const d = snap.data();
-                const prizeEl = $('contest-prize'), endEl = $('contest-end');
-                if (prizeEl) prizeEl.textContent = '$' + fmt(d.prize || 0);
-                if (endEl) endEl.textContent = d.endDate || '—';
-                // Load leaderboard
-                const uSnap = await db.collection('users').limit(100).get();
-                const users = uSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() })).filter(u => !u.isAdmin && (u.referrals || []).length > 0);
-                users.sort((a, b) => (b.referrals?.length || 0) - (a.referrals?.length || 0));
-                const listEl = $('contest-lb'); if (!listEl) return;
-                if (!users.length) { listEl.innerHTML = '<div class="es">No referrals yet</div>'; return; }
-                listEl.innerHTML = users.slice(0, 10).map((u, i) => {
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
-                    return `<div class="lb-item"><div class="lb-rank ${i < 3 ? 'r' + (i + 1) : ''}">${medal}</div>
-        <div style="flex:1"><div style="font-weight:600;font-size:.88rem">${u.name}</div>
-        <div style="font-size:.72rem;color:var(--t3)">${(u.referrals || []).length} referrals</div></div></div>`;
-                }).join('');
-            } catch (e) { }
-        }
-        async function adminSaveContest() {
-            const prize = parseFloat($('ct-prize')?.value);
-            const endVal = $('ct-end')?.value;
-            if (!prize || !endVal) return toast('Fill in prize and end date', 'ty');
-            const endDate = firebase.firestore.Timestamp.fromDate(new Date(endVal));
-            const prev = await db.collection('contests').where('active', '==', true).get();
-            const batch = db.batch();
-            prev.docs.forEach(function (d) { batch.update(d.ref, { active: false }); });
-            batch.set(db.collection('contests').doc(), { active: true, prize, endDate, startedAt: FS().serverTimestamp() });
-            await batch.commit();
-            toast('Contest saved ✓'); loadContest(); loadAdminContest('live');
-        }
-        async function adminEndContest() {
-            if (!confirm('End contest and pay the winner now?')) return;
-            try {
-                const uSnap = await db.collection('users').get();
-                const users = uSnap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(u => !u.isAdmin && (u.referrals || []).length > 0);
-                if (!users.length) return toast('No referrals yet', 'ty');
-                users.sort((a, b) => (b.referrals?.length || 0) - (a.referrals?.length || 0));
-                const winner = users[0];
-                const cSnap = await db.collection('settings').doc('contest').get();
-                const prize = cSnap.data()?.prize || 0;
-                await db.collection('users').doc(winner.uid).update({ balance: FS().increment(prize), totalEarned: FS().increment(prize) });
-                await logAct(winner.uid, `🏆 Referral contest winner! +$${fmt(prize)}`, prize, '🏆', 'other');
-                await db.collection('userNotifs').add({ uid: winner.uid, msg: `🏆 You won the referral contest! $${fmt(prize)} added to your balance!`, read: false, createdAt: FS().serverTimestamp() });
-                await db.collection('settings').doc('contest').update({ active: false, lastWinner: winner.name, lastPrize: prize });
-                tg(`🏆 <b>Contest Winner!</b>
-${winner.name} with ${(winner.referrals || []).length} referrals
-Prize: $${fmt(prize)}`);
-                toast(`🎉 Winner: ${winner.name} — $${fmt(prize)} paid!`);
-                loadAdminContest();
-            } catch (e) { toast('Error: ' + e.message, 'tr'); }
-        }
         function attachBirthdayKYCListeners() {
             // Birthday
             var editBtn = document.getElementById('bday-edit-btn');
