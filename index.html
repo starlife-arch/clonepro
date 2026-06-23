@@ -11,6 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-storage-compat.js"></script>
     <style>
         /* ============================================================
            DARK THEME (default) — pure black
@@ -6247,6 +6248,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             <div id="asset-p2p-list" class="asset-grid"><div class="es">Loading listings…</div></div>
         </div>
 
+
+        <!-- ═══ CAMPAIGNS ═══ -->
+        <div id="t-campaigns" class="itc" style="display:none;padding:0 14px 80px">
+            <div class="ptitle">🎗️ Campaigns</div>
+            <div class="psub">Apply for active community support campaigns.</div>
+            <div id="campaign-list"><div class="es">Loading campaigns…</div></div>
+        </div>
+
         <div class="bnav">
             <div class="bi on" id="bi-home" onclick="tab('home')"><span class="ico">🏠</span>Home</div>
             <div class="bi" id="bi-invest" onclick="tab('invest')"><span class="ico">📈</span>Invest</div>
@@ -6258,6 +6267,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         <!-- MORE MENU -->
         <div id="more-menu"
             style="display:none;position:fixed;bottom:65px;right:12px;z-index:400;background:var(--s1);border:1px solid var(--bds);border-radius:var(--r);padding:8px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+            <div class="more-item" onclick="tab('campaigns');loadCampaigns();hideMore()">🎗️ Campaigns</div>
             <div class="more-item" onclick="tab('surveys');hideMore()">📝 Surveys</div>
             <div class="more-item" onclick="tab('p2p-assets');loadP2PMarketplace();hideMore()">🤝 Member Marketplace</div>
             <div class="more-item" onclick="tab('savings');hideMore()">🏦 Savings Wallet</div>
@@ -7023,6 +7033,36 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             </div>
         </div>
 
+
+            <div id="at-campaigns" class="atab">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+                    <div style="font-weight:700">🎗️ Campaigns</div>
+                    <button class="btn btn-p btn-sm" onclick="adminShowCampaignForm()">+ New Campaign</button>
+                </div>
+                <div id="admin-campaign-form" class="card" style="display:none;margin-bottom:14px">
+                    <input type="hidden" id="camp-id">
+                    <div class="fg"><label class="fl">Title *</label><input class="fi" id="camp-title" placeholder="Student Support Fund — July 2025"></div>
+                    <div class="fg"><label class="fl">Description *</label><textarea class="fi" id="camp-desc" rows="5"></textarea></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                        <div class="fg"><label class="fl">Campaign Type *</label><select class="fi" id="camp-type" onchange="$('camp-custom-wrap').style.display=this.value==='Other'?'block':'none'"><option>Student Support</option><option>Food Aid</option><option>Family Assistance</option><option>Community Trip</option><option>Other</option></select></div>
+                        <div class="fg" id="camp-custom-wrap" style="display:none"><label class="fl">Custom Type *</label><input class="fi" id="camp-custom"></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                        <div class="fg"><label class="fl">Application Deadline *</label><input class="fi" id="camp-deadline" type="date"></div>
+                        <div class="fg"><label class="fl">Max Applications</label><input class="fi" id="camp-max" type="number" min="1" placeholder="Unlimited"></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                        <div class="fg"><label class="fl">Allow Video Links</label><select class="fi" id="camp-video"><option value="true">Yes</option><option value="false">No</option></select></div>
+                        <div class="fg"><label class="fl">Allow Image Uploads</label><select class="fi" id="camp-images"><option value="true">Yes</option><option value="false">No</option></select></div>
+                        <div class="fg"><label class="fl">Status</label><select class="fi" id="camp-status"><option value="draft">Draft</option><option value="active">Active</option><option value="closed">Closed</option></select></div>
+                    </div>
+                    <div class="fg"><label class="fl">Internal Notes</label><textarea class="fi" id="camp-notes" rows="3"></textarea></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p" onclick="adminSaveCampaign()">💾 Save Campaign</button><button class="btn btn-gh" onclick="adminResetCampaignForm()">Cancel</button></div>
+                </div>
+                <div id="admin-campaign-list"><div class="es">Loading campaigns…</div></div>
+                <div id="admin-campaign-apps" class="card" style="display:none;margin-top:14px"></div>
+            </div>
+
         <div id="at-security" class="atab">
             <div style="font-weight:700;margin-bottom:12px">🛡️ Security Center</div>
             <div class="card" style="margin-bottom:14px">
@@ -7468,6 +7508,13 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
      MODALS
 ══════════════════════════════════════════ -->
     <!-- Adjust Balance -->
+
+    <div class="mover" id="m-campaign-apply">
+        <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+            <div id="campaign-modal-body"><div class="es">Loading…</div></div>
+        </div>
+    </div>
+
     <div class="mover" id="m-adjust">
         <div class="modal">
             <div class="modal-title">Adjust User Balance</div>
@@ -8181,6 +8228,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         firebase.initializeApp(FIREBASE_CONFIG);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        const storage = firebase.storage();
 
         // ════════════════════════════════════════════════════════
         // HELPERS
@@ -12186,7 +12234,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         const ADMIN_ROLES = {
             superadmin: {
                 label: '⭐ Super Admin', color: 'var(--gold)',
-                tabs: ['investments', 'deposits', 'withdrawals', 'users', 'kyc', 'stakes', 'loans', 'tickets', 'surveys', 'redemptions', 'activity', 'virtualcards', 'revenue', 'analytics', 'security', 'maintenance', 'testi', 'prizecodes', 'luckydraw', 'contest', 'p2p', 'broadcast', 'targeted', 'moving', 'ads', 'admins', 'promocodes', 'fees', 'accounts', 'cancelrequests', 'tokens', 'gifts', 'paiddm', 'official']
+                tabs: ['investments', 'deposits', 'withdrawals', 'users', 'kyc', 'campaigns', 'stakes', 'loans', 'tickets', 'surveys', 'redemptions', 'activity', 'virtualcards', 'revenue', 'analytics', 'security', 'maintenance', 'testi', 'prizecodes', 'luckydraw', 'contest', 'p2p', 'broadcast', 'targeted', 'moving', 'ads', 'admins', 'promocodes', 'fees', 'accounts', 'cancelrequests', 'tokens', 'gifts', 'paiddm', 'official']
             },
             finance: {
                 label: '💰 Finance', color: 'var(--g)',
@@ -12242,6 +12290,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             gifts: () => loadAdminGifts(),
             paiddm: () => loadAdminPaidDM(),
             official: () => loadAdminOfficialChannels(),
+            campaigns: () => loadAdminCampaigns(),
         };
 
         const ALL_ADMIN_TABS = [
@@ -12250,6 +12299,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             { id: 'withdrawals', label: 'Withdrawals' },
             { id: 'users', label: 'Users' },
             { id: 'kyc', label: '🪪 KYC' },
+            { id: 'campaigns', label: '🎗️ Campaigns' },
             { id: 'stakes', label: 'Stakes' },
             { id: 'loans', label: 'Loans' },
             { id: 'tickets', label: 'Tickets' },
@@ -20604,6 +20654,51 @@ async function refreshSavings() {
             if (id === 'ab-testi') loadTestimonials();
         }
 
+
+        // ════════════════════════════════════════════════════════
+        // CAMPAIGNS FEATURE
+        // ════════════════════════════════════════════════════════
+        let _campaigns = [], _campaignApps = [], _activeCampaign = null, _campaignUploadUrls = [];
+        function campaignType(c){ return c.type === 'Other' && c.customType ? c.customType : (c.customType || c.type || 'Campaign'); }
+        function campaignDeadline(c){ return fmtD(c.deadline); }
+        function campaignStatusBadge(st){ const color = st === 'selected' ? 'var(--g)' : st === 'rejected' ? 'var(--red)' : st === 'closed' ? 'var(--t3)' : st === 'active' ? 'var(--g)' : 'var(--t2)'; return `<span style="color:${color};font-weight:700;text-transform:capitalize">${st||'pending'}</span>`; }
+        async function loadCampaigns(){
+            const el=$('campaign-list'); if(!el) return; el.innerHTML='<div class="es">Loading campaigns…</div>';
+            try{ const snap=await db.collection('campaigns').where('status','in',['active','closed']).get();
+                const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.status==='closed')-(b.status==='closed') || ((a.deadline?.seconds||0)-(b.deadline?.seconds||0)));
+                if(!list.length){ el.innerHTML='<div class="es">No campaigns are available right now.</div>'; return; }
+                el.innerHTML=list.map(c=>{ const full=c.maxApplications && (c.applicationCount||0)>=c.maxApplications; const closed=c.status==='closed'; return `<div class="card" style="margin-bottom:12px;opacity:${closed?'.58':'1'}">
+                    <div style="display:flex;justify-content:space-between;gap:10px"><div style="font-weight:800;font-size:1.05rem">${escapeHtml(c.title)}</div><span style="font-size:.72rem;color:var(--gold);font-weight:700">${escapeHtml(campaignType(c))}</span></div>
+                    <div style="font-size:.84rem;color:var(--t2);line-height:1.45;margin:8px 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(c.description)}</div>
+                    <div style="font-size:.76rem;color:var(--t3);margin-bottom:10px">Closes ${campaignDeadline(c)} ${c.maxApplications?` · ${(c.applicationCount||0)} / ${c.maxApplications} applied`:''}</div>
+                    ${closed?'<div class="btn btn-gh btn-sm" style="pointer-events:none">Closed</div>': full?'<div class="btn btn-gh btn-sm" style="pointer-events:none">Applications Full</div>':`<button class="btn btn-p btn-sm" onclick="openCampaignApplication('${c.id}')">Apply / View</button>`}
+                </div>`; }).join('');
+            }catch(e){ console.error(e); el.innerHTML='<div class="es">Could not load campaigns. Please try again.</div>'; }
+        }
+        async function openCampaignApplication(id){
+            openModal('m-campaign-apply'); const body=$('campaign-modal-body'); body.innerHTML='<div class="es">Loading…</div>';
+            try{ const cs=await db.collection('campaigns').doc(id).get(); if(!cs.exists) throw new Error('Campaign not found'); const c={id:cs.id,...cs.data()}; _activeCampaign=c;
+                const appId=id+'_'+window.CU.uid; const as=await db.collection('campaignApplications').doc(appId).get();
+                if(as.exists){ const a=as.data(); body.innerHTML=`<div class="modal-title">${escapeHtml(c.title)}</div><div style="margin-bottom:8px">Status: ${campaignStatusBadge(a.status)}</div><div class="card" style="white-space:pre-wrap">${escapeHtml(a.submissionText)}</div>${(a.videoLinks||[]).map(v=>`<div><a href="${escapeAttr(v)}" target="_blank">${escapeHtml(v)}</a></div>`).join('')}${(a.imageUrls||[]).map(u=>`<a href="${escapeAttr(u)}" target="_blank"><img src="${escapeAttr(u)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;margin:6px"></a>`).join('')}<div class="es">${a.status==='selected'?'Congratulations! The platform team will be in touch with next steps.':a.status==='rejected'?'Unfortunately you were not selected this time. We encourage you to apply to future campaigns.':'Your application is pending review.'}</div><div class="modal-acts"><button class="btn btn-gh" onclick="closeModal('m-campaign-apply')">Close</button></div>`; return; }
+                _campaignUploadUrls=[]; body.innerHTML=`<div class="modal-title">${escapeHtml(c.title)}</div><div style="font-size:.78rem;color:var(--t3);margin-bottom:10px">${escapeHtml(campaignType(c))} · Closes ${campaignDeadline(c)}</div><div style="max-height:180px;overflow:auto;white-space:pre-wrap;line-height:1.5;margin-bottom:12px">${escapeHtml(c.description)}</div><div class="fg"><label class="fl">Why should you be selected? *</label><textarea class="fi" id="ca-text" rows="6" oninput="updateCampaignCounter()"></textarea><div id="ca-count" style="font-size:.72rem;color:var(--t3)">0 / 50 minimum</div></div>${c.allowVideoLinks?'<div class="fg"><label class="fl">Video Links</label><input class="fi ca-video" placeholder="Video Link 1"><input class="fi ca-video" placeholder="Video Link 2" style="margin-top:6px"><input class="fi ca-video" placeholder="Video Link 3" style="margin-top:6px"><div style="font-size:.72rem;color:var(--t3)">YouTube, Vimeo, or any public video link</div></div>':''}${c.allowImageUploads?'<div class="fg"><label class="fl">Image Uploads (up to 5)</label><input class="fi" id="ca-images" type="file" accept="image/*" multiple onchange="uploadCampaignImages(this.files)"><div id="ca-upload-progress" style="font-size:.75rem;color:var(--t2)"></div></div>':''}<div class="modal-acts"><button class="btn btn-p" id="ca-submit" onclick="submitCampaignApplication()" disabled>Submit Application</button><button class="btn btn-gh" onclick="closeModal('m-campaign-apply')">Cancel</button></div>`;
+            }catch(e){ console.error(e); body.innerHTML='<div class="es">Unable to open campaign.</div>'; }
+        }
+        function updateCampaignCounter(){ const n=($('ca-text')?.value||'').trim().length; $('ca-count').textContent=n+' / 50 minimum'; $('ca-submit').disabled=n<50; }
+        async function uploadCampaignImages(files){ const out=$('ca-upload-progress'); _campaignUploadUrls=[]; const arr=[...files].slice(0,5); for(const f of arr){ if(!f.type.startsWith('image/')){ out.innerHTML+='Wrong type: '+escapeHtml(f.name)+'<br>'; continue;} if(f.size>5*1024*1024){ out.innerHTML+='Too large: '+escapeHtml(f.name)+'<br>'; continue;} const path=`campaignApplications/${_activeCampaign.id}/${window.CU.uid}/${Date.now()}_${f.name}`; const task=storage.ref(path).put(f); await new Promise((res,rej)=>task.on('state_changed',s=>{out.textContent=`Uploading ${f.name}: ${Math.round(s.bytesTransferred/s.totalBytes*100)}%`;},rej,res)); _campaignUploadUrls.push(await task.snapshot.ref.getDownloadURL()); } out.textContent=_campaignUploadUrls.length+' image(s) uploaded'; }
+        async function submitCampaignApplication(){ const c=_activeCampaign, text=($('ca-text').value||'').trim(); if(text.length<50) return toast('Enter at least 50 characters','ty'); const videos=[...document.querySelectorAll('.ca-video')].map(i=>i.value.trim()).filter(Boolean).slice(0,3); const appId=c.id+'_'+window.CU.uid; try{ await db.runTransaction(async tr=>{ const cr=db.collection('campaigns').doc(c.id), ar=db.collection('campaignApplications').doc(appId); const cs=await tr.get(cr); const as=await tr.get(ar); if(as.exists) throw new Error('You have already applied'); const cd=cs.data(); if(cd.maxApplications && (cd.applicationCount||0)>=cd.maxApplications) throw new Error('Applications are full'); tr.set(ar,{campaignId:c.id,userId:window.CU.uid,userName:window.CU.name||'',memberId:window.CU.memberId||'',submissionText:text,videoLinks:videos,imageUrls:_campaignUploadUrls,status:'pending',adminNote:'',submittedAt:FS().serverTimestamp()}); tr.update(cr,{applicationCount:FS().increment(1)}); }); toast('Application submitted ✓'); openCampaignApplication(c.id); }catch(e){ toast(e.message||'Submit failed','tr'); }}
+        async function loadAdminCampaigns(){ const el=$('admin-campaign-list'); if(!el) return; el.innerHTML='<div class="es">Loading campaigns…</div>'; const snap=await db.collection('campaigns').get(); _campaigns=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)); el.innerHTML=_campaigns.length?_campaigns.map(c=>`<div class="arow"><div><b>${escapeHtml(c.title)}</b><br><span style="font-size:.75rem;color:var(--t3)">${escapeHtml(campaignType(c))} · ${campaignStatusBadge(c.status)} · Deadline ${campaignDeadline(c)} · Apps ${c.applicationCount||0} · Created ${fmtD(c.createdAt)}</span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-gh btn-sm" onclick="adminEditCampaign('${c.id}')">Edit</button><select class="fi" style="width:auto" onchange="adminChangeCampaignStatus('${c.id}',this.value)"><option ${c.status==='draft'?'selected':''} value="draft">Draft</option><option ${c.status==='active'?'selected':''} value="active">Active</option><option ${c.status==='closed'?'selected':''} value="closed">Closed</option></select><button class="btn btn-p btn-sm" onclick="adminViewCampaignApps('${c.id}')">View Applications</button><button class="btn btn-d btn-sm" onclick="adminDeleteCampaign('${c.id}',${c.applicationCount||0})">Delete</button></div></div>`).join(''):'<div class="es">No campaigns yet.</div>'; }
+        function adminShowCampaignForm(){ $('admin-campaign-form').style.display='block'; } function adminResetCampaignForm(){ ['camp-id','camp-title','camp-desc','camp-custom','camp-deadline','camp-max','camp-notes'].forEach(id=>$(id).value=''); $('camp-status').value='draft'; $('camp-video').value='true'; $('camp-images').value='true'; $('admin-campaign-form').style.display='none'; }
+        function adminEditCampaign(id){ const c=_campaigns.find(x=>x.id===id); if(!c)return; adminShowCampaignForm(); $('camp-id').value=id; $('camp-title').value=c.title||''; $('camp-desc').value=c.description||''; $('camp-type').value=c.type||'Student Support'; $('camp-custom').value=c.customType||''; $('camp-custom-wrap').style.display=$('camp-type').value==='Other'?'block':'none'; $('camp-deadline').value=c.deadline?new Date((c.deadline.seconds?c.deadline.seconds*1000:c.deadline)).toISOString().slice(0,10):''; $('camp-max').value=c.maxApplications||''; $('camp-video').value=String(c.allowVideoLinks!==false); $('camp-images').value=String(c.allowImageUploads!==false); $('camp-status').value=c.status||'draft'; $('camp-notes').value=c.internalNotes||''; }
+        async function adminSaveCampaign(){ const id=$('camp-id').value, type=$('camp-type').value; if(!$('camp-title').value.trim()||!$('camp-desc').value.trim()||!$('camp-deadline').value) return toast('Required fields missing','ty'); const data={title:$('camp-title').value.trim(),description:$('camp-desc').value.trim(),type,customType:type==='Other'?$('camp-custom').value.trim():'',deadline:firebase.firestore.Timestamp.fromDate(new Date($('camp-deadline').value+'T23:59:59')),maxApplications:$('camp-max').value?Number($('camp-max').value):null,allowVideoLinks:$('camp-video').value==='true',allowImageUploads:$('camp-images').value==='true',status:$('camp-status').value,internalNotes:$('camp-notes').value.trim(),updatedAt:FS().serverTimestamp()}; if(id) await db.collection('campaigns').doc(id).set(data,{merge:true}); else await db.collection('campaigns').add({...data,applicationCount:0,createdAt:FS().serverTimestamp(),createdBy:window.CU?.uid||'admin'}); toast('Campaign saved ✓'); adminResetCampaignForm(); loadAdminCampaigns(); }
+        async function adminChangeCampaignStatus(id,status){ await db.collection('campaigns').doc(id).update({status,updatedAt:FS().serverTimestamp()}); toast('Status updated'); loadAdminCampaigns(); }
+        async function adminDeleteCampaign(id,count){ if(count>0) return toast('Only campaigns with zero applications can be deleted','tr'); if(confirm('Delete campaign?')){ await db.collection('campaigns').doc(id).delete(); loadAdminCampaigns(); }}
+        async function adminViewCampaignApps(id){ const c=_campaigns.find(x=>x.id===id); const el=$('admin-campaign-apps'); el.style.display='block'; el.innerHTML='<div class="es">Loading applications…</div>'; const snap=await db.collection('campaignApplications').where('campaignId','==',id).get(); _campaignApps=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0)); el.innerHTML=`<div style="font-weight:700;margin-bottom:8px">Applications — ${escapeHtml(c?.title||'Campaign')}</div>`+(_campaignApps.length?_campaignApps.map(a=>`<div class="arow" onclick="adminOpenCampaignApp('${a.id}','${id}')" style="cursor:pointer"><b>${escapeHtml(a.userName||'Applicant')}</b><br><span style="font-size:.75rem;color:var(--t3)">${escapeHtml(a.memberId||'—')} · ${fmtDT(a.submittedAt)} · ${campaignStatusBadge(a.status)}</span></div>`).join(''):'<div class="es">No applications yet.</div>'); }
+        function adminOpenCampaignApp(appId,cid){ const a=_campaignApps.find(x=>x.id===appId), c=_campaigns.find(x=>x.id===cid); if(!a)return; const el=$('admin-campaign-apps'); el.innerHTML=`<button class="btn btn-gh btn-sm" onclick="adminViewCampaignApps('${cid}')">← Back</button><div class="card" style="margin-top:10px"><div style="font-weight:800">${escapeHtml(a.userName)} (${escapeHtml(a.memberId||'—')})</div><div style="margin:8px 0">Status: ${campaignStatusBadge(a.status)} · Submitted ${fmtDT(a.submittedAt)}</div><div style="white-space:pre-wrap;line-height:1.5">${escapeHtml(a.submissionText)}</div>${(a.videoLinks||[]).map(v=>`<div><a href="${escapeAttr(v)}" target="_blank">${escapeHtml(v)}</a></div>`).join('')}${(a.imageUrls||[]).map(u=>`<a href="${escapeAttr(u)}" target="_blank"><img src="${escapeAttr(u)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;margin:6px"></a>`).join('')}<div class="fg"><label class="fl">Internal Note</label><textarea class="fi" id="admin-app-note" rows="3">${escapeHtml(a.adminNote||'')}</textarea></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','selected')">Select</button><button class="btn btn-d btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','rejected')">Reject</button><button class="btn btn-gh btn-sm" onclick="adminSaveCampaignAppNote('${appId}','${cid}')">Save Note</button></div></div>`; }
+        async function adminSaveCampaignAppNote(appId,cid){ await db.collection('campaignApplications').doc(appId).update({adminNote:$('admin-app-note').value}); toast('Note saved'); adminViewCampaignApps(cid); }
+        async function adminSetCampaignAppStatus(appId,cid,status){ const a=_campaignApps.find(x=>x.id===appId), c=_campaigns.find(x=>x.id===cid); const selected=status==='selected'; await db.collection('campaignApplications').doc(appId).update({status,adminNote:$('admin-app-note')?.value||'',reviewedAt:FS().serverTimestamp(),reviewedBy:window.CU?.uid||'admin'}); const msg=selected?`Congratulations! You have been selected for ${c.title}. The platform team will be in touch with next steps.`:`Thank you for applying to ${c.title}. Unfortunately you were not selected this time. We encourage you to apply to future campaigns.`; await db.collection('userNotifs').add({uid:a.userId,msg,read:false,createdAt:FS().serverTimestamp()}); const us=await db.collection('users').doc(a.userId).get(); sendTransactionalEmail(selected?'campaign_selected':'campaign_rejected', us.data()?.email||'', {name:a.userName,campaignTitle:c.title,message:msg}); toast('Applicant notified'); adminViewCampaignApps(cid); }
+        function escapeHtml(v){ return String(v??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); } function escapeAttr(v){ return escapeHtml(v).replace(/'/g,'&#39;'); }
+
+
         // ════════════════════════════════════════════════════════
         // TAB LOAD HOOKS
         // ════════════════════════════════════════════════════════
@@ -20633,6 +20728,7 @@ async function refreshSavings() {
             }
             if (name === 'messages') { loadDMList(); }
             if (name === 'support') { loadMyTickets(); loadFAQ(); }
+            if (name === 'campaigns') { loadCampaigns(); }
             if (name === 'tokens') { refreshTokenGiftBalances(); loadTokenLogs(); }
             if (name === 'my-cards') { loadMyCards(); }
             if (name === 'gifts') { refreshTokenGiftBalances(); loadGiftLogs(); }
