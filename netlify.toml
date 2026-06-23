@@ -1,0 +1,14 @@
+[build]
+  publish = "/"
+
+[functions]
+  node_bundler = "esbuild"
+  directory = "netlify/functions"
+
+[functions."apply-loan-penalties"]
+  schedule = "@daily"
+
+[[redirects]]
+  from = "/pesapal-callback"
+  to = "/index.html"
+  status = 200
