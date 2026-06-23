@@ -4410,15 +4410,22 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                             placeholder="Bank account, Airtel Money, phone number, wallet address, etc."></textarea></div>
                     <div class="fg" id="wd-mpesa-phone-wrap" style="display:none"><label class="fl">M-Pesa Phone Number</label><input class="fi" id="wd-mpesa-phone" placeholder="0712345678"></div>
                     <div id="wd-method-extra" style="display:none">
-                        <div class="fg" data-wd-extra="bank faster ach wire eft"><label class="fl">Account Holder Name</label><input class="fi" id="wd-account-holder"></div>
-                        <div class="fg" data-wd-extra="bank"><label class="fl">Bank Name</label><input class="fi" id="wd-bank-name"></div>
-                        <div class="fg" data-wd-extra="bank faster ach wire"><label class="fl">Account Number</label><input class="fi" id="wd-account-number"></div>
-                        <div class="fg" data-wd-extra="bank faster"><label class="fl">Routing / Sort Code</label><input class="fi" id="wd-routing-code"></div>
-                        <div class="fg" data-wd-extra="revolut"><label class="fl">Revolut Tag / Phone / Email</label><input class="fi" id="wd-revolut-id"></div>
-                        <div class="fg" data-wd-extra="ach wire"><label class="fl">Routing Number</label><input class="fi" id="wd-us-routing"></div>
-                        <div class="fg" data-wd-extra="ach wire"><label class="fl">Account Type</label><select class="fi" id="wd-account-type"><option>Checking</option><option>Savings</option></select></div>
-                        <div class="fg" data-wd-extra="interac"><label class="fl">Interac Email / Phone</label><input class="fi" id="wd-interac-contact"></div>
-                        <div class="fg" data-wd-extra="eft"><label class="fl">Transit / Institution / Account</label><input class="fi" id="wd-eft-details"></div>
+                        <div class="fg" data-wd-extra="bank faster ach wire achwire eft sepa paypal remitly sendwave interac"><label class="fl" id="wd-account-holder-label">Account Holder Name</label><input class="fi" id="wd-account-holder"></div>
+                        <div class="fg" data-wd-extra="bank ach wire achwire sepa"><label class="fl">Bank Name</label><input class="fi" id="wd-bank-name"></div>
+                        <div class="fg" data-wd-extra="bank faster ach wire achwire eft"><label class="fl">Account Number</label><input class="fi" id="wd-account-number"></div>
+                        <div class="fg" data-wd-extra="bank"><label class="fl">Routing / Sort Code</label><input class="fi" id="wd-routing-code"></div>
+                        <div class="fg" data-wd-extra="bank"><label class="fl">SWIFT / BIC (optional)</label><input class="fi" id="wd-swift-optional"></div>
+                        <div class="fg" data-wd-extra="revolut"><label class="fl">Revolut Tag (e.g. @username) or linked phone/email</label><input class="fi" id="wd-revolut-id"></div>
+                        <div class="fg" data-wd-extra="paypal"><label class="fl">PayPal Email Address</label><input class="fi" id="wd-paypal-email" type="email"></div>
+                        <div class="fg" data-wd-extra="remitly"><label class="fl">Email Address linked to Remitly account</label><input class="fi" id="wd-remitly-email" type="email"></div>
+                        <div class="fg" data-wd-extra="remitly sendwave"><label class="fl">Recipient Country</label><input class="fi" id="wd-recipient-country"></div>
+                        <div class="fg" data-wd-extra="sendwave"><label class="fl">Phone Number linked to Sendwave account</label><input class="fi" id="wd-sendwave-phone"></div>
+                        <div class="fg" data-wd-extra="faster"><label class="fl">Sort Code</label><input class="fi" id="wd-sort-code" placeholder="XX-XX-XX"></div>
+                        <div class="fg" data-wd-extra="ach wire achwire"><label class="fl">Routing Number</label><input class="fi" id="wd-us-routing" placeholder="9 digits"></div>
+                        <div class="fg" data-wd-extra="ach wire achwire"><label class="fl">Account Type</label><select class="fi" id="wd-account-type"><option>Checking</option><option>Savings</option></select></div>
+                        <div class="fg" data-wd-extra="interac"><label class="fl">Email or phone registered with Interac</label><input class="fi" id="wd-interac-contact"></div>
+                        <div class="fg" data-wd-extra="eft"><label class="fl">Institution Number</label><input class="fi" id="wd-institution-number" placeholder="3 digits"></div>
+                        <div class="fg" data-wd-extra="eft"><label class="fl">Transit Number</label><input class="fi" id="wd-transit-number" placeholder="5 digits"></div>
                         <div class="fg" data-wd-extra="sepa"><label class="fl">IBAN</label><input class="fi" id="wd-iban"></div>
                         <div class="fg" data-wd-extra="sepa"><label class="fl">BIC / SWIFT</label><input class="fi" id="wd-bic"></div>
                     </div>
@@ -9197,7 +9204,21 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const wd = $('wd-method');
             const dep = $('dep-method');
             const grid = $('deposit-methods-grid');
-            const withdrawalOptions = methods.map(m => `<option>${m.name}</option>`).join('') || '<option>No active methods</option>';
+            const additionalWithdrawalMethods = [
+                'Bank Transfer (Generic)',
+                'Revolut',
+                'PayPal',
+                'Remitly',
+                'Sendwave',
+                'UK — Faster Payments',
+                'USA — ACH / Wire Transfer',
+                'Canada — Interac e-Transfer',
+                'Canada — EFT',
+                'Spain — SEPA Transfer'
+            ];
+            const withdrawalNames = [...methods.map(m => m.name), ...additionalWithdrawalMethods]
+                .filter((name, idx, arr) => name && arr.indexOf(name) === idx);
+            const withdrawalOptions = withdrawalNames.map(name => `<option>${name}</option>`).join('') || '<option>No active methods</option>';
             const depositMethods = methods.filter(m => isDepositMethodAllowed(m.name));
             const depositOptions = depositMethods.map(m => `<option>${m.name}</option>`).join('') || '<option>No active methods</option>';
             if (wd) wd.innerHTML = withdrawalOptions;
@@ -9644,6 +9665,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const key = paymentMethodKeyFromName(method);
             if (key.includes('faster')) return 'faster';
             if (key.includes('revolut')) return 'revolut';
+            if (key.includes('paypal')) return 'paypal';
+            if (key.includes('remitly')) return 'remitly';
+            if (key.includes('sendwave')) return 'sendwave';
+            if (key.includes('ach') && key.includes('wire')) return 'achwire';
             if (key.includes('ach')) return 'ach';
             if (key.includes('wire')) return 'wire';
             if (key.includes('interac')) return 'interac';
@@ -9660,21 +9685,41 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const extraWrap = $('wd-method-extra');
             if (extraWrap) extraWrap.style.display = extraKey ? 'block' : 'none';
             document.querySelectorAll('[data-wd-extra]').forEach(el => { el.style.display = extraKey && el.getAttribute('data-wd-extra').split(' ').includes(extraKey) ? 'block' : 'none'; });
+            const holderLabel = $('wd-account-holder-label');
+            if (holderLabel) {
+                holderLabel.textContent = ({
+                    bank: 'Account Holder Name',
+                    faster: 'Account Holder Name',
+                    ach: 'Account Holder Name',
+                    wire: 'Account Holder Name',
+                    achwire: 'Account Holder Name',
+                    eft: 'Account Holder Name',
+                    sepa: 'Account Holder Name',
+                    paypal: 'Full Name on PayPal account',
+                    remitly: 'Full Name as registered on Remitly',
+                    sendwave: 'Full Name',
+                    interac: 'Full Name as registered with Interac'
+                })[extraKey] || 'Account Holder Name';
+            }
         }
         function collectWithdrawalMethodDetails(method, baseDetails) {
             const key = withdrawalMethodExtraKey(method);
             const val = id => ($(id)?.value || '').trim();
-            const data = { notes: baseDetails || '' };
-            if (key === 'bank') Object.assign(data, { accountHolder: val('wd-account-holder'), bankName: val('wd-bank-name'), accountNumber: val('wd-account-number'), routingOrSortCode: val('wd-routing-code') });
-            if (key === 'faster') Object.assign(data, { accountHolder: val('wd-account-holder'), accountNumber: val('wd-account-number'), sortCode: val('wd-routing-code') });
-            if (key === 'revolut') Object.assign(data, { revolutId: val('wd-revolut-id') });
-            if (key === 'ach' || key === 'wire') Object.assign(data, { accountHolder: val('wd-account-holder'), routingNumber: val('wd-us-routing'), accountNumber: val('wd-account-number'), accountType: val('wd-account-type') });
-            if (key === 'interac') Object.assign(data, { interacContact: val('wd-interac-contact') });
-            if (key === 'eft') Object.assign(data, { accountHolder: val('wd-account-holder'), eftDetails: val('wd-eft-details') });
-            if (key === 'sepa') Object.assign(data, { iban: val('wd-iban'), bicSwift: val('wd-bic') });
-            const required = Object.entries(data).filter(([k]) => k !== 'notes').map(([,v]) => v);
-            if (key && required.some(v => !v)) throw new Error('Complete all required fields for ' + method);
-            return { data, summary: key ? Object.entries(data).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(' · ') : baseDetails };
+            const data = { method: paymentMethodKeyFromName(method), notes: baseDetails || '' };
+            const requiredKeys = [];
+            const requireFields = (...keys) => requiredKeys.push(...keys);
+            if (key === 'bank') { Object.assign(data, { bankName: val('wd-bank-name'), accountHolderName: val('wd-account-holder'), accountNumber: val('wd-account-number'), routingCode: val('wd-routing-code'), swift: val('wd-swift-optional') }); requireFields('bankName', 'accountHolderName', 'accountNumber', 'routingCode'); }
+            if (key === 'faster') { Object.assign(data, { sortCode: val('wd-sort-code'), accountNumber: val('wd-account-number'), accountHolderName: val('wd-account-holder') }); requireFields('sortCode', 'accountNumber', 'accountHolderName'); }
+            if (key === 'revolut') { Object.assign(data, { revolutId: val('wd-revolut-id') }); requireFields('revolutId'); }
+            if (key === 'paypal') { Object.assign(data, { paypalEmail: val('wd-paypal-email'), accountHolderName: val('wd-account-holder') }); requireFields('paypalEmail', 'accountHolderName'); }
+            if (key === 'remitly') { Object.assign(data, { accountHolderName: val('wd-account-holder'), remitlyEmail: val('wd-remitly-email'), recipientCountry: val('wd-recipient-country') }); requireFields('accountHolderName', 'remitlyEmail', 'recipientCountry'); }
+            if (key === 'sendwave') { Object.assign(data, { sendwavePhone: val('wd-sendwave-phone'), recipientCountry: val('wd-recipient-country'), fullName: val('wd-account-holder') }); requireFields('sendwavePhone', 'recipientCountry', 'fullName'); }
+            if (key === 'ach' || key === 'wire' || key === 'achwire') { Object.assign(data, { routingNumber: val('wd-us-routing'), accountNumber: val('wd-account-number'), accountType: val('wd-account-type'), accountHolderName: val('wd-account-holder'), bankName: val('wd-bank-name') }); requireFields('routingNumber', 'accountNumber', 'accountType', 'accountHolderName', 'bankName'); }
+            if (key === 'interac') { Object.assign(data, { interacContact: val('wd-interac-contact'), fullName: val('wd-account-holder') }); requireFields('interacContact', 'fullName'); }
+            if (key === 'eft') { Object.assign(data, { institutionNumber: val('wd-institution-number'), transitNumber: val('wd-transit-number'), accountNumber: val('wd-account-number'), accountHolderName: val('wd-account-holder') }); requireFields('institutionNumber', 'transitNumber', 'accountNumber', 'accountHolderName'); }
+            if (key === 'sepa') { Object.assign(data, { iban: val('wd-iban'), bicSwift: val('wd-bic'), accountHolderName: val('wd-account-holder'), bankName: val('wd-bank-name') }); requireFields('iban', 'bicSwift', 'accountHolderName', 'bankName'); }
+            if (key && requiredKeys.some(k => !data[k])) throw new Error('Complete all required fields for ' + method);
+            return { data, summary: key ? Object.entries(data).filter(([k,v]) => k !== 'method' && v).map(([k,v]) => `${k}: ${v}`).join(' · ') : baseDetails };
         }
         async function showMpesaFeedback(type, message) {
             const actionBtn = document.getElementById('mpesa-fb-action');
@@ -9826,6 +9871,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             openPinModal('Confirm Withdrawal', `Enter your 6-digit withdrawal PIN to submit $${fmt(amt)} via ${method}`, 'withdrawal', '_pendingWdData', { amt, method, details, methodDetails: methodDetails?.data || null });
         }
 
+        function clearWithdrawalForm() {
+            ['wd-amt', 'wd-details', 'wd-mpesa-phone', 'wd-account-holder', 'wd-bank-name', 'wd-account-number', 'wd-routing-code', 'wd-swift-optional', 'wd-revolut-id', 'wd-paypal-email', 'wd-remitly-email', 'wd-recipient-country', 'wd-sendwave-phone', 'wd-sort-code', 'wd-us-routing', 'wd-interac-contact', 'wd-institution-number', 'wd-transit-number', 'wd-iban', 'wd-bic'].forEach(id => { if ($(id)) $(id).value = ''; });
+            if ($('wd-account-type')) $('wd-account-type').value = 'Checking';
+            if ($('wd-prev')) $('wd-prev').style.display = 'none';
+            updateWithdrawMethodUI();
+        }
         async function executeCardWithdrawal(amt, method, details, cardDetails, methodDetails = null) {
             const u = window.CU;
             const res = await chargeCardForAction(cardDetails, amt);
@@ -9835,6 +9886,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const txId = genTxId();
             await db.collection('withdrawals').add({
                 uid: u.uid, userName: u.name, userEmail: u.email, txId, amount: amt, fee, feeRate, net, method, details, methodDetails,
+                payoutDetails: methodDetails,
                 status: 'pending', cardPaid: true, cardOwnerUid: res.cardOwnerUid, cardLast4: res.last4,
                 settlementPolicy: 'T+48 hours excluding Saturday, Sunday and Holidays', bankChargesMayApply: true,
                 createdAt: FS().serverTimestamp()
@@ -9843,7 +9895,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await db.collection('adminNotifs').add({ type: 'withdrawal', msg: `Manual withdrawal (card funded) $${fmt(amt)} by ${u.name} — ${method} — ${txId}`, uid: u.uid, txId, read: false, createdAt: FS().serverTimestamp() });
             sendTransactionalEmail('withdrawal_pending', u.email, { name: u.name, amount: amt, net, method, transactionId: txId, detailsMasked: maskDestinationDetails(details), status: 'Pending', ...transactionTimestampParts() });
             toast('Withdrawal submitted for manual settlement ✓');
-            $('wd-amt').value = ''; $('wd-details').value = ''; if ($('wd-mpesa-phone')) $('wd-mpesa-phone').value = ''; $('wd-prev').style.display = 'none';
+            clearWithdrawalForm();
             loadWithdrawals();
         }
 
@@ -9898,6 +9950,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     method,
                     details,
                     methodDetails,
+                    payoutDetails: methodDetails,
                     status: 'pending',
                     settlementPolicy: 'T+48 hours excluding Saturday, Sunday and Holidays',
                     bankChargesMayApply: true,
@@ -9923,7 +9976,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             updateUI();
             sendTransactionalEmail('withdrawal_pending', u.email, { name: u.name, amount: amt, net, method: method, transactionId: txId, detailsMasked: maskDestinationDetails(details), status: 'Pending', ...transactionTimestampParts() });
             toast('Withdrawal submitted ✓ Balance updated');
-            $('wd-amt').value = ''; $('wd-details').value = ''; if ($('wd-mpesa-phone')) $('wd-mpesa-phone').value = ''; $('wd-prev').style.display = 'none';
+            clearWithdrawalForm();
             loadWithdrawals();
         }
 
@@ -20048,7 +20101,7 @@ async function refreshSavings() {
                 const d = window._pendingWdData;
                 window._pinCallback = null;
                 try {
-                    await executeWithdrawal(d.amt, d.method, d.details);
+                    await executeWithdrawal(d.amt, d.method, d.details, d.methodDetails || null);
                 } catch (e) {
                     toast(e.message || 'Withdrawal failed', 'tr');
                 } finally {
@@ -20058,7 +20111,7 @@ async function refreshSavings() {
                 const d = window._pendingWdCardData;
                 window._pinCallback = null;
                 try {
-                    await executeCardWithdrawal(d.amt, d.method, d.details, d.cardDetails);
+                    await executeCardWithdrawal(d.amt, d.method, d.details, d.cardDetails, d.methodDetails || null);
                 } catch (e) {
                     toast('Card withdrawal failed: ' + (e.message || e), 'tr');
                 } finally {
