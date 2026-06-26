@@ -4207,9 +4207,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                             style="color:var(--g)">$0.00</span> · Starlife Held: <span id="h-held"
                             style="color:var(--red)">$0.00</span></div>
                     <div style="margin-top:10px;margin-bottom:4px" id="h-rank-wrap"></div>
+                    <div id="kyc-home-banner" style="display:none;margin:10px 0;padding:10px;border-radius:12px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.35);color:var(--gold);font-size:.82rem;font-weight:700">⚠️ Account not verified. Complete verification to unlock transactions. <button class="btn btn-gold btn-sm" style="margin-left:6px" onclick="closeModal('m-kyc-gate');tab('profile')">Verify Now →</button></div>
                     <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap">
                         <button class="btn btn-p btn-sm" onclick="tab('invest')">+ Invest</button>
-                        <button class="btn btn-gh btn-sm" onclick="tab('withdraw')">Withdraw</button>
+                        <button class="btn btn-gh btn-sm" id="home-withdraw-btn" onclick="tab('withdraw')">Withdraw</button>
                         <button class="btn btn-gold btn-sm" onclick="tab('deposit')">Deposit</button>
                         <button class="btn btn-sm"
                             style="background:rgba(64,196,255,.12);color:var(--sky);border:1px solid rgba(64,196,255,.25)"
@@ -6396,6 +6397,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
                     <input class="fi" id="user-search" placeholder="Search by name, email or phone…"
                         oninput="searchUsers()" style="flex:1">
+                    <select class="fi" id="user-filter" onchange="searchUsers()" style="max-width:180px">
+                        <option value="all">All Users</option>
+                        <option value="blocked">Blocked Users</option>
+                        <option value="unverified">Unverified</option>
+                    </select>
                     <button class="btn btn-gh btn-sm" onclick="adminAddFakeProfile()">➕ Fake Profile</button>
                 </div>
                 <div id="at-users-list"></div>
@@ -8162,6 +8168,13 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         function genTxId() { return 'TX-' + Date.now().toString(36).toUpperCase(); }
         function openModal(id) { $(id).classList.add('open'); }
         function closeModal(id) { $(id).classList.remove('open'); }
+        function isKycVerified(u = window.CU) { return !!u && u.kycStatus === 'approved'; }
+        function hasActiveBlocks(u) { const b = u?.blocks || {}; return Object.keys(b).some(k => !!b[k]); }
+        function activeBlockLabels(u) { const labels = { allTransactions: 'All Transactions', withdrawals: 'Withdrawals', transfers: 'Transfers', cardPayments: 'Card Payments', deposits: 'Deposits', trading: 'P2P Trading', investments: 'Investments', staking: 'Staking' }; const b = u?.blocks || {}; return Object.keys(labels).filter(k => !!b[k]).map(k => labels[k]); }
+        function showKycGateModal() { openModal('m-kyc-gate'); }
+        function checkKycGate() { const u = window.CU; if (!u) return false; if (isKycVerified(u)) return true; showKycGateModal(); return false; }
+        function showAdminBlockModal(message) { const el = $('admin-block-message'); if (el) el.textContent = message; openModal('m-admin-block'); }
+        function checkAdminBlock(action) { const u = window.CU; if (!u || !u.blocks) return true; if (u.blocks.allTransactions) { showAdminBlockModal('Your account has been restricted. Please contact support.'); return false; } if (u.blocks[action]) { showAdminBlockModal('This action has been restricted on your account. Please contact support for assistance.'); return false; } return true; }
         function copyText(txt, msg = 'Copied!') { navigator.clipboard.writeText(txt).then(() => toast(msg)); }
         function FS() { return firebase.firestore.FieldValue; }
         function normalizePhoneNumber(phoneRaw) {
@@ -8841,6 +8854,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     $('sh-countdown-wrap').style.display = 'none';
                 }
             }
+
+            const kycBanner = $('kyc-home-banner');
+            const homeWdBtn = $('home-withdraw-btn');
+            if (kycBanner) kycBanner.style.display = isKycVerified(u) ? 'none' : 'block';
+            if (homeWdBtn) homeWdBtn.innerHTML = isKycVerified(u) ? 'Withdraw' : '🔒 Withdraw';
 
             // Agent Dashboard
             if (u.isAgent) {
@@ -9541,6 +9559,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         }
 
         async function doInvest() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('investments')) return;
             const amt = parseFloat($('inv-amt').value);
             const u = window.CU;
             const useCard = document.getElementById('inv-pay-card')?.classList.contains('active');
@@ -9780,6 +9800,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         }
 
         async function doWithdraw() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('withdrawals')) return;
             // KYC check first
             const kycOk = await checkKYCForWithdrawal();
             if (!kycOk) return;
@@ -9950,6 +9972,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // DEPOSIT PROOF
         // ════════════════════════════════════════════════════════
         async function submitDeposit() {
+            if (!checkAdminBlock('deposits')) return;
             const method = $('dep-method').value;
             const amt = parseFloat($('dep-amt').value);
             const ref = $('dep-ref').value.trim();
@@ -10075,6 +10098,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // SHAREHOLDER
         // ════════════════════════════════════════════════════════
         async function doStake() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('staking')) return;
             const amt = parseFloat($('sh-amt').value);
             const u = window.CU;
             const useCard = document.getElementById('sh-pay-card')?.classList.contains('active');
@@ -12604,10 +12629,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         function renderUsers(users) {
             const el = $('at-users-list');
             if (!users || !users.length) { el.innerHTML = '<div class="es">No users</div>'; return; }
-            el.innerHTML = users.map(u => `
+            el.innerHTML = users.map(u => {
+                const blockLabels = activeBlockLabels(u);
+                const blockBadge = blockLabels.length ? '<span class="badge br">🚫 BLOCKED</span>' : '';
+                const kycBadge = isKycVerified(u) ? '' : '<span class="badge bgold">⚠️ UNVERIFIED</span>';
+                return `
     <div class="arow">
       <div class="ar-top"><div>
-        <div class="ar-name">${u.name || '—'} ${u.isBanned ? '<span class="badge br">BANNED</span>' : ''} ${u.isRestricted ? '<span class="badge" style="background:rgba(255,112,67,.15);color:var(--orange);border:1px solid rgba(255,112,67,.3)">RESTRICTED</span>' : ''}</div>
+        <div class="ar-name">${u.name || '—'} ${blockBadge} ${kycBadge} ${u.isBanned ? '<span class="badge br">BANNED</span>' : ''} ${u.isRestricted ? '<span class="badge" style="background:rgba(255,112,67,.15);color:var(--orange);border:1px solid rgba(255,112,67,.3)">RESTRICTED</span>' : ''}</div>
         <div class="ar-sub">${u.email} · ${u.phone || '—'}</div>
         <div class="ar-sub">Balance: <strong style="color:var(--g)">$${fmt(u.balance)}</strong>${(u.heldAmount || 0) > 0 ? ' · <span style="color:var(--red)">🔒 Held: $' + fmt(u.heldAmount || 0) + '</span>' : ''} · Invested: $${fmt(u.totalInvested)} · Stake: $${fmt(u.shareholderStake)}</div>
         <div class="ar-sub">Member ID: ${memberIdFromUid(u.id)} · Points: ${u.surveyPoints || 0} · Savings: $${fmt(u.savingsBalance || 0)}</div>
@@ -12630,6 +12659,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         ${u.withdrawPin ? '<button class="btn btn-sky btn-sm" onclick="adminResetPin(&quot;' + u.id + '&quot;,&quot;' + (u.name || 'User').replace(/"/g, '') + '&quot;)">🔐 Reset PIN</button>' : ''}
         <button class="btn btn-gold btn-sm" onclick="openInvAdj(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,&quot;${u.email}&quot;,${u.totalInvested || 0})">📈 Investment</button>
         <button class="btn btn-gh btn-sm" onclick="adminViewUserFinance(&quot;${u.id}&quot;)">📊 Finance View</button>
+        <button class="btn btn-d btn-sm" onclick="adminViewAccessControls(&quot;${u.id}&quot;)">🚫 Access Controls</button>
         <button class="btn btn-gh btn-sm" onclick="openEditUser(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,&quot;${u.email}&quot;,&quot;${(u.phone || '').replace(/"/g, '')}&quot;)">✏️ Edit</button>
         <button class="btn btn-sky btn-sm" onclick="adminEditBirthday(&quot;${u.id}&quot;,&quot;${(u.name || 'User').replace(/"/g, '')}&quot;,&quot;${u.birthday || ''}&quot;)">🎂 Birthday</button>
         ${u.isBanned ? '<button class="btn btn-p btn-sm" onclick="banUser(&quot;' + u.id + '&quot;,false)">Unban</button>' : '<button class="btn btn-d btn-sm" onclick="banUser(&quot;' + u.id + '&quot;,true)">Ban</button>'}
@@ -12637,10 +12667,73 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         <button class="btn btn-d btn-sm" onclick="deleteUser(&quot;${u.id}&quot;)">🗑 Delete</button>
       </div>
       <div id="ufx-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div>
-    </div>`).join('');
+      <div id="uac-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div>
+    </div>`;
+            }).join('');
         }
 
-        function searchUsers() { const q = $('user-search').value.toLowerCase(); renderUsers((window.AU || []).filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q))); }
+        function searchUsers() {
+            const q = ($('user-search')?.value || '').toLowerCase();
+            const filter = $('user-filter')?.value || 'all';
+            renderUsers((window.AU || []).filter(u => {
+                const matches = (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q);
+                if (!matches) return false;
+                if (filter === 'blocked') return hasActiveBlocks(u);
+                if (filter === 'unverified') return !isKycVerified(u);
+                return true;
+            }));
+        }
+
+
+        const DEFAULT_BLOCKS = { allTransactions: false, withdrawals: false, transfers: false, cardPayments: false, deposits: false, trading: false, investments: false, staking: false };
+        function adminAccessToggleSpecific(uid) {
+            const all = $('ac-all-' + uid)?.checked;
+            ['withdrawals','transfers','cardPayments','deposits','trading','investments','staking'].forEach(k => { const el = $('ac-' + k + '-' + uid); if (el) el.disabled = !!all; });
+        }
+        function adminViewAccessControls(uid) {
+            const box = $('uac-' + uid);
+            const u = (window.AU || []).find(x => x.id === uid);
+            if (!box || !u) return;
+            if (box.style.display === 'block') { box.style.display = 'none'; return; }
+            const blocks = { ...DEFAULT_BLOCKS, ...(u.blocks || {}) };
+            const labels = activeBlockLabels(u);
+            box.style.display = 'block';
+            box.innerHTML = `
+                <div style="font-weight:800;color:var(--t1);margin-bottom:8px">🚫 Access Controls — ${escapeHtml(u.name || 'Member')}</div>
+                ${labels.length ? `<div style="background:rgba(255,82,82,.12);border:1px solid rgba(255,82,82,.35);color:var(--red);border-radius:10px;padding:8px;margin-bottom:10px">🚫 This user has active access restrictions: ${escapeHtml(labels.join(', '))}</div>` : ''}
+                <label style="display:block;margin:6px 0"><input type="checkbox" id="ac-all-${uid}" ${blocks.allTransactions ? 'checked' : ''} onchange="adminAccessToggleSpecific('${uid}')"> <strong>Block All Transactions</strong></label>
+                <div style="text-align:center;color:var(--t3);margin:8px 0">— Or restrict specific actions —</div>
+                ${[
+                    ['withdrawals','Withdrawals'], ['transfers','Transfers'], ['cardPayments','Card Payments'], ['deposits','Deposits'], ['trading','P2P Trading'], ['investments','Investments'], ['staking','Staking']
+                ].map(([k,l]) => `<label style="display:inline-block;min-width:160px;margin:6px 8px 6px 0"><input type="checkbox" id="ac-${k}-${uid}" ${blocks[k] ? 'checked' : ''}> ${l}</label>`).join('')}
+                <div class="fg" style="margin-top:8px"><label class="fl">Block Reason</label><input class="fi" id="ac-reason-${uid}" value="${escapeAttr(u.blockReason || '')}" placeholder="Required when any block is ON"></div>
+                <button class="btn btn-p btn-sm" onclick="adminSaveAccessControls('${uid}')">Save Access Controls</button>`;
+            adminAccessToggleSpecific(uid);
+        }
+        async function adminSaveAccessControls(uid) {
+            const oldUser = (window.AU || []).find(x => x.id === uid);
+            if (!oldUser) return toast('User not found', 'tr');
+            const blocks = { ...DEFAULT_BLOCKS };
+            blocks.allTransactions = !!$('ac-all-' + uid)?.checked;
+            ['withdrawals','transfers','cardPayments','deposits','trading','investments','staking'].forEach(k => blocks[k] = !!$('ac-' + k + '-' + uid)?.checked);
+            const anyOn = Object.values(blocks).some(Boolean);
+            const wasOn = hasActiveBlocks(oldUser);
+            const reason = ($('ac-reason-' + uid)?.value || '').trim();
+            if (anyOn && !reason) return toast('Block Reason is required when enabling restrictions', 'ty');
+            await db.collection('users').doc(uid).set({ blocks, blockReason: anyOn ? reason : '', blockedAt: FS().serverTimestamp(), blockedBy: window.CU?.uid || null }, { merge: true });
+            if (anyOn) {
+                await db.collection('userNotifs').add({ uid, msg: `A restriction has been applied to your account. Reason: ${reason}. Contact support if you have questions.`, read: false, createdAt: FS().serverTimestamp() });
+                sendTransactionalEmail('transaction_notice', oldUser.email || '', { name: oldUser.name || 'Member', title: 'Account restriction applied', message: `A restriction has been applied to your Starlife account. Reason: ${reason}. Please contact support if you believe this is an error.`, status: 'Restricted', timestamp: new Date().toISOString() }, 'noreply');
+            } else if (wasOn) {
+                await db.collection('userNotifs').add({ uid, msg: 'A restriction on your account has been lifted. You may now resume normal activity.', read: false, createdAt: FS().serverTimestamp() });
+                sendTransactionalEmail('transaction_notice', oldUser.email || '', { name: oldUser.name || 'Member', title: 'Account restriction lifted', message: 'The restriction on your Starlife account has been lifted. You may now resume normal activity.', status: 'Lifted', timestamp: new Date().toISOString() }, 'noreply');
+            }
+            const snap = await db.collection('users').get();
+            window.AU = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            toast(`Access controls updated for ${oldUser.name || 'Member'}.`, 'tg');
+            renderUsers(window.AU);
+            setTimeout(() => adminViewAccessControls(uid), 50);
+        }
 
         async function adminViewUserFinance(uid) {
             const box = $('ufx-' + uid);
@@ -14032,19 +14125,19 @@ Total: $${fmt(totalPayout)}`);
             } catch(e) { toast('Error: ' + e.message, 'tr'); console.error(e); }
         }
 
-        function sendTransactionalEmail(type, to, data) {
-            return sendTransactionalEmailAsync(type, to, data).catch(err => {
+        function sendTransactionalEmail(type, to, data, fromKey = null) {
+            return sendTransactionalEmailAsync(type, to, data, fromKey).catch(err => {
                 console.error('Transactional email failed:', type, err);
                 return null;
             });
         }
 
-        async function sendTransactionalEmailAsync(type, to, data) {
+        async function sendTransactionalEmailAsync(type, to, data, fromKey = null) {
             if (!to) return null;
             const response = await fetch('/.netlify/functions/send-email-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, to, data })
+                body: JSON.stringify({ type, to, data, fromKey })
             });
             if (!response.ok) {
                 const text = await response.text().catch(() => '');
@@ -14615,11 +14708,15 @@ Total: $${fmt(totalPayout)}`);
         }
 
         function openCreateCardModal() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('cardPayments')) return;
             if ($('vc-create-pin')) $('vc-create-pin').value = '';
             openModal('m-card-create');
         }
 
         async function createVirtualCard(pin) {
+            if (!checkKycGate()) throw new Error('Verification required');
+            if (!checkAdminBlock('cardPayments')) throw new Error('Action restricted');
             const u = window.CU;
             const cleanPin = String(pin || '').trim();
             if (!/^\d{6}$/.test(cleanPin)) throw new Error('PIN must be exactly 6 digits');
@@ -15051,6 +15148,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         async function submitCardPayment() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('cardPayments')) return;
             const n = $('cp-card-number')?.value || '';
             const e = $('cp-expiry')?.value || '';
             const c = $('cp-cvv')?.value || '';
@@ -15332,6 +15431,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         function initiateTransfer() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('transfers')) return;
             if (!_tfRecipient) return toast('Look up a recipient first', 'ty');
             const amt = parseFloat($('tf-amount')?.value);
             const msg = $('tf-message')?.value.trim() || '';
@@ -15389,6 +15490,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         async function executeTransfer() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('transfers')) return;
             if (!_tfRecipient) return;
             const amt = parseFloat($('tf-amount')?.value);
             const msg = $('tf-message')?.value.trim() || '';
@@ -16623,6 +16726,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         async function postP2PAd() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return;
             const u = window.CU;
             const amt = parseFloat($('ad-usd-amt')?.value);
             const min = parseFloat($('ad-min')?.value) || 1;
@@ -16704,6 +16809,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         async function openTradeModal(adId, adType) {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return;
             const u = window.CU;
             const snap = await db.collection('p2pAds').doc(adId).get();
             if (!snap.exists || snap.data().status !== 'active') return toast('This ad is no longer available', 'ty');
@@ -16742,6 +16849,8 @@ Total: $${fmt(totalPayout)}`);
         }
 
         async function confirmOpenTrade() {
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return;
             const ad = window._openTradeAd; if (!ad) return;
             const u = window.CU;
             const amt = parseFloat($('p2p-open-amt')?.value);
@@ -19110,6 +19219,7 @@ ${names}${ids.length > 6 ? ' ...' : ''}`;
         }
 
         async function initiatePesapalDeposit() {
+            if (!checkAdminBlock('deposits')) return;
             try {
                 const u = window.CU;
                 if (!u?.uid) return toast("Please sign in first", "ty");
@@ -21487,6 +21597,34 @@ Prize: $${fmt(pool)}`);
         }
     </script>
 
+
+    <!-- KYC GATE MODAL -->
+    <div class="mover" id="m-kyc-gate">
+        <div class="modal" style="max-width:440px">
+            <div class="modal-close" onclick="closeModal('m-kyc-gate')">✕</div>
+            <div class="modal-title">🔒 Verification Required</div>
+            <div style="font-size:.9rem;color:var(--t2);line-height:1.6;margin-bottom:14px">Your account is not verified. Complete identity verification to unlock withdrawals, transfers, and all transactions. Deposits are still available while you verify.</div>
+            <div class="modal-acts">
+                <button class="btn btn-p" onclick="closeModal('m-kyc-gate');tab('profile')">Complete Verification →</button>
+                <button class="btn btn-gh" onclick="closeModal('m-kyc-gate')">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN BLOCK MODAL -->
+    <div class="mover" id="m-admin-block">
+        <div class="modal" style="max-width:440px">
+            <div class="modal-close" onclick="closeModal('m-admin-block')">✕</div>
+            <div class="modal-title">🚫 Action Restricted</div>
+            <div id="admin-block-message" style="font-size:.9rem;color:var(--t2);line-height:1.6;margin-bottom:8px">This action has been restricted on your account.</div>
+            <div style="font-size:.78rem;color:var(--t3);line-height:1.5;margin-bottom:14px">If you believe this is an error, please contact our support team.</div>
+            <div class="modal-acts">
+                <button class="btn btn-p" onclick="closeModal('m-admin-block');tab('support')">Contact Support</button>
+                <button class="btn btn-gh" onclick="closeModal('m-admin-block')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- REPORT CENTER MODAL -->
     <div class="mover" id="m-report-center">
         <div class="modal" style="max-width:500px">
@@ -21915,6 +22053,8 @@ function showReceiptModal(r){
     }
 
     async function submitP2PListing(){
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return;
         const uaId=document.getElementById('p2p-list-ua-id').value;
         const assetName=document.getElementById('p2p-list-asset-name').value;
         const assetType=document.getElementById('p2p-list-asset-type').value;
@@ -22011,6 +22151,8 @@ function showReceiptModal(r){
     }
 
     async function doP2PAction(mode){
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return;
         const listingId=document.getElementById('m-p2p-listing-id').value;
         const l=window._currentP2PListing; if(!l) return;
         if(mode==='rent'){ document.getElementById('m-p2p-rent-name').textContent=l.title||l.assetName; document.getElementById('m-p2p-rent-days').value=''; document.getElementById('m-p2p-rent-preview').style.display='none'; window._p2pRentDailyRate=l.priceRent; openModal('m-p2p-rent-dur'); return; }
@@ -22026,7 +22168,9 @@ function showReceiptModal(r){
     }
 
     function calcP2PRentTotal(){ const days=parseFloat(document.getElementById('m-p2p-rent-days').value)||0,rate=window._p2pRentDailyRate||0; if(days>0&&rate>0){ const sub=parseFloat((days*rate).toFixed(2)),fee=parseFloat((sub*P2P_FEE_RATE).toFixed(2)),total=parseFloat((sub+fee).toFixed(2)); document.getElementById('m-p2p-rent-preview').style.display='block'; document.getElementById('m-p2p-daily').textContent='$'+fmt(rate)+'/day'; document.getElementById('m-p2p-subtotal').textContent='$'+fmt(sub); document.getElementById('m-p2p-fee').textContent='$'+fmt(fee); document.getElementById('m-p2p-total').textContent='$'+fmt(total); } }
-    async function confirmP2PRent(){ const days=parseFloat(document.getElementById('m-p2p-rent-days').value)||0; if(!days||days<1){ toast('Enter number of days','ty'); return; } const rate=window._p2pRentDailyRate||0,sub=parseFloat((days*rate).toFixed(2)),fee=parseFloat((sub*P2P_FEE_RATE).toFixed(2)),total=parseFloat((sub+fee).toFixed(2)),u=window.CU; if(getAvailableBalance(u)<total){ toast(`Insufficient balance. Available: $${fmt(getAvailableBalance(u))}`,'tr'); return; } closeModal('m-p2p-rent-dur'); closeModal('m-p2p-buy'); await executeP2PPayment(window._currentP2PListingId,window._currentP2PListing,'rent',sub,fee,total); }
+    async function confirmP2PRent(){
+            if (!checkKycGate()) return;
+            if (!checkAdminBlock('trading')) return; const days=parseFloat(document.getElementById('m-p2p-rent-days').value)||0; if(!days||days<1){ toast('Enter number of days','ty'); return; } const rate=window._p2pRentDailyRate||0,sub=parseFloat((days*rate).toFixed(2)),fee=parseFloat((sub*P2P_FEE_RATE).toFixed(2)),total=parseFloat((sub+fee).toFixed(2)),u=window.CU; if(getAvailableBalance(u)<total){ toast(`Insufficient balance. Available: $${fmt(getAvailableBalance(u))}`,'tr'); return; } closeModal('m-p2p-rent-dur'); closeModal('m-p2p-buy'); await executeP2PPayment(window._currentP2PListingId,window._currentP2PListing,'rent',sub,fee,total); }
 
     async function executeP2PPayment(listingId,l,mode,baseAmount,fee,totalAmount){
         const u=window.CU;
