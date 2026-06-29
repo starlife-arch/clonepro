@@ -15,6 +15,7 @@ const SENDER_NAME_BY_ADDRESS = {
   'news@starlifeadvert.com': 'Starlife Advert News',
   'stakes@starlifeadvert.com': 'Starlife Shareholder Program',
   'p2p@starlifeadvert.com': 'Starlife P2P Trading',
+  'games@starlifeadvert.com': 'Starlife Games',
 };
 
 const SENDER_MAP = {
@@ -31,6 +32,7 @@ const SENDER_MAP = {
   security:    { addrEnv: 'MAIL_FROM_SECURITY',    nameEnv: 'MAIL_NAME_SECURITY',    defaultName: 'Starlife Advert Security', defaultAddr: 'security@starlifeadvert.com' },
   broadcast:   { addrEnv: 'MAIL_FROM_BROADCAST',   nameEnv: 'MAIL_NAME_BROADCAST',   defaultName: 'Starlife Advert News', defaultAddr: 'news@starlifeadvert.com' },
   cards:       { addrEnv: 'MAIL_FROM_CARDS',       nameEnv: 'MAIL_NAME_CARDS',       defaultName: 'Starlife Advert Cards', defaultAddr: 'cards@starlifeadvert.com' },
+  games:       { addrEnv: 'MAIL_FROM_GAMES',       nameEnv: 'MAIL_NAME_GAMES',       defaultName: 'Starlife Games', defaultAddr: 'games@starlifeadvert.com' },
 };
 
 function quoteDisplayName(name) {
