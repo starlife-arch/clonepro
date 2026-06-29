@@ -4208,6 +4208,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                             style="color:var(--red)">$0.00</span></div>
                     <div style="margin-top:10px;margin-bottom:4px" id="h-rank-wrap"></div>
                     <div id="kyc-home-banner" style="display:none;margin:10px 0;padding:10px;border-radius:12px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.35);color:var(--gold);font-size:.82rem;font-weight:700">⚠️ Account not verified. Complete verification to unlock transactions. <button class="btn btn-gold btn-sm" style="margin-left:6px" onclick="closeModal('m-kyc-gate');tab('profile')">Verify Now →</button></div>
+                    <div id="twofa-nudge-banner" style="display:none;margin:10px 0;padding:10px;border-radius:12px;background:rgba(0,230,118,.10);border:1px solid rgba(0,230,118,.35);color:var(--t1);font-size:.82rem;font-weight:700">🔐 <strong>Secure your account.</strong> Enable Two-Factor Authentication to protect against unauthorised access. <button class="btn btn-p btn-sm" style="margin-left:6px" onclick="tab('profile');setTimeout(()=>document.getElementById('twofa-card')?.scrollIntoView({behavior:'smooth',block:'center'}),100)">Enable Now →</button><button class="btn btn-gh btn-sm" style="margin-left:6px" onclick="dismiss2faNudge()">Dismiss</button></div>
                     <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap">
                         <button class="btn btn-p btn-sm" onclick="tab('invest')">+ Invest</button>
                         <button class="btn btn-gh btn-sm" id="home-withdraw-btn" onclick="tab('withdraw')">Withdraw</button>
@@ -5120,6 +5121,17 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         <div class="es">Loading security activity…</div>
                     </div>
                 </div>
+                <div class="card" style="margin-bottom:10px" id="twofa-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+                        <div>
+                            <div style="font-weight:700;font-size:.9rem">🔐 Two-Factor Authentication</div>
+                            <div style="font-size:.75rem;color:var(--t2)">Get a 6-digit code from your phone every time you log in.</div>
+                        </div>
+                        <span class="badge" id="twofa-status-badge">Not enabled</span>
+                    </div>
+                    <div id="twofa-panel-body"><div class="es">Loading 2FA status…</div></div>
+                </div>
+
                 <button class="btn btn-o btn-full" style="margin-bottom:8px" id="pin-profile-btn"
                     onclick="openSetPin()">🔐 <span id="pin-btn-txt">Set Withdrawal PIN</span></button>
                 <button class="btn btn-d btn-full" onclick="doLogout()">Sign Out</button>
@@ -6892,6 +6904,33 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
             <!-- ADMIN P2P TRADE CHAT MODAL -->
         </div>
+        
+        <div class="mover" id="m-2fa-login">
+            <div class="modal" style="max-width:420px">
+                <div class="modal-title">🔐 Two-Factor Authentication</div>
+                <p style="font-size:.84rem;color:var(--t2);line-height:1.5">Enter the code from your authenticator app to finish signing in.</p>
+                <div class="fg"><label class="fl" id="twofa-login-label">Enter 6-digit code</label><input class="fi" id="twofa-login-token" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div>
+                <div id="twofa-login-error" style="display:none;color:var(--red);font-size:.8rem;margin:8px 0"></div>
+                <button class="btn btn-gh btn-sm" onclick="toggle2faLoginBackup()" id="twofa-backup-link">Use backup code instead</button>
+                <div class="modal-acts"><button class="btn btn-p" onclick="submit2faLogin()">Verify & Continue</button><button class="btn btn-d" onclick="cancel2faLogin()">Cancel</button></div>
+            </div>
+        </div>
+        <div class="mover" id="m-2fa-setup">
+            <div class="modal" style="max-width:760px;max-height:92vh;overflow-y:auto">
+                <div class="modal-title">🔐 Set Up Two-Factor Authentication</div>
+                <p style="font-size:.84rem;color:var(--t2)"><strong>Step 1:</strong> Install Google Authenticator on your phone (or any TOTP authenticator app).</p>
+                <p style="font-size:.84rem;color:var(--t2)"><strong>Step 2:</strong> Add your Starlife account using ONE of these methods:</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0">
+                    <div class="card" style="text-align:center"><div style="font-weight:800;margin-bottom:8px">📷 Scan QR Code</div><img id="twofa-qr" alt="2FA QR Code" style="max-width:220px;width:100%;border-radius:12px;background:#fff;padding:8px"><div id="twofa-setup-loading" class="es">Generating…</div></div>
+                    <div class="card"><div style="font-weight:800;margin-bottom:8px">⌨️ Enter Key Manually</div><div style="font-size:.82rem;color:var(--t2);line-height:1.6">Open your authenticator app, tap “+”, choose “Enter setup key”, then type:</div><div id="twofa-manual-key" style="font-family:'JetBrains Mono',monospace;font-size:1.05rem;font-weight:800;color:var(--gold);margin:12px 0;word-spacing:4px">—</div><div style="font-size:.78rem;color:var(--t2)">Account: <span id="twofa-account">—</span><br>Type: Time-based</div></div>
+                </div>
+                <div class="fg"><label class="fl">Step 3: Enter the 6-digit code shown in your app</label><input class="fi" id="twofa-setup-token" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div>
+                <div id="twofa-setup-error" style="display:none;color:var(--red);font-size:.8rem;margin:8px 0"></div>
+                <div class="modal-acts"><button class="btn btn-p" onclick="verifyEnable2fa()">Verify & Enable 2FA</button><button class="btn btn-gh" onclick="closeModal('m-2fa-setup')">Cancel</button></div>
+            </div>
+        </div>
+        <div class="mover" id="m-2fa-backup"><div class="modal" style="max-width:520px"><div class="modal-title">✅ 2FA Enabled Successfully!</div><p style="font-size:.84rem;color:var(--t2)">Save these backup codes somewhere safe. Each can only be used once if you lose access to your authenticator app:</p><div id="twofa-backup-codes" style="font-family:'JetBrains Mono',monospace;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;color:var(--gold);font-weight:800"></div><div class="modal-acts"><button class="btn btn-gh" onclick="copy2faBackupCodes()">📋 Copy All Codes</button><button class="btn btn-p" onclick="close2faBackup()">✅ I've saved them, Close</button></div></div></div>
+
         <div class="mover" id="m-admin-trade-chat">
             <div class="modal" style="max-width:520px;height:88vh;display:flex;flex-direction:column">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -8698,19 +8737,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     go('pg-maint');
                     return;
                 }
-                go('pg-app');
-                updateUI();
-                loadAllUserData();
-                loadBroadcasts();
-                loadFAQ();
-                initAiChat();
-                // Check and release any P2P holds that have expired
-                setTimeout(()=>{ if(typeof checkAndReleaseExpiredHolds==='function') checkAndReleaseExpiredHolds(); }, 2000);
-                const fab = $('ai-chat-fab');
-                if (fab) fab.style.display = 'block';
-                if (sessionMeta?.suspicious) {
-                    toast('Suspicious login detected — review Security Center', 'ty', 5000);
+                if (d.twoFactorEnabled === true && !window._twoFactorVerifiedForUid?.[user.uid]) {
+                    window._pending2faUser = { uid: user.uid, data: d, sessionMeta };
+                    open2faLogin();
+                    return;
                 }
+                admitUserToApp(sessionMeta);
             }
         });
 
@@ -8870,6 +8902,105 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }
         }
 
+
+        window._twoFactorVerifiedForUid = window._twoFactorVerifiedForUid || {};
+        window._twoFactorLoginAttempts = window._twoFactorLoginAttempts || { count: 0, lockedUntil: 0, backup: false };
+        window._latest2faBackupCodes = [];
+
+        function admitUserToApp(sessionMeta = null) {
+            go('pg-app');
+            updateUI();
+            loadAllUserData();
+            loadBroadcasts();
+            loadFAQ();
+            initAiChat();
+            setTimeout(()=>{ if(typeof checkAndReleaseExpiredHolds==='function') checkAndReleaseExpiredHolds(); }, 2000);
+            const fab = $('ai-chat-fab');
+            if (fab) fab.style.display = 'block';
+            if (sessionMeta?.suspicious) toast('Suspicious login detected — review Security Center', 'ty', 5000);
+        }
+
+        function twofaFetch(path, body) {
+            return fetch('/.netlify/functions/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+        }
+        function open2faLogin() {
+            window._twoFactorLoginAttempts = { count: 0, lockedUntil: 0, backup: false };
+            $('twofa-login-token').value = ''; $('twofa-login-error').style.display = 'none';
+            $('twofa-login-label').textContent = 'Enter 6-digit code';
+            openModal('m-2fa-login');
+        }
+        function toggle2faLoginBackup() {
+            const st = window._twoFactorLoginAttempts; st.backup = !st.backup;
+            $('twofa-login-label').textContent = st.backup ? 'Enter backup code' : 'Enter 6-digit code';
+            $('twofa-login-token').placeholder = st.backup ? 'ABCD-EFGH' : '123456';
+            $('twofa-backup-link').textContent = st.backup ? 'Use authenticator code instead' : 'Use backup code instead';
+        }
+        async function submit2faLogin() {
+            const st = window._twoFactorLoginAttempts, err = $('twofa-login-error');
+            if (Date.now() < st.lockedUntil) { err.textContent = 'Too many attempts. Try again in 10 minutes.'; err.style.display='block'; return; }
+            const token = $('twofa-login-token').value.trim(); if (!token) return;
+            const pending = window._pending2faUser; if (!pending) return;
+            const res = await twofaFetch('validate-2fa', { userId: pending.uid, token });
+            if (res.success) {
+                window._twoFactorVerifiedForUid[pending.uid] = true;
+                closeModal('m-2fa-login'); admitUserToApp(pending.sessionMeta); return;
+            }
+            st.count += 1;
+            if (st.count >= 5) st.lockedUntil = Date.now() + 10 * 60 * 1000;
+            err.textContent = st.count >= 5 ? 'Too many attempts. Try again in 10 minutes.' : 'Invalid code. Please try again.';
+            err.style.display = 'block';
+        }
+        function cancel2faLogin() { closeModal('m-2fa-login'); auth.signOut(); }
+        async function start2faSetup() {
+            const u = window.CU; if (!u) return;
+            openModal('m-2fa-setup'); $('twofa-setup-loading').style.display='block'; $('twofa-setup-error').style.display='none'; $('twofa-setup-token').value='';
+            const res = await twofaFetch('generate-2fa-secret', { userId: u.uid, userEmail: u.email });
+            if (res.error) { $('twofa-setup-error').textContent = res.error; $('twofa-setup-error').style.display='block'; return; }
+            $('twofa-qr').src = res.qrCode; $('twofa-manual-key').textContent = res.manualKey; $('twofa-account').textContent = res.accountName; $('twofa-setup-loading').style.display='none';
+        }
+        async function verifyEnable2fa() {
+            const token = $('twofa-setup-token').value.trim(); if (!token) return;
+            const res = await twofaFetch('verify-2fa', { userId: window.CU.uid, token });
+            if (!res.success) { $('twofa-setup-error').textContent = res.error || 'Invalid code. Check your authenticator app and try again.'; $('twofa-setup-error').style.display='block'; return; }
+            window._latest2faBackupCodes = res.backupCodes || [];
+            $('twofa-backup-codes').innerHTML = window._latest2faBackupCodes.map(c=>`<div>${c}</div>`).join('');
+            closeModal('m-2fa-setup'); openModal('m-2fa-backup');
+            const snap = await db.collection('users').doc(window.CU.uid).get(); window.CU = { uid: window.CU.uid, ...snap.data() }; updateUI();
+        }
+        function copy2faBackupCodes() { navigator.clipboard?.writeText((window._latest2faBackupCodes||[]).join('\n')); toast('Backup codes copied ✓','tg'); }
+        function close2faBackup() { closeModal('m-2fa-backup'); updateUI(); }
+        async function disable2faSelf() {
+            const token = prompt('Enter your current 2FA code to disable 2FA:'); if (!token) return;
+            const res = await twofaFetch('disable-2fa', { userId: window.CU.uid, token });
+            if (!res.success) return toast(res.error || 'Invalid code.', 'tr');
+            const snap = await db.collection('users').doc(window.CU.uid).get(); window.CU = { uid: window.CU.uid, ...snap.data() }; updateUI(); toast('2FA disabled.', 'tg');
+        }
+        function viewBackupCodesPrompt() { alert('For security, backup codes are only shown when 2FA is first enabled. Disable and re-enable 2FA to generate new backup codes.'); }
+        function update2faPanel() {
+            const u = window.CU, body = $('twofa-panel-body'), badge = $('twofa-status-badge'); if (!u || !body) return;
+            const remaining = Array.isArray(u.twoFactorBackupCodes) ? u.twoFactorBackupCodes.length : 0;
+            if (u.twoFactorEnabled === true) {
+                badge.className='badge bg'; badge.textContent='Active';
+                body.innerHTML = `<div style="color:var(--g);font-weight:800;margin-bottom:6px">✅ 2FA is active</div><div style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Last enabled: ${fmtDT(u.twoFactorEnabledAt)}<br>Backup codes remaining: ${remaining} of 8 remaining</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-gh btn-sm" onclick="viewBackupCodesPrompt()">View Backup Codes</button><button class="btn btn-d btn-sm" onclick="disable2faSelf()">Disable 2FA</button></div>`;
+            } else {
+                badge.className='badge bgold'; badge.textContent='Not enabled';
+                body.innerHTML = `<div style="font-size:.82rem;color:var(--t2);margin-bottom:10px">🔐 Protect your account with 2FA. Get a 6-digit code from your phone every time you log in.</div><button class="btn btn-p btn-sm" onclick="start2faSetup()">Enable 2FA</button>`;
+            }
+        }
+        function update2faNudge() {
+            const el = $('twofa-nudge-banner'); if (!el || !window.CU) return;
+            el.style.display = window.CU.twoFactorEnabled === true || localStorage.getItem('dismissed2faNudge') === 'true' ? 'none' : 'block';
+        }
+        function dismiss2faNudge() { localStorage.setItem('dismissed2faNudge','true'); update2faNudge(); }
+        async function adminDisable2FA(uid, name, email) {
+            if (!confirm(`This will disable 2FA for ${name}. They will need to re-enable it themselves. Confirm?`)) return;
+            await db.collection('users').doc(uid).update({ twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [], twoFactorPending: null });
+            const msg = 'Your Two-Factor Authentication has been disabled by an admin. Please re-enable it from your security settings.';
+            await db.collection('userNotifs').add({ uid, msg, read: false, createdAt: FS().serverTimestamp() });
+            sendTransactionalEmail('transaction_notice', email || '', { name, title: '2FA disabled by admin', message: msg, status: 'Security update', timestamp: new Date().toISOString() }, 'noreply');
+            toast(`2FA disabled for ${name}.`, 'tg'); loadAdminAll();
+        }
+
         // ════════════════════════════════════════════════════════
         // UI UPDATE
         // ════════════════════════════════════════════════════════
@@ -8913,6 +9044,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             else { $('prof-av').textContent = (u.name || 'U')[0].toUpperCase(); }
             $('prof-name').textContent = u.name || 'User';
             updateProfileBadges(u);
+            update2faPanel();
+            update2faNudge();
             $('prof-email').textContent = u.email;
             $('prof-phone').textContent = u.phone || '—';
             $('prof-ref').textContent = u.referralCode || '—';
@@ -12742,6 +12875,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         <button class="btn btn-sky btn-sm" onclick="adminSetLoanLimit(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,${u.loanLimitOverride != null ? u.loanLimitOverride : 'null'},&quot;${u.email || ''}&quot;)">💳 Loan Limit${u.loanLimitOverride != null ? ': $' + fmt(u.loanLimitOverride) : ''}</button>
         <button class="btn btn-gh btn-sm" onclick="adminSetWithdrawalScheduleOverride(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/\"/g, '') || 'User'}&quot;,&quot;${u.email || ''}&quot;)">🕒 WD Schedule${u.withdrawalScheduleOverride ? ': Custom' : ''}</button>
         ${u.withdrawPin ? '<button class="btn btn-sky btn-sm" onclick="adminResetPin(&quot;' + u.id + '&quot;,&quot;' + (u.name || 'User').replace(/"/g, '') + '&quot;)">🔐 Reset PIN</button>' : ''}
+        ${u.twoFactorEnabled === true ? '<button class="btn btn-d btn-sm" onclick="adminDisable2FA(&quot;' + u.id + '&quot;,&quot;' + (u.name || 'User').replace(/"/g, '') + '&quot;,&quot;' + (u.email || '') + '&quot;)">Disable 2FA</button>' : ''}
         <button class="btn btn-gold btn-sm" onclick="openInvAdj(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,&quot;${u.email}&quot;,${u.totalInvested || 0})">📈 Investment</button>
         <button class="btn btn-gh btn-sm" onclick="adminViewUserFinance(&quot;${u.id}&quot;)">📊 Finance View</button>
         <button class="btn btn-d btn-sm" onclick="adminViewAccessControls(&quot;${u.id}&quot;)">🚫 Access Controls</button>
