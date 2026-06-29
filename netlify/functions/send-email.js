@@ -91,6 +91,9 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   prediction_bet_placed: 'games',
   prediction_result_won: 'games',
   prediction_result_lost: 'games',
+  game_wallet_transfer_in: 'games',
+  game_wallet_transfer_out: 'games',
+  game_wallet_low_balance: 'games',
 };
 
 export default async (req, context) => {
@@ -720,6 +723,35 @@ export default async (req, context) => {
       html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head><body style="margin:0;background:#0d0d0d;font-family:Arial,Helvetica,sans-serif;color:#f3eaff"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d0d0d;border-radius:16px;overflow:hidden;border:1px solid #4b2a73;box-shadow:0 10px 28px rgba(0,0,0,.35)"><tr><td style="background:#1a0a2e;padding:22px 24px;color:#fff;border-bottom:3px solid #ffd700"><div style="font-size:22px;font-weight:900;color:#ffd700">Starlife Games · Predictions</div><div style="font-size:13px;opacity:.9;margin-top:4px">games@starlifeadvert.com</div></td></tr><tr><td style="padding:26px 24px"><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#ffd700">${esc(title)}</h1>${body}</td></tr><tr><td style="background:#1a0a2e;padding:16px 24px;color:#bda9d6;font-size:12px;line-height:1.6">Sent from Starlife Games · games@starlifeadvert.com<br><a href="${esc(brand.url)}" style="color:#ffd700;text-decoration:none">Login</a> &nbsp;/&nbsp; <a href="mailto:${esc(brand.supportEmail)}" style="color:#ffd700;text-decoration:none">Support</a></td></tr></table></td></tr></table></body></html>`;
       break;
     }
+
+    case 'game_wallet_transfer_in':
+    case 'game_wallet_transfer_out':
+    case 'game_wallet_low_balance': {
+      const isIn = type === 'game_wallet_transfer_in';
+      const isOut = type === 'game_wallet_transfer_out';
+      subject = isIn ? '💰 Funds Added to Game Wallet' : isOut ? '↩ Funds Withdrawn from Game Wallet' : '⚠️ Game Wallet Running Low';
+      const title = isIn ? '💰 Funds Added to Game Wallet' : isOut ? '↩ Funds Withdrawn from Game Wallet' : '⚠️ Game Wallet Running Low';
+      const parts = fmtDateParts(data.timestamp || new Date().toISOString());
+      const gameRows = (items) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:16px 0;background:#111827;border:1px solid #00ff88;border-radius:12px;overflow:hidden">${items.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `<tr><td style="padding:10px 12px;color:#a7f3d0">${esc(label)}</td><td style="padding:10px 12px;text-align:right;font-weight:800;color:#00ff88">${esc(value)}</td></tr>`).join('')}</table>`;
+      const actionUrl = esc(data.actionUrl || brand.url);
+      const supportHref = `mailto:${esc(brand.supportEmail)}`;
+      const body = isIn ? `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">$${Number(data.amount || 0).toFixed(2)} has been added to your Game Wallet.</p>
+        ${gameRows([['Amount Added', `$${Number(data.amount || 0).toFixed(2)}`], ['Game Wallet', `$${Number(data.newBalance || 0).toFixed(2)}`], ['Date', data.date || parts.date], ['Time', data.time || parts.time]])}
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3fff8">Good luck! 🎮</p>
+        <a href="${actionUrl}" style="display:inline-block;background:#00ff88;color:#04130b;text-decoration:none;font-weight:900;border-radius:10px;padding:10px 14px">Play Now →</a> <a href="${supportHref}" style="color:#00ff88;margin-left:12px">Support</a>` : isOut ? `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">$${Number(data.amount || 0).toFixed(2)} has been returned to your main wallet.</p>
+        ${gameRows([['Amount Withdrawn', `$${Number(data.amount || 0).toFixed(2)}`], ['Game Wallet', `$${Number(data.newBalance || 0).toFixed(2)}`], ['Main Wallet', `$${Number(data.mainBalance || data.mainBal || 0).toFixed(2)}`], ['Date', data.date || parts.date]])}
+        <a href="${actionUrl}" style="display:inline-block;background:#00ff88;color:#04130b;text-decoration:none;font-weight:900;border-radius:10px;padding:10px 14px">View Wallet</a> <a href="${supportHref}" style="color:#00ff88;margin-left:12px">Support</a>` : `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3fff8">Your Game Wallet balance is $${Number(data.balance || 0).toFixed(2)}.<br>Add funds to continue playing.</p>
+        <a href="${actionUrl}" style="display:inline-block;background:#00ff88;color:#04130b;text-decoration:none;font-weight:900;border-radius:10px;padding:10px 14px">+ Add Funds Now →</a> <a href="${supportHref}" style="color:#00ff88;margin-left:12px">Support</a>`;
+      html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head><body style="margin:0;background:#0d0d0d;font-family:Arial,Helvetica,sans-serif;color:#f3fff8"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d0d0d;border-radius:16px;overflow:hidden;border:1px solid #00ff88;box-shadow:0 10px 28px rgba(0,0,0,.35)"><tr><td style="background:#1a1a2e;padding:22px 24px;color:#fff;border-bottom:3px solid #00ff88"><div style="font-size:22px;font-weight:900;color:#00ff88">Starlife Games · Game Wallet</div><div style="font-size:13px;opacity:.9;margin-top:4px">games@starlifeadvert.com</div></td></tr><tr><td style="padding:26px 24px"><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#00ff88">${esc(title)}</h1>${body}</td></tr><tr><td style="background:#1a1a2e;padding:16px 24px;color:#a7f3d0;font-size:12px;line-height:1.6">Sent from Starlife Games · games@starlifeadvert.com<br><a href="${esc(brand.url)}" style="color:#00ff88;text-decoration:none">Login</a> &nbsp;/&nbsp; <a href="mailto:${esc(brand.supportEmail)}" style="color:#00ff88;text-decoration:none">Support</a></td></tr></table></td></tr></table></body></html>`;
+      break;
+    }
+
 
     case 'campaign_selected':
     case 'campaign_rejected': {

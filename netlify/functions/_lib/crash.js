@@ -40,7 +40,7 @@ async function sendLowBalanceEmail(user) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-token': process.env.EMAIL_API_TOKEN || '' },
       body: JSON.stringify({
-        type: 'game_low_balance',
+        type: 'game_wallet_low_balance',
         to: user.email,
         fromKey: 'games',
         data: { name: user.name || user.fullName || 'Member', balance: cents(user.gameWallet?.balance ?? user.gameWalletBalance ?? 0), message: `Your Game Wallet balance is below $5. Current balance: $${cents(user.gameWallet?.balance ?? user.gameWalletBalance ?? 0).toFixed(2)}. Top up before playing more games.` }
@@ -52,8 +52,8 @@ async function sendLowBalanceEmail(user) {
 async function maybeNotifyLowBalance(db, userRef, userData, balance) {
   if (Number(balance) >= 5) return;
   const day = todayKey();
-  if (userData.gameWallet?.lowBalanceEmailDate === day || userData.gameWalletLowBalanceEmailDate === day) return;
-  await userRef.set({ 'gameWallet.lowBalanceEmailDate': day, gameWalletLowBalanceEmailDate: day }, { merge: true });
+  if (userData.gameWallet?.lastLowBalanceEmailSent === day || userData.gameWalletLastLowBalanceEmailSent === day) return;
+  await userRef.set({ 'gameWallet.lastLowBalanceEmailSent': day, gameWalletLastLowBalanceEmailSent: day }, { merge: true });
   await sendLowBalanceEmail({ ...userData, gameWallet: { ...(userData.gameWallet || {}), balance } });
 }
 
