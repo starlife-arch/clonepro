@@ -4,6 +4,7 @@ export default async (req, context) => {
   if (req.method !== 'POST') return json({ success: false, error: 'Method not allowed' }, 405);
   try {
     const { eventId, winningOutcomeId, adminId } = await req.json();
+    console.log('settle-predictions winningOutcomeId:', winningOutcomeId);
     if (!eventId || !winningOutcomeId || !adminId) return json({ success: false, error: 'Missing fields' }, 400);
     const db = getDb();
     if (!(await isAdminUser(db, adminId))) return json({ success: false, error: 'Admin required' }, 403);
