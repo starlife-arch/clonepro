@@ -28,7 +28,7 @@ export default async (req, context) => {
       const day = todayKey();
       const dailyTotal = pool.dailyPayoutDate === day ? Number(pool.dailyPayoutTotal || 0) : 0;
       if (pool.enabled === false) throw new Error('Predictions are paused');
-      if (Number(pool.balance || 0) < Number(pool.reserveMinimum || 0)) throw new Error('Predictions pool below reserve');
+      // Do not block bet placement just because the pool is near reserve; settlement enforces payout safety.
       if (dailyTotal >= Number(pool.dailyPayoutCap || 1000)) throw new Error('Daily payout cap reached');
       const gameWallet = userData.gameWallet || {};
       const balance = Number(gameWallet.balance ?? userData.gameWalletBalance ?? 0);

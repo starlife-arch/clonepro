@@ -23,7 +23,7 @@ export default async (req, context) => {
       const dailyTotal = pool.dailyPayoutDate === day ? Number(pool.dailyPayoutTotal || 0) : 0;
       if (amount < Number(pool.minBet) || amount > Number(pool.maxBet)) throw new Error(`Bet must be between $${Number(pool.minBet).toFixed(2)} and $${Number(pool.maxBet).toFixed(2)}`);
       if (pool.enabled === false) throw new Error('Crash is paused');
-      if (Number(pool.balance || 0) < Number(pool.reserveMinimum || 0)) { pausedMessage = '💥 Crash pool is below reserve and has been paused.'; throw new Error('Crash pool below reserve'); }
+      // Allow new bets even when the prize pool is close to reserve; reserve is enforced on payout/cashout.
       if (dailyTotal >= Number(pool.dailyPayoutCap || 1000)) throw new Error('Daily payout cap reached');
       const balance = Number(user.gameWallet?.balance ?? user.gameWalletBalance ?? 0);
       if (balance < amount) throw new Error('Insufficient Game Wallet balance');
@@ -35,7 +35,6 @@ export default async (req, context) => {
     });
     return json({ success: true, sessionId: sessionRef.id, crashPoint });
   } catch (e) {
-    if (String(e.message).includes('below reserve')) { try { const db = getDb(); await db.collection('gamePools').doc('crash').set({ enabled: false }, { merge: true }); await notifyAdmins(db, '💥 Crash pool is below reserve and has been paused.'); } catch (_) {} }
     return json({ success: false, error: e.message }, 400);
   }
 };
