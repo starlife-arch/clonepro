@@ -1,5 +1,15 @@
 import { getDb, admin, json, cents, todayKey, sendPredictionEmail, isAdminUser } from './_lib/predictions.js';
 
+async function sendPush(userId, title, body, url, type) {
+  try {
+    await fetch(`${process.env.URL || process.env.SITE_URL || 'https://starlifeadvert.netlify.app'}/.netlify/functions/send-push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, title, body, url, type })
+    });
+  } catch (e) { console.warn('prediction push failed', type, e.message); }
+}
+
 export default async (req, context) => {
   if (req.method !== 'POST') return json({ success: false, error: 'Method not allowed' }, 405);
   try {
@@ -31,6 +41,7 @@ export default async (req, context) => {
     for (const bet of bets.filter(b => b.outcomeId !== winningOutcomeId)) {
       await db.collection('predictionBets').doc(bet.id).update({ status: 'lost', payout: 0, settledAt: admin.firestore.FieldValue.serverTimestamp() });
       await db.collection('userNotifs').add({ uid: bet.userId, msg: `😔 Your prediction on ${bet.outcomeLabel} for ${event.title} was incorrect. You lost $${Number(bet.betAmount || 0).toFixed(2)}.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      await sendPush(bet.userId, '😔 Result In', `${event.title} has ended. Your prediction was not correct this time`, `${process.env.URL || process.env.SITE_URL || 'https://starlifeadvert.netlify.app'}/#`, 'predictions_result');
       await sendPredictionEmail('prediction_result_lost', bet.userEmail, { ...emailBase, name: bet.userName, outcomeLabel: bet.outcomeLabel, odds: bet.odds, betAmount: bet.betAmount });
     }
     for (const bet of bets.filter(b => b.outcomeId === winningOutcomeId)) {
@@ -56,6 +67,7 @@ export default async (req, context) => {
         t.set(db.collection('activity').doc(), { uid: bet.userId, desc: `🔮 Prediction win — ${event.title} — ${bet.outcomeLabel} @ ${bet.odds}x. Won: $${netPayout.toFixed(2)}`, amt: netPayout, icon: '🔮', type: 'game', createdAt: admin.firestore.FieldValue.serverTimestamp() });
       });
       winnersCount += 1; totalPaidOut = cents(totalPaidOut + netPayout);
+      await sendPush(bet.userId, '🏆 You Won!', `Your prediction on ${event.title} was correct — $${netPayout.toFixed(2)} added to Game Wallet`, `${process.env.URL || process.env.SITE_URL || 'https://starlifeadvert.netlify.app'}/#`, 'predictions_result');
       await sendPredictionEmail('prediction_result_won', bet.userEmail, { ...emailBase, name: bet.userName, outcomeLabel: bet.outcomeLabel, odds: bet.odds, betAmount: bet.betAmount, netPayout });
     }
     await eventRef.update({ status: 'settled', result: winningOutcomeId, resultLabel: winningOutcome.label, settledAt: admin.firestore.FieldValue.serverTimestamp(), settledBy: adminId });
