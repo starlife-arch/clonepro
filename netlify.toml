@@ -12,3 +12,6 @@
   from = "/pesapal-callback"
   to = "/index.html"
   status = 200
+
+[functions."battle-check-rooms"]
+  schedule = "*/2 * * * *"
