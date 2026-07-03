@@ -1,5 +1,4 @@
-import speakeasy from 'speakeasy';
-import { getDb, json, readJson, normalizeToken } from './_lib/two-factor.js';
+import { getDb, json, readJson, normalizeToken, verifyTotp } from './_lib/two-factor.js';
 
 export default async (req, context) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -17,7 +16,7 @@ export default async (req, context) => {
       return json({ success: true, usedBackup: true });
     }
     if (!data.twoFactorSecret) return json({ success: false, error: '2FA is not enabled.' }, 400);
-    const verified = speakeasy.totp.verify({ secret: data.twoFactorSecret, encoding: 'base32', token: clean, window: 1 });
+    const verified = verifyTotp({ secret: data.twoFactorSecret, token: clean, window: 1 });
     return json(verified ? { success: true } : { success: false, error: 'Invalid code.' });
   } catch (e) {
     return json({ success: false, error: e.message || 'Could not validate 2FA code' }, 500);
