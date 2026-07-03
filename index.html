@@ -9021,8 +9021,18 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (sessionMeta?.suspicious) toast('Suspicious login detected — review Security Center', 'ty', 5000);
         }
 
-        function twofaFetch(path, body) {
-            return fetch('/.netlify/functions/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+        async function twofaFetch(path, body) {
+            const res = await fetch('/.netlify/functions/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const text = await res.text();
+            let data = {};
+            try { data = text ? JSON.parse(text) : {}; }
+            catch (_) {
+                data = { error: text || `Unexpected response from ${path}` };
+            }
+            if (!res.ok) {
+                return { ...data, error: data.error || data.message || `${path} failed (${res.status})`, status: res.status };
+            }
+            return data;
         }
         function open2faLogin() {
             window._twoFactorLoginAttempts = { count: 0, lockedUntil: 0, backup: false };
@@ -9054,10 +9064,27 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         function cancel2faLogin() { closeModal('m-2fa-login'); auth.signOut(); }
         async function start2faSetup() {
             const u = window.CU; if (!u) return;
-            openModal('m-2fa-setup'); $('twofa-setup-loading').style.display='block'; $('twofa-setup-error').style.display='none'; $('twofa-setup-token').value='';
-            const res = await twofaFetch('generate-2fa-secret', { userId: u.uid, userEmail: u.email });
-            if (res.error) { $('twofa-setup-error').textContent = res.error; $('twofa-setup-error').style.display='block'; return; }
-            $('twofa-qr').src = res.qrCode; $('twofa-manual-key').textContent = res.manualKey; $('twofa-account').textContent = res.accountName; $('twofa-setup-loading').style.display='none';
+            const err = $('twofa-setup-error'), loading = $('twofa-setup-loading');
+            openModal('m-2fa-setup');
+            loading.style.display = 'block';
+            err.style.display = 'none';
+            err.textContent = '';
+            $('twofa-setup-token').value = '';
+            $('twofa-qr').removeAttribute('src');
+            $('twofa-manual-key').textContent = '—';
+            $('twofa-account').textContent = u.email || '—';
+            try {
+                const res = await twofaFetch('generate-2fa-secret', { userId: u.uid, userEmail: u.email });
+                if (res.error || !res.qrCode || !res.manualKey) throw new Error(res.error || '2FA setup did not return a QR code and manual key.');
+                $('twofa-qr').src = res.qrCode;
+                $('twofa-manual-key').textContent = res.manualKey;
+                $('twofa-account').textContent = res.accountName || u.email || '—';
+            } catch (e) {
+                err.textContent = e.message || 'Could not start 2FA setup. Please try again.';
+                err.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
         }
         async function verifyEnable2fa() {
             const token = $('twofa-setup-token').value.trim(); if (!token) return;
