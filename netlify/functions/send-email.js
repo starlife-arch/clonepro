@@ -94,6 +94,8 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   game_wallet_transfer_in: 'games',
   game_wallet_transfer_out: 'games',
   game_wallet_low_balance: 'games',
+  battle_royale_win: 'games',
+  battle_royale_result: 'games',
 };
 
 export default async (req, context) => {
@@ -734,6 +736,17 @@ export default async (req, context) => {
         <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">Don't give up — more events are waiting for your prediction.</p>
         <a href="${actionUrl}" style="display:inline-block;background:#ffd700;color:#170d05;text-decoration:none;font-weight:800;border-radius:10px;padding:10px 14px">View Predictions →</a> <a href="${supportHref}" style="color:#ffd700;margin-left:12px">Support</a>`;
       html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head><body style="margin:0;background:#0d0d0d;font-family:Arial,Helvetica,sans-serif;color:#f3eaff"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d0d0d;border-radius:16px;overflow:hidden;border:1px solid #4b2a73;box-shadow:0 10px 28px rgba(0,0,0,.35)"><tr><td style="background:#1a0a2e;padding:22px 24px;color:#fff;border-bottom:3px solid #ffd700"><div style="font-size:22px;font-weight:900;color:#ffd700">Starlife Games · Predictions</div></td></tr><tr><td style="padding:26px 24px"><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#ffd700">${esc(title)}</h1>${body}</td></tr><tr><td style="background:#1a0a2e;padding:16px 24px;color:#bda9d6;font-size:12px;line-height:1.6">Sent from Starlife Games · games@starlifeadvert.com<br><a href="${esc(brand.url)}" style="color:#ffd700;text-decoration:none">Login</a> &nbsp;/&nbsp; <a href="mailto:${esc(brand.supportEmail)}" style="color:#ffd700;text-decoration:none">Support</a></td></tr></table></td></tr></table></body></html>`;
+      break;
+    }
+
+    case 'battle_royale_win':
+    case 'battle_royale_result': {
+      const won = type === 'battle_royale_win';
+      subject = won ? '👑 You won Battle Royale!' : '⚔️ Battle Royale complete';
+      const title = won ? '👑 Battle Royale Winner' : '⚔️ Battle Royale Result';
+      const payout = Number(data.payout || data.cashAwarded || 0);
+      const points = Number(data.pointsAwarded || 0);
+      html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head><body style="margin:0;background:#0d0d0d;font-family:Arial,Helvetica,sans-serif;color:#f3fff8"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d0d0d;border-radius:16px;overflow:hidden;border:1px solid #ffd700"><tr><td style="background:#1a1a2e;padding:22px 24px;border-bottom:3px solid #ffd700"><div style="font-size:22px;font-weight:900;color:#ffd700">Starlife Games · Battle Royale</div></td></tr><tr><td style="padding:26px 24px"><h1 style="margin:0 0 16px;color:#ffd700">${esc(title)}</h1><p style="line-height:1.6">Hi ${esc(greetingName)},</p><p style="line-height:1.6">${won ? `You survived the arena! ${payout ? `$${payout.toFixed(2)} was added to your Game Wallet.` : ''} ${points ? `${points} points were added to your account.` : ''}` : `Better luck next time — ${esc(data.winner || 'a warrior')} won this battle.`}</p><a href="${esc(data.actionUrl || brand.url)}" style="display:inline-block;background:#ffd700;color:#170d05;text-decoration:none;font-weight:900;border-radius:10px;padding:10px 14px">Open Games →</a></td></tr><tr><td style="background:#1a1a2e;padding:16px 24px;color:#a7f3d0;font-size:12px">Sent from Starlife Games · games@starlifeadvert.com</td></tr></table></td></tr></table></body></html>`;
       break;
     }
 
