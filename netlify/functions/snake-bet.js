@@ -21,7 +21,7 @@ export default async (req, context) => {
       const dailyTotal = pool.dailyPayoutDate === day ? Number(pool.dailyPayoutTotal || 0) : 0;
       if (amount < Number(pool.minBet) || amount > Number(pool.maxBet)) throw new Error(`Bet must be between $${Number(pool.minBet).toFixed(2)} and $${Number(pool.maxBet).toFixed(2)}`);
       if (pool.enabled === false) throw new Error('Snake is currently unavailable. Check back soon.');
-      if (Number(pool.balance || 0) < Number(pool.reserveMinimum || 0)) throw new Error('Snake is temporarily unavailable.');
+      // Allow the session to start; reserve limits are enforced when a cashout payout is requested.
       if (dailyTotal >= Number(pool.dailyPayoutCap || 500)) throw new Error('Daily limit reached. Snake resets at midnight.');
       const balance = Number(user.gameWallet?.balance ?? user.gameWalletBalance ?? 0);
       if (balance < amount) throw new Error('Insufficient Game Wallet balance. Add funds to play.');
@@ -33,7 +33,6 @@ export default async (req, context) => {
     });
     return json({ success: true, sessionId: sessionRef.id });
   } catch (e) {
-    if (String(e.message).includes('temporarily unavailable')) { try { const db = getDb(); await notifyAdmins(db, '🐍 Snake pool is below reserve.'); } catch (_) {} }
     return json({ success: false, error: e.message }, 400);
   }
 };
