@@ -692,33 +692,46 @@ export default async (req, context) => {
     case 'prediction_result_lost': {
       const isPlaced = type === 'prediction_bet_placed';
       const isWon = type === 'prediction_result_won';
-      subject = isPlaced ? '🔮 Prediction bet confirmed' : isWon ? '🏆 Your prediction won!' : 'Prediction result: better luck next time';
-      const title = isPlaced ? '🔮 Bet Confirmed' : isWon ? '🏆 You Won!' : '😔 Better Luck Next Time';
-      const darkRows = (items) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:16px 0;background:#13091f;border:1px solid #4b2a73;border-radius:12px;overflow:hidden">${items.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `<tr><td style="padding:10px 12px;color:#bda9d6">${esc(label)}</td><td style="padding:10px 12px;text-align:right;font-weight:700;color:#ffd700">${esc(value)}</td></tr>`).join('')}</table>`;
+      const sportEmoji = (sport, eventType) => {
+        if (eventType === 'platform') return '🔮';
+        const key = String(sport || '').toLowerCase();
+        if (key.includes('football') || key.includes('soccer')) return '⚽';
+        if (key.includes('basketball')) return '🏀';
+        if (key.includes('tennis')) return '🎾';
+        if (key.includes('rugby')) return '🏉';
+        if (key.includes('cricket')) return '🏏';
+        if (key.includes('boxing') || key.includes('mma')) return '🥊';
+        return '🏆';
+      };
+      const emoji = sportEmoji(data.sport, data.eventType);
+      const winningLabel = data.winningOutcomeLabel || data.resultLabel || data.result || '—';
+      const isDraw = String(winningLabel).toLowerCase() === 'draw';
+      const resultText = data.eventType === 'platform' ? `Result: ${winningLabel}` : `Full Time Result: ${isDraw ? 'Draw' : `${winningLabel} Won`}`;
+      subject = isPlaced ? '🔮 Prediction bet confirmed' : isWon ? '🏆 Your prediction won!' : '😔 Not this time';
+      const title = isPlaced ? '🔮 Bet Confirmed' : isWon ? '🏆 You Won!' : '😔 Not This Time';
       const actionUrl = esc(data.actionUrl || brand.url);
       const supportHref = `mailto:${esc(brand.supportEmail)}`;
+      const matchup = data.eventType === 'sports' && (data.homeTeam || data.awayTeam) ? `${data.homeTeam || 'Home Team'} vs ${data.awayTeam || 'Away Team'}` : (data.eventTitle || 'Prediction Event');
+      const matchCard = (rows) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0;background:#13091f;border:1px solid #5e338d;border-radius:14px;overflow:hidden"><tr><td style="padding:20px 18px;text-align:center;border-bottom:1px solid #5e338d"><div style="font-size:18px;font-weight:900;color:#fff">${esc(emoji)} &nbsp;${esc(matchup)}</div>${data.competition ? `<div style="margin-top:6px;color:#bda9d6;font-size:13px">${esc(data.competition)}</div>` : ''}<div style="margin-top:14px;color:#ffd700;font-weight:900">${esc(resultText)}</div></td></tr>${rows.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `<tr><td style="padding:0"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:10px 14px;color:#bda9d6;width:42%">${esc(label)}</td><td style="padding:10px 14px;text-align:right;font-weight:800;color:#f9e9ff">${esc(value)}</td></tr></table></td></tr>`).join('')}</table>`;
+      const placedRows = (items) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:16px 0;background:#13091f;border:1px solid #4b2a73;border-radius:12px;overflow:hidden">${items.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `<tr><td style="padding:10px 12px;color:#bda9d6">${esc(label)}</td><td style="padding:10px 12px;text-align:right;font-weight:700;color:#ffd700">${esc(value)}</td></tr>`).join('')}</table>`;
       const body = isPlaced ? `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Hi ${esc(greetingName)},</p>
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Your prediction has been placed successfully.</p>
-        ${darkRows([
+        ${placedRows([
           ['Event', data.eventTitle], ['Your Pick', data.outcomeLabel], ['Odds', `${Number(data.odds || 0).toFixed(2)}x`],
           ['Bet Amount', `$${Number(data.betAmount || 0).toFixed(2)}`], ['Potential Win', `$${Number(data.potentialPayout || 0).toFixed(2)}`], ['Closes', data.bettingDeadline]
         ])}
         <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">Good luck! Results will be announced after the event.</p>
         <a href="${actionUrl}" style="display:inline-block;background:#ffd700;color:#170d05;text-decoration:none;font-weight:800;border-radius:10px;padding:10px 14px">View My Bets →</a> <a href="${supportHref}" style="color:#ffd700;margin-left:12px">Support</a>` : isWon ? `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Hi ${esc(greetingName)},</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Your prediction was correct!</p>
-        ${darkRows([
-          ['Event', data.eventTitle], ['Your Pick', data.outcomeLabel], ['Odds', `${Number(data.odds || 0).toFixed(2)}x`], ['Bet Amount', `$${Number(data.betAmount || 0).toFixed(2)}`], ['Payout', `$${Number(data.netPayout || data.payout || 0).toFixed(2)}`], ['Result', '✅ CORRECT'], ['Date', data.settledAt]
-        ])}
-        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">$${Number(data.netPayout || data.payout || 0).toFixed(2)} has been added to your Game Wallet.</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Your prediction on ${esc(data.eventTitle || 'this event')} was correct!</p>
+        ${matchCard([['Your Pick', data.outcomeLabel], ['Odds', `${Number(data.odds || 0).toFixed(2)}x`], ['Bet Amount', `$${Number(data.betAmount || 0).toFixed(2)}`], ['Payout', `$${Number(data.netPayout || data.payout || 0).toFixed(2)}`], ['Date', data.settledAt]])}
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">$${Number(data.netPayout || data.payout || 0).toFixed(2)} has been added to your Game Wallet. 🎉</p>
         <a href="${actionUrl}" style="display:inline-block;background:#ffd700;color:#170d05;text-decoration:none;font-weight:800;border-radius:10px;padding:10px 14px">View Game Wallet →</a> <a href="${supportHref}" style="color:#ffd700;margin-left:12px">Support</a>` : `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Hi ${esc(greetingName)},</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Unfortunately your prediction was not correct this time.</p>
-        ${darkRows([
-          ['Event', data.eventTitle], ['Your Pick', data.outcomeLabel], ['Result', '❌ INCORRECT'], ['Amount Lost', `$${Number(data.betAmount || 0).toFixed(2)}`], ['Date', data.settledAt]
-        ])}
-        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">Don't give up — more events are waiting for your prediction!</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#f3eaff">Here's how ${esc(data.eventTitle || 'this event')} turned out:</p>
+        ${matchCard([['Your Pick', data.outcomeLabel], ['Odds', `${Number(data.odds || 0).toFixed(2)}x`], ['Bet Amount', `$${Number(data.betAmount || 0).toFixed(2)}`], ['Result', `❌ ${data.outcomeLabel || 'Your pick'} did not win`], ['Date', data.settledAt]])}
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#f3eaff">Don't give up — more events are waiting for your prediction.</p>
         <a href="${actionUrl}" style="display:inline-block;background:#ffd700;color:#170d05;text-decoration:none;font-weight:800;border-radius:10px;padding:10px 14px">View Predictions →</a> <a href="${supportHref}" style="color:#ffd700;margin-left:12px">Support</a>`;
       html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head><body style="margin:0;background:#0d0d0d;font-family:Arial,Helvetica,sans-serif;color:#f3eaff"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d0d0d;border-radius:16px;overflow:hidden;border:1px solid #4b2a73;box-shadow:0 10px 28px rgba(0,0,0,.35)"><tr><td style="background:#1a0a2e;padding:22px 24px;color:#fff;border-bottom:3px solid #ffd700"><div style="font-size:22px;font-weight:900;color:#ffd700">Starlife Games · Predictions</div></td></tr><tr><td style="padding:26px 24px"><h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#ffd700">${esc(title)}</h1>${body}</td></tr><tr><td style="background:#1a0a2e;padding:16px 24px;color:#bda9d6;font-size:12px;line-height:1.6">Sent from Starlife Games · games@starlifeadvert.com<br><a href="${esc(brand.url)}" style="color:#ffd700;text-decoration:none">Login</a> &nbsp;/&nbsp; <a href="mailto:${esc(brand.supportEmail)}" style="color:#ffd700;text-decoration:none">Support</a></td></tr></table></td></tr></table></body></html>`;
       break;
