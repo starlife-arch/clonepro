@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-messaging-compat.js"></script>
     <style>
         /* ============================================================
            DARK THEME (default) — pure black
@@ -7478,6 +7479,16 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <button class="btn btn-p btn-full" onclick="sendBroadcastEmail(this)">Send Email Broadcast</button>
                 <div id="bc-email-result" style="margin-top:12px; font-size:.85rem;"></div>
             </div>
+
+            <div class="card" style="margin-top:14px">
+                <h3 style="margin-bottom:12px">🔔 Push Notifications</h3>
+                <div id="push-settings-panel"></div>
+                <div class="fg"><label class="fl">Broadcast Title</label><input class="fi" id="push-bc-title" placeholder="Admin title"></div>
+                <div class="fg"><label class="fl">Broadcast Message</label><textarea class="fi" id="push-bc-body" rows="3" placeholder="Admin message"></textarea></div>
+                <div class="fg"><label class="fl">URL (optional)</label><input class="fi" id="push-bc-url" placeholder="https://starlifeadvert.com/#"></div>
+                <button class="btn btn-p btn-full" onclick="sendPushBroadcast(this)">Send to All Users with Push Enabled</button>
+                <div id="push-bc-result" style="margin-top:12px;font-size:.85rem"></div>
+            </div>
         </div>
 
         <!-- ADS TAB -->
@@ -8297,6 +8308,74 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         const db = firebase.firestore();
         const storage = firebase.storage();
 
+
+        const PUSH_TYPES = {
+            predictions_new_event: 'New prediction events',
+            predictions_result: 'Prediction results',
+            battle_royale_tournament: 'Battle Royale tournaments',
+            battle_royale_result: 'Battle Royale results',
+            game_wallet_low: 'Game wallet low balance',
+            new_dm: 'Direct messages',
+            support_reply: 'Support replies',
+            campaign_result: 'Campaign results',
+            loan_update: 'Loan updates',
+            broadcast: 'Broadcasts',
+            withdrawal_update: 'Withdrawal updates',
+            deposit_confirmed: 'Deposit confirmations',
+            investment_matured: 'Investment maturities',
+            referral_bonus: 'Referral bonuses',
+            kyc_update: 'KYC updates',
+            low_balance: 'Main wallet low balance'
+        };
+        const DEFAULT_PUSH_SETTINGS = { enabled: true, types: Object.fromEntries(Object.keys(PUSH_TYPES).map(k => [k, true])) };
+        let _fcmInitStarted = false;
+        let _fcmPermissionTimer = null;
+
+        async function initializeFCM() {
+            if (_fcmInitStarted || !('serviceWorker' in navigator) || !('PushManager' in window) || !firebase.messaging) return;
+            _fcmInitStarted = true;
+            try {
+                const messaging = firebase.messaging();
+                clearTimeout(_fcmPermissionTimer);
+                _fcmPermissionTimer = setTimeout(() => {
+                    if (window.CU && !window.CU.pushEnabled) requestPushPermission(messaging);
+                }, 60000);
+                messaging.onMessage((payload) => showInAppPushBanner(payload.notification || {}, payload.data || {}));
+            } catch (err) { console.log('FCM not supported:', err); }
+        }
+
+        async function requestPushPermission(messaging) {
+            try {
+                if (!window.CU?.uid || !window.isSecureContext) return;
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') return;
+                const cfgRes = await fetch('/.netlify/functions/push-config');
+                const cfg = await cfgRes.json().catch(() => ({}));
+                if (!cfg.vapidKey) return console.log('Push setup missing FCM_VAPID_KEY');
+                const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                const token = await messaging.getToken({ serviceWorkerRegistration: swReg, vapidKey: cfg.vapidKey });
+                if (token) {
+                    await db.collection('users').doc(window.CU.uid).update({ fcmToken: token, pushEnabled: true, pushEnabledAt: FS().serverTimestamp() });
+                    window.CU.pushEnabled = true; window.CU.fcmToken = token;
+                }
+            } catch (err) { console.log('Push permission denied or failed:', err); }
+        }
+
+        function showInAppPushBanner(notification = {}, data = {}) {
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid #00ff88;border-radius:10px;padding:12px 18px;max-width:340px;width:90%;z-index:9999;box-shadow:0 4px 20px rgba(0,255,136,0.2);cursor:pointer;animation:slideDown .3s ease;';
+            banner.innerHTML = `<div style="font-weight:bold;color:#ffffff;font-size:14px;">${escapeHtml(notification.title || 'Starlife')}</div><div style="color:#aaaaaa;font-size:13px;margin-top:4px;">${escapeHtml(notification.body || '')}</div>`;
+            banner.onclick = () => { const url = data.url || notification.click_action; banner.remove(); if (url) location.href = url; };
+            document.body.appendChild(banner);
+            setTimeout(() => banner.remove(), 5000);
+        }
+
+        async function sendPush(userId, title, body, url, type) {
+            if (!userId) return;
+            try { await fetch('/.netlify/functions/send-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, title, body, url, type }) }); }
+            catch (e) { console.warn('push send failed', e); }
+        }
+
         // ════════════════════════════════════════════════════════
         // HELPERS
         // ════════════════════════════════════════════════════════
@@ -8717,6 +8796,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }
             const d = snap.data();
             window.CU = { uid: user.uid, ...d };
+            initializeFCM();
             if (_userDocUnsub) { _userDocUnsub(); _userDocUnsub = null; }
             _userDocUnsub = db.collection('users').doc(user.uid).onSnapshot((userSnap) => {
                 if (!userSnap.exists) return;
@@ -10947,6 +11027,30 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // ════════════════════════════════════════════════════════
         // BROADCASTS
         // ════════════════════════════════════════════════════════
+
+        async function loadAdminPushSettings() {
+            const panel = $('push-settings-panel'); if (!panel) return;
+            const [settingsSnap, usersSnap] = await Promise.all([db.collection('settings').doc('pushNotifications').get(), db.collection('users').where('pushEnabled','==',true).get().catch(() => ({ size: 0 }))]);
+            const settings = { ...DEFAULT_PUSH_SETTINGS, ...(settingsSnap.data() || {}) };
+            settings.types = { ...DEFAULT_PUSH_SETTINGS.types, ...(settings.types || {}) };
+            panel.innerHTML = `<div style="margin-bottom:10px;font-weight:800">Users with push enabled: ${usersSnap.size || 0}</div><label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="push-enabled" ${settings.enabled ? 'checked' : ''} onchange="saveAdminPushSettings()"> Enable all push notifications</label><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${Object.entries(PUSH_TYPES).map(([key,label]) => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="push-type-toggle" data-type="${key}" ${settings.types[key] ? 'checked' : ''} onchange="saveAdminPushSettings()"> ${label}</label>`).join('')}</div>`;
+        }
+        async function saveAdminPushSettings() {
+            const types = {}; document.querySelectorAll('.push-type-toggle').forEach(cb => types[cb.dataset.type] = cb.checked);
+            await db.collection('settings').doc('pushNotifications').set({ enabled: !!$('push-enabled')?.checked, types, updatedAt: FS().serverTimestamp() }, { merge: true });
+            toast('Push settings saved', 'tg');
+        }
+        async function sendPushBroadcast(btn) {
+            const title = $('push-bc-title')?.value.trim(), body = $('push-bc-body')?.value.trim(), url = $('push-bc-url')?.value.trim();
+            if (!title || !body) return toast('Push title and message required', 'ty');
+            const old = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+            try {
+                const res = await fetch('/.netlify/functions/broadcast-push', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ adminId: window.CU?.uid, title, body, url }) });
+                const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'Push broadcast failed');
+                $('push-bc-result').textContent = `Push sent to ${data.sent || 0} users`; toast(`Push sent to ${data.sent || 0} users`, 'tg');
+            } catch (e) { toast(e.message, 'tr'); } finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+        }
+
         async function loadBroadcasts() {
             const snap = await db.collection('broadcasts').limit(10).get();
             const list = snap.docs.map(d => d.data());
@@ -11912,6 +12016,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 }
                 // Notify recipient
                 await db.collection('userNotifs').add({ uid: _activeDMUser.id, msg: `💬 ${u.name}: ${lastMsgStr}`, read: false, createdAt: FS().serverTimestamp() });
+                sendPush(_activeDMUser.id, '💬 New Message', `${u.name}: ${lastMsgStr}`.slice(0, 70), location.origin + '/#', 'new_dm');
             } catch (e) { toast('Error: ' + e.message, 'tr'); inp.value = text; }
         }
 
@@ -12456,7 +12561,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             prizecodes: () => loadAdminPrizeCodes(),
             luckydraw: () => loadAdminDraw(),
             p2p: () => loadAdminP2P(),
-            broadcast: () => loadAdminBroadcasts(),
+            broadcast: () => { loadAdminBroadcasts(); loadAdminPushSettings(); },
             targeted: () => loadAdminTargetedAnnouncements(),
             moving: () => loadAdminMovingAnnouncement(),
             ads: () => loadAds(),
@@ -12844,6 +12949,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const wdAp = wdApSnap.data() || {};
             sendTransactionalEmail('withdrawal_approved', wdAp.userEmail || '', { name: wdAp.userName || '', amount: amount, method: wdAp.method || '', transactionId: wdAp.txId || id, detailsMasked: maskDestinationDetails(wdAp.details || ''), status: 'Paid', ...transactionTimestampParts() });
             await db.collection('userNotifs').add({ uid, msg: `Your withdrawal of $${fmt(amount)} has been processed manually. Settlement is T+48 hours excluding Saturday, Sunday and Holidays. Bank charges may apply.`, read: false, createdAt: FS().serverTimestamp() });
+            sendPush(uid, '✅ Withdrawal Approved', `Your withdrawal of $${fmt(amount)} has been approved and is being processed`, location.origin + '/#', 'withdrawal_update');
             logAct(uid, `Withdrawal marked manually paid $${fmt(amount)}`, 0, '💳', 'withdrawal');
             toast('Withdrawal marked as manually paid ✓'); loadAdminAll(); loadAdminWd('pending');
         }
@@ -12858,6 +12964,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const wdRj = wdRjSnap.data() || {};
             sendTransactionalEmail('withdrawal_rejected', wdRj.userEmail || '', { name: wdRj.userName || '', amount: amount, method: wdRj.method || '', transactionId: wdRj.txId || id, detailsMasked: maskDestinationDetails(wdRj.details || ''), status: 'Rejected', ...transactionTimestampParts() });
             await db.collection('userNotifs').add({ uid, msg: `Your withdrawal of $${fmt(amount)} was rejected and refunded to your balance.`, read: false, createdAt: FS().serverTimestamp() });
+            sendPush(uid, '❌ Withdrawal Update', 'Your withdrawal request was not approved. Contact support for details', location.origin + '/#', 'withdrawal_update');
             logAct(uid, `Withdrawal rejected — $${fmt(amount)} refunded`, amount, '💳', 'withdrawal');
             toast('Withdrawal rejected & balance refunded'); loadAdminAll(); loadAdminWd();
         }
@@ -13567,6 +13674,7 @@ Total: $${fmt(totalPayout)}`);
             await batch.commit();
             await debitPlatformAccount('treasury', principal, `Loan disbursed to UID: ${uid}`, id);
             await db.collection('userNotifs').add({ uid, msg: `Your loan has been approved! $${fmt(receive)} added to your balance.`, read: false, createdAt: FS().serverTimestamp() });
+            sendPush(uid, '✅ Loan Approved', `Your loan of $${fmt(l?.amount || principal)} has been approved and credited to your wallet`, location.origin + '/#', 'loan_update');
             sendTransactionalEmail('loan_approved', l?.userEmail || '', { name: l?.userName || 'Member', amount: l?.amount || principal, interest, receive, term: l?.term, dueDate: l?.dueDate?.toDate ? l.dueDate.toDate().toISOString() : null, timestamp: new Date().toISOString() });
             await logAct(uid, `Loan approved — $${fmt(receive)} disbursed`, receive, '💰', 'loan');
             await logAct(uid, `Platform treasury debit for loan disbursement: $${fmt(principal)}`, 0, '🏛️', 'loan');
@@ -13578,6 +13686,7 @@ Total: $${fmt(totalPayout)}`);
             const loan = snap.data() || {};
             await db.collection('loans').doc(id).update({ status: 'rejected', rejectedAt: FS().serverTimestamp() });
             await db.collection('userNotifs').add({ uid, msg: 'Your loan request was rejected. Contact support.', read: false, createdAt: FS().serverTimestamp() });
+            sendPush(uid, '❌ Loan Update', 'Your loan application was not approved this time', location.origin + '/#', 'loan_update');
             sendTransactionalEmail('loan_rejected', loan.userEmail || '', { name: loan.userName || 'Member', amount: loan.amount || 0, timestamp: new Date().toISOString() });
             toast('Loan rejected'); loadAdminAll();
         }
@@ -20838,7 +20947,7 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
         function adminRenderSmartOutcomes(keepOdds=false){ const type=$('pred-type')?.value||'sports'; const wrap=$('pred-outcomes'); if(!wrap)return; if(type==='platform'){ if(!wrap.children.length){ adminAddPredictionOutcome('Yes',''); adminAddPredictionOutcome('No',''); } return; } const old={}; [...document.querySelectorAll('.pred-outcome-row')].forEach(r=>old[r.dataset.id]=r.querySelector('.pred-outcome-odds')?.value||''); wrap.innerHTML=''; const sport=$('pred-sport')?.value||'football', home=$('pred-home')?.value.trim()||'Home Team', away=$('pred-away')?.value.trim()||'Away Team'; adminOutcomeRow('home',home,keepOdds?old.home:'',true); if(SPORTS_WITH_DRAW.includes(sport)) adminOutcomeRow('draw','Draw',keepOdds?old.draw:'',true); adminOutcomeRow('away',away,keepOdds?old.away:'',true); }
         function adminAddPredictionOutcome(label='',odds=''){ const wrap=$('pred-outcomes'); if(!wrap)return; if(($('pred-type')?.value||'sports')==='sports') return adminRenderSmartOutcomes(true); if(wrap.children.length>=5)return toast('Maximum 5 outcomes','ty'); adminOutcomeRow(predictionOutcomeId(wrap.children.length),label,odds,false); }
         function adminResetPredictionForm(){ ['pred-event-id','pred-title','pred-desc','pred-date','pred-deadline','pred-image','pred-home','pred-away','pred-league'].forEach(id=>$(id)&&($(id).value='')); $('pred-type').value='sports'; $('pred-status').value='draft'; $('pred-outcomes').innerHTML=''; adminTogglePredictionType(); }
-        async function adminSavePredictionEvent(){ const deadline=new Date($('pred-deadline').value), eventDate=new Date($('pred-date').value); if(!$('pred-title').value.trim())return toast('Title required','ty'); if(!(deadline<eventDate))return toast('Deadline must be before event date','tr'); const type=$('pred-type').value; if(type==='sports'&&(!$('pred-home').value.trim()||!$('pred-away').value.trim()))return toast('Team names must be filled','tr'); if(type==='sports') adminRenderSmartOutcomes(true); const rows=[...document.querySelectorAll('.pred-outcome-row')]; if(rows.length<2||rows.length>5)return toast('Use 2 to 5 outcomes','tr'); const outcomes=rows.map((r,i)=>({id:r.dataset.id||predictionOutcomeId(i),label:r.querySelector('.pred-outcome-label').value.trim(),odds:Number(r.querySelector('.pred-outcome-odds').value)})); if(outcomes.some(o=>!o.label||!Number.isFinite(o.odds)))return toast('Outcome labels and odds required','tr'); if(outcomes.some(o=>o.odds<1.01))return toast('Odds must be at least 1.01x','tr'); const id=$('pred-event-id').value; const data={type,sport:type==='sports'?$('pred-sport').value:null,category:type==='platform'?$('pred-category').value:null,title:$('pred-title').value.trim(),description:$('pred-desc').value.trim(),eventDate:firebase.firestore.Timestamp.fromDate(eventDate),bettingDeadline:firebase.firestore.Timestamp.fromDate(deadline),status:$('pred-status').value,outcomes,result:null,imageUrl:$('pred-image').value.trim(),homeTeam:$('pred-home').value.trim(),awayTeam:$('pred-away').value.trim(),competition:$('pred-league').value.trim(),updatedAt:FS().serverTimestamp()}; if(id) await db.collection('predictionEvents').doc(id).set(data,{merge:true}); else await db.collection('predictionEvents').add({...data,totalBets:0,totalBetAmount:0,createdAt:FS().serverTimestamp(),createdBy:window.CU?.uid||'admin'}); toast('Prediction event saved ✓','tg'); adminResetPredictionForm(); loadAdminPredictionEvents('all'); }
+        async function adminSavePredictionEvent(){ const deadline=new Date($('pred-deadline').value), eventDate=new Date($('pred-date').value); if(!$('pred-title').value.trim())return toast('Title required','ty'); if(!(deadline<eventDate))return toast('Deadline must be before event date','tr'); const type=$('pred-type').value; if(type==='sports'&&(!$('pred-home').value.trim()||!$('pred-away').value.trim()))return toast('Team names must be filled','tr'); if(type==='sports') adminRenderSmartOutcomes(true); const rows=[...document.querySelectorAll('.pred-outcome-row')]; if(rows.length<2||rows.length>5)return toast('Use 2 to 5 outcomes','tr'); const outcomes=rows.map((r,i)=>({id:r.dataset.id||predictionOutcomeId(i),label:r.querySelector('.pred-outcome-label').value.trim(),odds:Number(r.querySelector('.pred-outcome-odds').value)})); if(outcomes.some(o=>!o.label||!Number.isFinite(o.odds)))return toast('Outcome labels and odds required','tr'); if(outcomes.some(o=>o.odds<1.01))return toast('Odds must be at least 1.01x','tr'); const id=$('pred-event-id').value; const data={type,sport:type==='sports'?$('pred-sport').value:null,category:type==='platform'?$('pred-category').value:null,title:$('pred-title').value.trim(),description:$('pred-desc').value.trim(),eventDate:firebase.firestore.Timestamp.fromDate(eventDate),bettingDeadline:firebase.firestore.Timestamp.fromDate(deadline),status:$('pred-status').value,outcomes,result:null,imageUrl:$('pred-image').value.trim(),homeTeam:$('pred-home').value.trim(),awayTeam:$('pred-away').value.trim(),competition:$('pred-league').value.trim(),updatedAt:FS().serverTimestamp()}; if(id) await db.collection('predictionEvents').doc(id).set(data,{merge:true}); else { const newRef = await db.collection('predictionEvents').add({...data,totalBets:0,totalBetAmount:0,createdAt:FS().serverTimestamp(),createdBy:window.CU?.uid||'admin'}); if (data.status === 'open') { db.collection('users').where('pushEnabled','==',true).get().then(snap => snap.forEach(doc => sendPush(doc.id, '🔮 New Prediction Live!', `${data.title} — bet now before it closes`, location.origin + '/#', 'predictions_new_event'))).catch(e => console.warn('prediction push broadcast failed', e)); } } toast('Prediction event saved ✓','tg'); adminResetPredictionForm(); loadAdminPredictionEvents('all'); }
 
         async function loadAdminBattleRoyale(){ const ids=[['battleFreePool','battle-free-bal'],['battlePaidPool','battle-paid-bal'],['pointsPool','battle-points-bal']]; for(const [doc,id] of ids){ const snap=await db.collection('gamePools').doc(doc).get(); const d=snap.data()||{}; if($(id))$(id).textContent='$'+fmt(d.balance||0); } const ss=await db.collection('battleSessions').get(); const sessions=ss.docs.map(d=>d.data()); const total=sessions.length, pts=sessions.reduce((a,b)=>a+Number(b.pointsAwarded||0),0); if($('battle-admin-stats'))$('battle-admin-stats').innerHTML=`<div class="ar-sub">Total battles played: ${total} · Total points awarded: ${pts}</div>`; const ts=await db.collection('battleTournaments').get(); if($('battle-admin-tournaments'))$('battle-admin-tournaments').innerHTML=ts.docs.length?ts.docs.map(d=>{const t=d.data();return `<div class="arow"><div class="ar-name">${escapeHtml(t.name||'Tournament')} · ${escapeHtml(t.status||'upcoming')}</div><div class="ar-sub">Players ${(t.players||[]).length}/${t.maxPlayers||50} · Prize $${fmt(t.prize||0)}</div></div>`}).join(''):'<div class="es">No tournaments</div>'; }
         async function adminTopUpBattlePool(doc,input){ const amt=Number($(input)?.value||0); if(!amt)return toast('Enter amount','ty'); await db.collection('gamePools').doc(doc).set({balance:FS().increment(amt),enabled:true,updatedAt:FS().serverTimestamp()},{merge:true}); toast('Battle pool topped up','tg'); loadAdminBattleRoyale(); }
