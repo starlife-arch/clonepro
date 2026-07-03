@@ -15,12 +15,23 @@ export default async (req, context) => {
     if (event.status !== 'closed') throw new Error('Event must be closed before settlement');
     const betsSnap = await db.collection('predictionBets').where('eventId', '==', eventId).where('status', '==', 'pending').get();
     const bets = betsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const winningOutcome = (event.outcomes || []).find(o => o.id === winningOutcomeId) || { id: winningOutcomeId, label: winningOutcomeId };
     const settledAt = new Date();
+    const emailBase = {
+      eventTitle: event.title,
+      homeTeam: event.homeTeam || null,
+      awayTeam: event.awayTeam || null,
+      competition: event.competition || null,
+      sport: event.sport || null,
+      eventType: event.type,
+      winningOutcomeLabel: winningOutcome.label,
+      settledAt: settledAt.toLocaleString()
+    };
     let winnersCount = 0, totalPaidOut = 0;
     for (const bet of bets.filter(b => b.outcomeId !== winningOutcomeId)) {
       await db.collection('predictionBets').doc(bet.id).update({ status: 'lost', payout: 0, settledAt: admin.firestore.FieldValue.serverTimestamp() });
       await db.collection('userNotifs').add({ uid: bet.userId, msg: `😔 Your prediction on ${bet.outcomeLabel} for ${event.title} was incorrect. You lost $${Number(bet.betAmount || 0).toFixed(2)}.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-      await sendPredictionEmail('prediction_result_lost', bet.userEmail, { name: bet.userName, eventTitle: event.title, outcomeLabel: bet.outcomeLabel, betAmount: bet.betAmount, settledAt: settledAt.toLocaleString() });
+      await sendPredictionEmail('prediction_result_lost', bet.userEmail, { ...emailBase, name: bet.userName, outcomeLabel: bet.outcomeLabel, odds: bet.odds, betAmount: bet.betAmount });
     }
     for (const bet of bets.filter(b => b.outcomeId === winningOutcomeId)) {
       const grossPayout = cents(Number(bet.betAmount || 0) * Number(bet.odds || 0));
@@ -45,9 +56,9 @@ export default async (req, context) => {
         t.set(db.collection('activity').doc(), { uid: bet.userId, desc: `🔮 Prediction win — ${event.title} — ${bet.outcomeLabel} @ ${bet.odds}x. Won: $${netPayout.toFixed(2)}`, amt: netPayout, icon: '🔮', type: 'game', createdAt: admin.firestore.FieldValue.serverTimestamp() });
       });
       winnersCount += 1; totalPaidOut = cents(totalPaidOut + netPayout);
-      await sendPredictionEmail('prediction_result_won', bet.userEmail, { name: bet.userName, eventTitle: event.title, outcomeLabel: bet.outcomeLabel, odds: bet.odds, betAmount: bet.betAmount, netPayout, settledAt: settledAt.toLocaleString() });
+      await sendPredictionEmail('prediction_result_won', bet.userEmail, { ...emailBase, name: bet.userName, outcomeLabel: bet.outcomeLabel, odds: bet.odds, betAmount: bet.betAmount, netPayout });
     }
-    await eventRef.update({ status: 'settled', result: winningOutcomeId, settledAt: admin.firestore.FieldValue.serverTimestamp(), settledBy: adminId });
+    await eventRef.update({ status: 'settled', result: winningOutcomeId, resultLabel: winningOutcome.label, settledAt: admin.firestore.FieldValue.serverTimestamp(), settledBy: adminId });
     return json({ success: true, winnersCount, totalPaidOut });
   } catch (e) { return json({ success: false, error: e.message }, 400); }
 };
