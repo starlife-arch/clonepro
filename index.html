@@ -5017,6 +5017,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     </div>
                 </div>
 
+
+                <!-- MESSAGE EMAIL ALERTS CARD -->
+                <div class="card" style="margin-bottom:10px" id="msg-email-alerts-card">
+                    <div id="msg-email-alerts-panel" class="es">Loading Message Email Alerts…</div>
+                </div>
+
                 <!-- BIRTHDAY CARD -->
                 <div class="card" style="margin-bottom:10px" id="bday-card">
                     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -6476,8 +6482,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     <select class="fi" id="user-filter" onchange="searchUsers()" style="max-width:180px">
                         <option value="all">All Users</option>
                         <option value="blocked">Blocked Users</option>
+                        <option value="msgalerts">📧 Msg Alert Subscribers</option>
                         <option value="unverified">Unverified</option>
                     </select>
+                    <button class="btn btn-p btn-sm" onclick="renderMsgAlertSubscribers()">📧 Msg Alert Subscribers</button>
                     <button class="btn btn-gh btn-sm" onclick="adminAddFakeProfile()">➕ Fake Profile</button>
                 </div>
                 <div id="at-users-list"></div>
@@ -12046,6 +12054,15 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 // Notify recipient
                 await db.collection('userNotifs').add({ uid: _activeDMUser.id, msg: `💬 ${u.name}: ${lastMsgStr}`, read: false, createdAt: FS().serverTimestamp() });
                 sendPush(_activeDMUser.id, '💬 New Message', `${u.name}: ${lastMsgStr}`.slice(0, 70), location.origin + '/#', 'new_dm');
+                try {
+                    const recipientDoc = await db.collection('users').doc(_activeDMUser.id).get();
+                    const recipient = recipientDoc.data() || {};
+                    const alerts = recipient.msgEmailAlerts;
+                    const exp = msgAlertDate(alerts?.expiresAt);
+                    if (alerts?.active && exp && exp > new Date() && recipient.email) {
+                        sendTransactionalEmail('msg_alert_new_dm', recipient.email, { name: recipient.name || recipient.username || 'Member', senderName: u.name || u.username || 'Member', sentTime: new Date().toLocaleTimeString(), sentDate: new Date().toLocaleDateString() }, 'noreply');
+                    }
+                } catch (_) { }
             } catch (e) { toast('Error: ' + e.message, 'tr'); inp.value = text; }
         }
 
@@ -13008,16 +13025,18 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 const blockLabels = activeBlockLabels(u);
                 const blockBadge = blockLabels.length ? '<span class="badge br">🚫 BLOCKED</span>' : '';
                 const kycBadge = isKycVerified(u) ? '' : '<span class="badge bgold">⚠️ UNVERIFIED</span>';
+                const msgAlertBadge = msgAlertStatus(u).key === 'active' ? '<span class="badge bg">📧 Msg alerts</span>' : '';
                 return `
     <div class="arow">
       <div class="ar-top"><div>
-        <div class="ar-name">${u.name || '—'} ${blockBadge} ${kycBadge} ${u.isBanned ? '<span class="badge br">BANNED</span>' : ''} ${u.isRestricted ? '<span class="badge" style="background:rgba(255,112,67,.15);color:var(--orange);border:1px solid rgba(255,112,67,.3)">RESTRICTED</span>' : ''}</div>
+        <div class="ar-name">${u.name || '—'} ${blockBadge} ${kycBadge} ${u.isBanned ? '<span class="badge br">BANNED</span>' : ''} ${msgAlertBadge} ${u.isRestricted ? '<span class="badge" style="background:rgba(255,112,67,.15);color:var(--orange);border:1px solid rgba(255,112,67,.3)">RESTRICTED</span>' : ''}</div>
         <div class="ar-sub">${u.email} · ${u.phone || '—'}</div>
         <div class="ar-sub">Balance: <strong style="color:var(--g)">$${fmt(u.balance)}</strong>${(u.heldAmount || 0) > 0 ? ' · <span style="color:var(--red)">🔒 Held: $' + fmt(u.heldAmount || 0) + '</span>' : ''} · Invested: $${fmt(u.totalInvested)} · Stake: $${fmt(u.shareholderStake)}</div>
         <div class="ar-sub">Member ID: ${memberIdFromUid(u.id)} · Points: ${u.surveyPoints || 0} · Savings: $${fmt(u.savingsBalance || 0)}</div>
         <div class="ar-sub">Ref: ${u.referralCode || '—'} · Referral Earned: $${fmt(u.referralEarned || 0)} · Bonus Paid: ${u.referralBonusPaid ? 'Yes' : 'No'} · Joined: ${fmtD(u.createdAt)}</div>
         <div class="ar-sub">${(() => { const p = getUserPrivileges(u); return `Promo: <strong>${p.promoAccessEnabled ? 'Enabled' : 'Disabled'}</strong> · Free WD Fee: ${p.freeWithdrawFees ? 'Yes' : 'No'} · Custom WD Fee: ${p.customWithdrawFeeRate == null ? 'Default' : (fmt(p.customWithdrawFeeRate * 100) + '%')} · Free Official Replies: ${p.freeOfficialReplies ? 'Yes' : 'No'} · Free Token Actions: ${p.freeTokenActions ? 'Yes' : 'No'}`; })()}</div>
         <div class="ar-sub">🎂 Birthday: <strong style="color:var(--gold)">${u.birthday || 'Not set'}</strong></div>
+        <div class="ar-sub">Message Email Alerts: <strong>${msgAlertStatus(u).label}</strong>${u.msgEmailAlerts?.expiresAt ? ' (expires ' + fmtD(u.msgEmailAlerts.expiresAt) + ')' : ''} · Total paid: $${fmt(u.msgEmailAlerts?.totalPaid || 0)}</div>
       </div></div>
       <div class="ar-acts">
         <button class="btn btn-gh btn-sm" onclick="openAdjust(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,${u.balance || 0})">💰 Balance</button>
@@ -13034,6 +13053,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         ${u.withdrawPin ? '<button class="btn btn-sky btn-sm" onclick="adminResetPin(&quot;' + u.id + '&quot;,&quot;' + (u.name || 'User').replace(/"/g, '') + '&quot;)">🔐 Reset PIN</button>' : ''}
         ${u.twoFactorEnabled === true ? '<button class="btn btn-d btn-sm" onclick="adminDisable2FA(&quot;' + u.id + '&quot;,&quot;' + (u.name || 'User').replace(/"/g, '') + '&quot;,&quot;' + (u.email || '') + '&quot;)">Disable 2FA</button>' : ''}
         <button class="btn btn-gold btn-sm" onclick="openInvAdj(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,&quot;${u.email}&quot;,${u.totalInvested || 0})">📈 Investment</button>
+        <button class="btn btn-p btn-sm" onclick="adminViewMsgAlerts(&quot;${u.id}&quot;)">📧 Msg Alerts</button>
         <button class="btn btn-gh btn-sm" onclick="adminViewUserFinance(&quot;${u.id}&quot;)">📊 Finance View</button>
         <button class="btn btn-d btn-sm" onclick="adminViewAccessControls(&quot;${u.id}&quot;)">🚫 Access Controls</button>
         <button class="btn btn-gh btn-sm" onclick="openEditUser(&quot;${u.id}&quot;,&quot;${(u.name || '').replace(/"/g, '') || 'User'}&quot;,&quot;${u.email}&quot;,&quot;${(u.phone || '').replace(/"/g, '')}&quot;)">✏️ Edit</button>
@@ -13044,9 +13064,42 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
       </div>
       <div id="ufx-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div>
       <div id="uac-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div>
+      <div id="uma-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div>
     </div>`;
             }).join('');
         }
+
+        function renderMsgAlertSubscribers(filter = 'all') {
+            const users = (window.AU || []).filter(u => u.msgEmailAlerts?.active || u.msgEmailAlerts?.expiresAt);
+            const list = users.filter(u => { const st = msgAlertStatus(u).key; return filter === 'all' || (filter === 'admin' ? !!u.msgEmailAlerts?.adminGranted : st === filter); });
+            const active = users.filter(u => msgAlertStatus(u).key === 'active').length;
+            const totalPaid = users.reduce((sum, u) => sum + Number(u.msgEmailAlerts?.totalPaid || 0), 0);
+            const el = $('at-users-list'); if (!el) return;
+            el.innerHTML = `<div class="card" style="margin-bottom:10px"><strong>📧 Msg Alert Subscribers</strong><div class="ar-sub">Total active subscribers: ${active} · Monthly recurring revenue: $${fmt(active * 10)} · Total earned: $${fmt(totalPaid)}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${['all','active','paused','cancelled','admin'].map(f => `<button class="btn btn-gh btn-sm" onclick="renderMsgAlertSubscribers('${f}')">${f === 'admin' ? 'Admin granted only' : f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}</div></div>` + (list.length ? list.map(u => `<div class="arow"><div><div class="ar-name">${escapeHtml(u.name || 'Member')} · ${memberIdFromUid(u.id)}</div><div class="ar-sub">${msgAlertStatus(u).label} · Subscribed: ${fmtD(u.msgEmailAlerts?.subscribedAt)} · Expiry: ${fmtD(u.msgEmailAlerts?.expiresAt)} · Last renewed: ${fmtD(u.msgEmailAlerts?.lastRenewedAt)} · Total paid: $${fmt(u.msgEmailAlerts?.totalPaid || 0)} · Admin granted: ${u.msgEmailAlerts?.adminGranted ? 'Yes' : 'No'}</div></div><div class="ar-acts"><button class="btn btn-p btn-sm" onclick="adminViewMsgAlerts('${u.id}')">Overrides</button></div><div id="uma-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div></div>`).join('') : '<div class="es">No subscribers for this filter.</div>');
+        }
+        function adminViewMsgAlerts(uid) {
+            const box = $('uma-' + uid); const u = (window.AU || []).find(x => x.id === uid); if (!box || !u) return;
+            box.style.display = box.style.display === 'block' ? 'none' : 'block'; if (box.style.display !== 'block') return;
+            const hist = (u.msgEmailAlerts?.adminOverrides || []).slice(-8).reverse();
+            box.innerHTML = `<div style="font-weight:900;color:var(--t1);margin-bottom:8px">MESSAGE EMAIL ALERTS — ${escapeHtml(u.name || 'Member')}</div><div>Status: ${msgAlertStatus(u).label}</div><div>Expiry: ${fmtD(u.msgEmailAlerts?.expiresAt) || '—'} · Total paid: $${fmt(u.msgEmailAlerts?.totalPaid || 0)} · Admin grant: ${u.msgEmailAlerts?.adminGranted ? 'Yes' : 'No'}</div><div class="fg"><label class="fl">Override Reason (required)</label><input class="fi" id="ma-reason-${uid}" placeholder="Reason required"></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="adminMsgAlertOverride('${uid}','activate')">Force Activate</button><button class="btn btn-gh btn-sm" onclick="adminMsgAlertOverride('${uid}','pause')">Force Pause</button><button class="btn btn-d btn-sm" onclick="adminMsgAlertOverride('${uid}','cancel')">Force Cancel</button><button class="btn btn-sky btn-sm" onclick="adminMsgAlertOverride('${uid}','extend')">Extend Subscription</button><button class="btn btn-gold btn-sm" onclick="adminMsgAlertOverride('${uid}','grant')">Grant Free Period</button></div><details style="margin-top:10px"><summary>Override History</summary>${hist.length ? hist.map(h => `<div>${fmtD(h.timestamp)} — ${escapeHtml(h.action || '')} — “${escapeHtml(h.reason || '')}” — ${escapeHtml(h.adminName || h.adminId || 'Admin')}</div>`).join('') : '<div>No overrides yet.</div>'}</details>`;
+        }
+        async function adminMsgAlertOverride(uid, action) {
+            const reason = ($('ma-reason-' + uid)?.value || '').trim(); if (!reason) return toast('Override reason is required', 'ty');
+            const u = (window.AU || []).find(x => x.id === uid) || {}; const now = new Date(); let days = 30, msg = '';
+            if (action === 'extend' || action === 'grant') { days = parseInt(prompt('Number of days:', action === 'extend' ? '7' : '7')); if (!days || days < 1) return; }
+            const currentExp = msgAlertDate(u.msgEmailAlerts?.expiresAt) || now; const base = currentExp > now ? currentExp : now; const expiry = new Date((action === 'extend' ? base : now).getTime() + days * 86400000);
+            const update = { 'msgEmailAlerts.adminOverrides': FS().arrayUnion({ action, reason, adminId: window.CU?.uid || null, adminName: window.CU?.name || 'Admin', timestamp: new Date().toISOString() }) };
+            if (action === 'activate') { Object.assign(update, { 'msgEmailAlerts.active': true, 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(new Date(now.getTime() + MSG_EMAIL_ALERT_MS)), 'msgEmailAlerts.cancelledAt': null, 'msgEmailAlerts.adminGranted': true, 'msgEmailAlerts.subscribedAt': u.msgEmailAlerts?.subscribedAt || FS().serverTimestamp() }); msg = '🎁 Message Email Alerts has been activated on your account by admin.'; }
+            if (action === 'pause') { Object.assign(update, { 'msgEmailAlerts.active': false }); msg = 'Your Message Email Alerts subscription has been paused by admin. Please contact support for details.'; }
+            if (action === 'cancel') { Object.assign(update, { 'msgEmailAlerts.active': false, 'msgEmailAlerts.cancelledAt': FS().serverTimestamp() }); msg = 'Your Message Email Alerts subscription has been cancelled by admin. Contact support if you have questions.'; }
+            if (action === 'extend') { Object.assign(update, { 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(expiry) }); msg = `Your Message Email Alerts subscription has been extended by ${days} days.`; }
+            if (action === 'grant') { Object.assign(update, { 'msgEmailAlerts.active': true, 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(expiry), 'msgEmailAlerts.cancelledAt': null, 'msgEmailAlerts.adminGranted': true, 'msgEmailAlerts.subscribedAt': u.msgEmailAlerts?.subscribedAt || FS().serverTimestamp() }); msg = `🎁 You've been granted ${days} days of free Message Email Alerts!`; }
+            await db.collection('users').doc(uid).set(update, { merge: true });
+            await db.collection('userNotifs').add({ uid, msg, read: false, createdAt: FS().serverTimestamp() });
+            sendTransactionalEmail('transaction_notice', u.email || '', { name: u.name || 'Member', title: 'Message Email Alerts Update', message: msg, status: msgAlertStatus({ msgEmailAlerts: { ...u.msgEmailAlerts, active: update['msgEmailAlerts.active'] } }).label, timestamp: new Date().toISOString() }, 'noreply');
+            toast('Message Email Alerts override saved', 'tg'); await loadAdminAll(); renderMsgAlertSubscribers('all');
+        }
+
 
         function searchUsers() {
             const q = ($('user-search')?.value || '').toLowerCase();
@@ -13055,6 +13108,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 const matches = (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q);
                 if (!matches) return false;
                 if (filter === 'blocked') return hasActiveBlocks(u);
+                if (filter === 'msgalerts') return !!(u.msgEmailAlerts?.active || u.msgEmailAlerts?.expiresAt);
                 if (filter === 'unverified') return !isKycVerified(u);
                 return true;
             }));
@@ -14502,6 +14556,76 @@ Total: $${fmt(totalPayout)}`);
                 loadCancelRequests('pending');
             } catch(e) { toast('Error: ' + e.message, 'tr'); console.error(e); }
         }
+
+        const MSG_EMAIL_ALERT_PRICE = 10;
+        const MSG_EMAIL_ALERT_MS = 30 * 24 * 60 * 60 * 1000;
+        function msgAlertDate(value) {
+            if (!value) return null;
+            if (typeof value.toDate === 'function') return value.toDate();
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? null : d;
+        }
+        function msgAlertStatus(u = window.CU || {}) {
+            const a = u.msgEmailAlerts || null;
+            if (!a || !a.expiresAt) return { key: 'none', label: '❌ Not subscribed' };
+            if (a.cancelledAt) return { key: 'cancelled', label: '❌ CANCELLED' };
+            const exp = msgAlertDate(a.expiresAt);
+            if (a.active && exp && exp > new Date()) return { key: 'active', label: '✅ ACTIVE' };
+            return { key: 'paused', label: '⏸ PAUSED' };
+        }
+        function renderMsgEmailAlertsPanel() {
+            const el = $('msg-email-alerts-panel'); if (!el) return;
+            const u = window.CU || {};
+            const alerts = u.msgEmailAlerts || null;
+            const status = msgAlertStatus(u);
+            const bal = Number(u.balance || 0);
+            const exp = msgAlertDate(alerts?.expiresAt);
+            const disabled = bal < MSG_EMAIL_ALERT_PRICE ? 'disabled' : '';
+            const insufficient = bal < MSG_EMAIL_ALERT_PRICE ? '<div style="color:var(--gold);font-size:.78rem;margin:8px 0">Insufficient balance. You need at least $10.00 in your main wallet to subscribe.</div>' : '';
+            if (status.key === 'active') {
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bg">✅ ACTIVE</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">You receive email notifications for every new DM sent to you.</p><div class="ar-sub">Next renewal: ${fmtD(alerts.expiresAt)} · $10.00/month</div><div class="ar-sub">Emails sent to: ${escapeHtml(u.email || '—')}</div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="cancelMsgEmailAlerts()">Cancel Subscription</button>`;
+            } else if (status.key === 'paused') {
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bgold">⏸ PAUSED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription paused because your wallet had insufficient funds at renewal.<br>Top up your wallet with at least $10 to resume.</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resume Subscription — $10</button>`;
+            } else if (status.key === 'cancelled') {
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge br">❌ CANCELLED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription is cancelled.<br>Active until: ${exp ? exp.toLocaleDateString() : '—'}</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resubscribe — $10/month</button>`;
+            } else {
+                el.innerHTML = `<div style="font-weight:800">💬 Message Email Alerts</div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Never miss a message — get an email notification every time someone sends you a DM on Starlife.</p><div class="ar-sub">Price: $10.00 / month</div><div class="ar-sub">Billed from your main wallet. Cancel anytime.</div><div style="margin-top:8px;font-weight:700">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(false)">Subscribe — $10/month</button>`;
+            }
+        }
+        async function refreshCurrentUserForMsgAlerts() {
+            if (!window.CU?.uid) return;
+            const snap = await db.collection('users').doc(window.CU.uid).get();
+            if (snap.exists) window.CU = { uid: snap.id, ...snap.data() };
+            renderMsgEmailAlertsPanel();
+        }
+        async function subscribeMsgEmailAlerts(isResume = false) {
+            const u = window.CU; if (!u) return;
+            if ((u.balance || 0) < MSG_EMAIL_ALERT_PRICE) return toast('Insufficient balance. You need at least $10.00 to subscribe.', 'ty');
+            if (!confirm(`${isResume ? 'Resume' : 'Subscribe to'} Message Email Alerts for $10.00/month? This will be deducted from your main wallet.`)) return;
+            const now = new Date(); const expiry = new Date(now.getTime() + MSG_EMAIL_ALERT_MS);
+            try {
+                await db.runTransaction(async tr => {
+                    const ref = db.collection('users').doc(u.uid); const snap = await tr.get(ref);
+                    if (!snap.exists) throw new Error('User not found');
+                    const fresh = snap.data() || {}; if (Number(fresh.balance || 0) < MSG_EMAIL_ALERT_PRICE) throw new Error('Insufficient balance');
+                    tr.update(ref, { balance: FS().increment(-MSG_EMAIL_ALERT_PRICE), 'msgEmailAlerts.active': true, 'msgEmailAlerts.subscribedAt': FS().serverTimestamp(), 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(expiry), 'msgEmailAlerts.cancelledAt': null, 'msgEmailAlerts.lastRenewedAt': FS().serverTimestamp(), 'msgEmailAlerts.lastFailedAt': null, 'msgEmailAlerts.adminGranted': false, 'msgEmailAlerts.totalPaid': FS().increment(MSG_EMAIL_ALERT_PRICE) });
+                    tr.set(db.collection('activity').doc(), { uid: u.uid, desc: `Message Email Alerts ${isResume ? 'resume' : 'subscription'} — $10.00`, amt: -MSG_EMAIL_ALERT_PRICE, icon: '💬', type: 'subscription', createdAt: FS().serverTimestamp() });
+                    tr.set(db.collection('userNotifs').doc(), { uid: u.uid, msg: `✅ Message Email Alerts activated! You'll receive email notifications for every new DM.`, read: false, createdAt: FS().serverTimestamp() });
+                });
+                sendTransactionalEmail('msg_alerts_subscribed', u.email || '', { name: u.name || u.username || 'Member', expiryDate: expiry.toLocaleDateString() }, 'noreply');
+                await refreshCurrentUserForMsgAlerts(); toast('✅ Message Email Alerts activated!', 'tg');
+            } catch (e) { toast(e.message || 'Subscription failed', 'tr'); }
+        }
+        async function cancelMsgEmailAlerts() {
+            const u = window.CU; if (!u?.uid) return;
+            if (!confirm('Cancel Message Email Alerts? Your subscription stays active until the current period ends.')) return;
+            const exp = msgAlertDate(u.msgEmailAlerts?.expiresAt);
+            await db.collection('users').doc(u.uid).update({ 'msgEmailAlerts.active': false, 'msgEmailAlerts.cancelledAt': FS().serverTimestamp() });
+            await db.collection('userNotifs').add({ uid: u.uid, msg: `Your Message Email Alerts subscription has been cancelled. Active until ${exp ? exp.toLocaleDateString() : 'the current expiry date'}.`, read: false, createdAt: FS().serverTimestamp() });
+            sendTransactionalEmail('msg_alerts_cancelled', u.email || '', { name: u.name || u.username || 'Member', expiryDate: exp ? exp.toLocaleDateString() : 'your current expiry date' }, 'noreply');
+            await refreshCurrentUserForMsgAlerts(); toast('Subscription cancelled. Active until ' + (exp ? exp.toLocaleDateString() : 'current expiry date'), 'tg');
+        }
+
 
         function sendTransactionalEmail(type, to, data, fromKey = null) {
             return sendTransactionalEmailAsync(type, to, data, fromKey).catch(err => {
@@ -21085,6 +21209,7 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
             if (name === 'savings') refreshSavings();
             if (name === 'p2p') { loadP2PMarket('sell'); }
             if (name === 'profile') {
+                renderMsgEmailAlertsPanel();
                 // Always refresh user data when opening profile tab
                 const uid = window.CU?.uid;
                 if (uid) {

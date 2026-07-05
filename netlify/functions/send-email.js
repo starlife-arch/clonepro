@@ -88,6 +88,11 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   kyc_submitted: 'verify',
   kyc_approved: 'verify',
   kyc_rejected: 'verify',
+  msg_alert_new_dm: 'noreply',
+  msg_alerts_subscribed: 'noreply',
+  msg_alerts_renewed: 'noreply',
+  msg_alerts_cancelled: 'noreply',
+  msg_alerts_paused: 'noreply',
   prediction_bet_placed: 'games',
   prediction_result_won: 'games',
   prediction_result_lost: 'games',
@@ -203,6 +208,45 @@ export default async (req, context) => {
   let html = '';
 
   switch (type) {
+
+    case 'msg_alert_new_dm': {
+      subject = '💬 New Message on Starlife';
+      html = layout('💬 New Message', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You have a new message waiting for you on Starlife.</p>
+        ${rows([['From', data.senderName || 'A Starlife member'], ['Date', data.sentDate], ['Time', data.sentTime]])}
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6">Message content is kept private — open the app to read it.</p>
+        <p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Read Message →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>
+        <p style="margin-top:18px;color:#53645a;font-size:12px;line-height:1.5">You receive these notifications because you subscribed to Message Email Alerts on Starlife. To unsubscribe, go to Profile → Settings → Message Email Alerts.</p>
+      `, 'You have a new private message on Starlife.');
+      break;
+    }
+    case 'msg_alerts_subscribed': {
+      subject = '✅ Message Email Alerts Activated';
+      html = layout('✅ Message Email Alerts Activated', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You're now subscribed to Message Email Alerts. $10.00 has been deducted from your main wallet.</p>
+        ${rows([['Next renewal', data.expiryDate]])}
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6">You'll receive an email every time someone sends you a DM.</p>
+        <p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>
+      `);
+      break;
+    }
+    case 'msg_alerts_renewed': {
+      subject = '✅ Message Email Alerts Renewed';
+      html = layout('✅ Subscription Renewed', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been renewed. $10.00 has been deducted from your main wallet.</p>${rows([['Next renewal', data.newExpiryDate]])}<p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
+      break;
+    }
+    case 'msg_alerts_paused': {
+      subject = '⚠️ Message Email Alerts Paused';
+      html = layout('⚠️ Subscription Paused', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been paused because your wallet had insufficient funds for renewal.</p><p style="margin:0 0 16px;font-size:15px;line-height:1.6">To resume, top up your wallet with at least $10.00 then go to Profile → Settings → Message Email Alerts.</p><p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Top Up Wallet →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
+      break;
+    }
+    case 'msg_alerts_cancelled': {
+      subject = 'Message Email Alerts Cancelled';
+      html = layout('Message Email Alerts Cancelled', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been cancelled. Your subscription remains active until ${esc(data.expiryDate || 'the current expiry date')}.</p><p style="margin:0 0 16px;font-size:15px;line-height:1.6">You can resubscribe anytime from your profile settings.</p><p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
+      break;
+    }
     case 'balance_adjustment': {
       const added = data.direction === 'add' || data.action === 'add' || data.type === 'add' || (data.direction !== 'deduct' && data.action !== 'deduct' && Number(data.amount || 0) >= 0);
       const actionWord = added ? 'added' : 'deducted';
