@@ -8,6 +8,9 @@
 [functions."apply-loan-penalties"]
   schedule = "@daily"
 
+[functions."renew-msg-alerts"]
+  schedule = "0 6 * * *"
+
 [[redirects]]
   from = "/pesapal-callback"
   to = "/index.html"
