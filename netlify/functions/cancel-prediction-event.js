@@ -11,6 +11,17 @@ export default async (req, context) => {
     if (!eventSnap.exists) throw new Error('Event not found');
     const event = eventSnap.data() || {};
     const betsSnap = await db.collection('predictionBets').where('eventId', '==', eventId).where('status', '==', 'pending').get();
+    if (event.eventMode === 'free_prize') {
+      const prize = cents(event.prize || 0);
+      for (const doc of betsSnap.docs) {
+        const bet = { id: doc.id, ...doc.data() };
+        await db.collection('predictionBets').doc(bet.id).update({ status: 'refunded', payout: 0, settledAt: admin.firestore.FieldValue.serverTimestamp() });
+        await db.collection('userNotifs').add({ uid: bet.userId, msg: `Your free prize prediction entry for ${event.title} was cancelled.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+      if (event.prizeDeducted !== false && prize > 0) await db.collection('gamePools').doc('prizePredictions').set({ balance: admin.firestore.FieldValue.increment(prize) }, { merge: true });
+      await db.collection('predictionEvents').doc(eventId).update({ status: 'cancelled', cancelledAt: admin.firestore.FieldValue.serverTimestamp(), cancelledBy: adminId });
+      return json({ success: true, totalRefunded: prize });
+    }
     let totalRefunded = 0;
     for (const doc of betsSnap.docs) {
       const bet = { id: doc.id, ...doc.data() };
