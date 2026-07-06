@@ -1220,7 +1220,7 @@
         .mover {
             position: fixed;
             inset: 0;
-            z-index: 500;
+            z-index: 10000;
             background: rgba(0, 0, 0, .78);
             backdrop-filter: blur(6px);
             display: none;
@@ -14876,7 +14876,7 @@ Total: $${fmt(totalPayout)}`);
             const btn = buttonEl || document.querySelector('#at-broadcast button[onclick*="sendBroadcastEmail"]');
             const originalText = btn ? btn.textContent : '';
             if (btn) {
-                btn.textContent = 'Sending...';
+                btn.textContent = 'Starting...';
                 btn.disabled = true;
             }
 
@@ -14894,11 +14894,9 @@ Total: $${fmt(totalPayout)}`);
 
                 $('bc-email-result').innerHTML = `
       <div style="background:rgba(0,230,118,.1);border:1px solid var(--g);border-radius:8px;padding:10px">
-        ✅ Sent: ${data.sent} / ${data.totalRecipients}<br>
-        ❌ Failed: ${data.failed}<br>
-        ${data.errors?.length ? 'Errors: ' + data.errors.map(e => e.email).join(', ') : ''}
+        ✅ Broadcast started — sending in the background. Check back shortly.
       </div>`;
-                toast(`Email broadcast sent to ${data.sent} users`);
+                toast('Email broadcast started — sending in the background', 'tg');
             } catch (err) {
                 $('bc-email-result').innerHTML = `<div style="color:var(--red)">❌ ${err.message}</div>`;
                 toast(err.message, 'tr');

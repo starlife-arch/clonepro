@@ -1,4 +1,4 @@
-// netlify/functions/broadcast-email.js
+// netlify/functions/broadcast-email-background.js
 import nodemailer from 'nodemailer';
 import admin from 'firebase-admin';
 import { resolveSender } from './_lib/senders.js';
@@ -88,21 +88,27 @@ export default async (req, context) => {
   let sent = 0, failed = 0, errors = [];
   const fromEmail = fromKey === 'maintenance' ? '"Starlife Advert" <noreply@starlifeadvert.com>' : resolveSender(fromKey || 'broadcast');
 
-  for (const { email, name } of recipientsList) {
-    let personalizedMessage = message
-      .replace(/Dear Member/gi, `Dear ${name}`)
-      .replace(/Hi \[Name\]/gi, `Hi ${name}`)
-      .replace(/\[Name\]/g, name);
-    if (!personalizedMessage.includes(name)) {
-      personalizedMessage = `<p>Dear ${name},</p>\n${personalizedMessage}`;
-    }
-    try {
+  const batchSize = 10;
+  for (let i = 0; i < recipientsList.length; i += batchSize) {
+    const batch = recipientsList.slice(i, i + batchSize);
+    const results = await Promise.allSettled(batch.map(async ({ email, name }) => {
+      let personalizedMessage = message
+        .replace(/Dear Member/gi, `Dear ${name}`)
+        .replace(/Hi \[Name\]/gi, `Hi ${name}`)
+        .replace(/\[Name\]/g, name);
+      if (!personalizedMessage.includes(name)) {
+        personalizedMessage = `<p>Dear ${name},</p>\n${personalizedMessage}`;
+      }
       await transporter.sendMail({ from: fromEmail, to: email, subject, html: personalizedMessage, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
-      sent++;
-    } catch (err) {
-      failed++;
-      errors.push({ email, error: err.message });
-    }
+      return { email };
+    }));
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled') sent++;
+      else {
+        failed++;
+        errors.push({ email: batch[idx].email, error: result.reason?.message || 'Send failed' });
+      }
+    });
   }
 
   // 5. Telegram alert
