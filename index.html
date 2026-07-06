@@ -7490,7 +7490,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <button class="btn btn-p btn-full" onclick="sendBroadcastEmail(this)">Send Email Broadcast</button>
                 <div id="bc-email-result" style="margin-top:12px; font-size:.85rem;"></div>
                 <div style="margin-top:16px">
-                    <h3 style="font-size:.9rem;margin-bottom:10px">Recent Broadcasts</h3>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="font-size:.9rem;margin:0">Recent Broadcasts</h3><button class="btn btn-sm" onclick="loadBroadcastEmailLogs()">Refresh</button></div>
                     <div id="bc-email-logs"><div class="es" style="padding:14px">No email broadcast logs yet</div></div>
                 </div>
             </div>
@@ -14889,7 +14889,7 @@ Total: $${fmt(totalPayout)}`);
             const btn = buttonEl || document.querySelector('#at-broadcast button[onclick*="sendBroadcastEmail"]');
             const originalText = btn ? btn.textContent : '';
             if (btn) {
-                btn.textContent = 'Starting...';
+                btn.textContent = 'Queueing broadcast...';
                 btn.disabled = true;
             }
 
@@ -14905,12 +14905,13 @@ Total: $${fmt(totalPayout)}`);
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.error || 'Broadcast failed');
 
+                const queued = Number(data.queued ?? data.totalRecipients ?? 0);
                 $('bc-email-result').innerHTML = `
       <div style="background:rgba(0,230,118,.1);border:1px solid var(--g);border-radius:8px;padding:10px">
-        ✅ Broadcast started — sending in the background. Check back shortly.
+        ✅ Broadcast queued — ${queued} recipients added, sending in batches over the next few minutes.
       </div>`;
-                toast('Email broadcast started — sending in the background', 'tg');
-                setTimeout(loadBroadcastEmailLogs, 2500);
+                toast(`Email broadcast queued — ${queued} recipients added`, 'tg');
+                setTimeout(loadBroadcastEmailLogs, 1500);
             } catch (err) {
                 $('bc-email-result').innerHTML = `<div style="color:var(--red)">❌ ${err.message}</div>`;
                 toast(err.message, 'tr');
@@ -14933,7 +14934,7 @@ Total: $${fmt(totalPayout)}`);
             const el = $('bc-email-logs');
             if (!el) return;
             try {
-                const snap = await db.collection('broadcastLogs').orderBy('sentAt', 'desc').limit(8).get();
+                const snap = await db.collection('broadcastLogs').orderBy('updatedAt', 'desc').limit(8).get();
                 if (snap.empty) {
                     el.innerHTML = '<div class="es" style="padding:14px">No email broadcast logs yet</div>';
                     return;
@@ -14942,9 +14943,10 @@ Total: $${fmt(totalPayout)}`);
                     const b = d.data() || {};
                     const failed = Number(b.failed || 0);
                     const sent = Number(b.sent || 0);
-                    const recipients = Number(b.recipients || 0);
-                    const status = failed ? '<span class="badge br">Failed</span>' : '<span class="badge bg">Sent</span>';
-                    return `<div class="arow" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:600;font-size:.88rem">${escapeHtml(b.subject || 'Broadcast')} ${status}</div><div style="font-size:.78rem;color:var(--t2);margin-top:3px">Sent: ${sent} · Failed: ${failed} · Recipients: ${recipients}</div><div style="font-size:.72rem;color:var(--t3);margin-top:4px">${fmtDT(b.sentAt)}</div></div></div></div>`;
+                    const recipients = Number(b.totalRecipients || b.recipients || 0);
+                    const pending = Number(b.pending || Math.max(0, recipients - sent - failed));
+                    const status = pending > 0 ? '<span class="badge bgold">Processing</span>' : (failed ? '<span class="badge br">Done with failures</span>' : '<span class="badge bg">Sent</span>');
+                    return `<div class="arow" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:600;font-size:.88rem">${escapeHtml(b.subject || 'Broadcast')} ${status}</div><div style="font-size:.78rem;color:var(--t2);margin-top:3px">Sent: ${sent} · Failed: ${failed} · Pending: ${pending} · Recipients: ${recipients}</div><div style="font-size:.72rem;color:var(--t3);margin-top:4px">Last updated: ${fmtDT(b.updatedAt || b.sentAt || b.createdAt)}</div></div></div></div>`;
                 }).join('');
             } catch (e) {
                 el.innerHTML = '<div class="es" style="padding:14px">Unable to load email broadcast logs</div>';

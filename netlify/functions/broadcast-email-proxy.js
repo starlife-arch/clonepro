@@ -12,7 +12,7 @@ export default async (req, context) => {
     const siteUrl = process.env.URL || 'http://localhost:8888';
 
     const response = await fetch(
-      `${siteUrl}/.netlify/functions/broadcast-email-background`,
+      `${siteUrl}/.netlify/functions/broadcast-email-queue`,
       {
         method: 'POST',
         headers: {
