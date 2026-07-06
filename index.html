@@ -7489,6 +7489,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 </div>
                 <button class="btn btn-p btn-full" onclick="sendBroadcastEmail(this)">Send Email Broadcast</button>
                 <div id="bc-email-result" style="margin-top:12px; font-size:.85rem;"></div>
+                <div style="margin-top:16px">
+                    <h3 style="font-size:.9rem;margin-bottom:10px">Recent Broadcasts</h3>
+                    <div id="bc-email-logs"><div class="es" style="padding:14px">No email broadcast logs yet</div></div>
+                </div>
             </div>
 
             <div class="card" style="margin-top:14px">
@@ -8398,8 +8402,17 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         function fmtDT(ts) { if (!ts) return ''; const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); }
         function genRef() { return 'SLA-' + Math.random().toString(36).substring(2, 6).toUpperCase(); }
         function genTxId() { return 'TX-' + Date.now().toString(36).toUpperCase(); }
-        function openModal(id) { $(id).classList.add('open'); }
-        function closeModal(id) { $(id).classList.remove('open'); }
+        function openModal(id) {
+            const el = $(id);
+            if (!el) return;
+            // Some account/security modals are declared inside tab containers that can be hidden or
+            // create their own stacking context. A fixed-position overlay cannot render visibly from
+            // inside a hidden ancestor even when its own .open class is applied, so hoist these
+            // shared overlays to <body> before opening them.
+            if (el.classList.contains('mover') && el.parentElement !== document.body) document.body.appendChild(el);
+            el.classList.add('open');
+        }
+        function closeModal(id) { $(id)?.classList.remove('open'); }
         function isKycVerified(u = window.CU) { return !!u && u.kycStatus === 'approved'; }
         function hasActiveBlocks(u) { const b = u?.blocks || {}; return Object.keys(b).some(k => !!b[k]); }
         function activeBlockLabels(u) { const labels = { allTransactions: 'All Transactions', withdrawals: 'Withdrawals', transfers: 'Transfers', cardPayments: 'Card Payments', deposits: 'Deposits', trading: 'P2P Trading', investments: 'Investments', staking: 'Staking' }; const b = u?.blocks || {}; return Object.keys(labels).filter(k => !!b[k]).map(k => labels[k]); }
@@ -12607,7 +12620,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             prizecodes: () => loadAdminPrizeCodes(),
             luckydraw: () => loadAdminDraw(),
             p2p: () => loadAdminP2P(),
-            broadcast: () => { loadAdminBroadcasts(); loadAdminPushSettings(); },
+            broadcast: () => { loadAdminBroadcasts(); loadBroadcastEmailLogs(); loadAdminPushSettings(); },
             targeted: () => loadAdminTargetedAnnouncements(),
             moving: () => loadAdminMovingAnnouncement(),
             ads: () => loadAds(),
@@ -14897,6 +14910,7 @@ Total: $${fmt(totalPayout)}`);
         ✅ Broadcast started — sending in the background. Check back shortly.
       </div>`;
                 toast('Email broadcast started — sending in the background', 'tg');
+                setTimeout(loadBroadcastEmailLogs, 2500);
             } catch (err) {
                 $('bc-email-result').innerHTML = `<div style="color:var(--red)">❌ ${err.message}</div>`;
                 toast(err.message, 'tr');
@@ -14913,6 +14927,29 @@ Total: $${fmt(totalPayout)}`);
             if ($('bc-email-selected-input')) $('bc-email-selected-input').style.display = val === 'selected' ? 'block' : 'none';
             if ($('bc-email-single-input')) $('bc-email-single-input').style.display = val === 'single' ? 'block' : 'none';
         });
+
+
+        async function loadBroadcastEmailLogs() {
+            const el = $('bc-email-logs');
+            if (!el) return;
+            try {
+                const snap = await db.collection('broadcastLogs').orderBy('sentAt', 'desc').limit(8).get();
+                if (snap.empty) {
+                    el.innerHTML = '<div class="es" style="padding:14px">No email broadcast logs yet</div>';
+                    return;
+                }
+                el.innerHTML = snap.docs.map(d => {
+                    const b = d.data() || {};
+                    const failed = Number(b.failed || 0);
+                    const sent = Number(b.sent || 0);
+                    const recipients = Number(b.recipients || 0);
+                    const status = failed ? '<span class="badge br">Failed</span>' : '<span class="badge bg">Sent</span>';
+                    return `<div class="arow" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:600;font-size:.88rem">${escapeHtml(b.subject || 'Broadcast')} ${status}</div><div style="font-size:.78rem;color:var(--t2);margin-top:3px">Sent: ${sent} · Failed: ${failed} · Recipients: ${recipients}</div><div style="font-size:.72rem;color:var(--t3);margin-top:4px">${fmtDT(b.sentAt)}</div></div></div></div>`;
+                }).join('');
+            } catch (e) {
+                el.innerHTML = '<div class="es" style="padding:14px">Unable to load email broadcast logs</div>';
+            }
+        }
 
         async function processScheduledBroadcasts(showToast) {
             try {
