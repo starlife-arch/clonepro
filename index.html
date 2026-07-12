@@ -3339,7 +3339,6 @@
         function savePIN() { _safe('savePIN'); }
         function openSetPin() { _safe('openSetPin'); }
         function sendBroadcast() { _safe('sendBroadcast'); }
-        function runDailyProfits() { _safe('runDailyProfits'); }
         function searchUsers() { _safe('searchUsers'); }
         function exportCSV() { _safe('exportCSV'); }
         function redeemPrizeCode() { _safe('redeemPrizeCode'); }
@@ -6408,8 +6407,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             <div class="nav-logo">Starlife<b>.</b> <span
                     style="color:var(--t3);font-size:.78rem;font-weight:400">Admin</span></div>
             <div class="nav-r">
-                <button class="btn btn-gold btn-sm" onclick="runDailyProfits()" style="font-size:.75rem">⚡ Run
-                    Profits</button>
                 <button class="btn btn-d btn-sm" onclick="doLogout()">Logout</button>
             </div>
         </nav>
@@ -6525,6 +6522,17 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
                     <button class="btn btn-gh btn-sm" onclick="loadAdminTickets('open')">Open</button>
                     <button class="btn btn-gh btn-sm" onclick="loadAdminTickets('all')">All</button>
+                    <button class="btn btn-p btn-sm" onclick="toggleAdminCreateTicket()">+ Create Ticket for User</button>
+                </div>
+                <div id="admin-create-ticket-card" class="card" style="display:none;margin-bottom:12px">
+                    <div style="font-weight:700;margin-bottom:8px">Create Ticket for User</div>
+                    <div class="fg"><label class="fl">Search user (name, email, phone, or UID)</label><input class="fi" id="act-user-search" placeholder="Type to search users" oninput="adminCreateTicketSearchUsers()"></div>
+                    <div id="act-user-results" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+                    <div id="act-selected-user" style="font-size:.78rem;color:var(--t2);margin-bottom:10px">No user selected</div>
+                    <div class="fg"><label class="fl">Subject</label><input class="fi" id="act-subject" placeholder="Ticket subject"></div>
+                    <div class="fg"><label class="fl">Initial message</label><textarea class="fi" id="act-message" rows="4" placeholder="Summarize what the user said off-platform"></textarea></div>
+                    <div class="fg"><label class="fl">Category</label><input class="fi" id="act-category" value="support" placeholder="support"></div>
+                    <button class="btn btn-p btn-full" onclick="adminCreateTicketForUser()">Create Ticket</button>
                 </div>
                 <div id="at-tickets-list"></div>
             </div>
@@ -6586,27 +6594,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <button class="btn btn-sky btn-sm" style="margin-left:8px;margin-top:8px"
                     onclick="openModal('m-blog')">📝 New Blog Post</button>
 
-                <div class="card" style="margin-top:14px">
-                    <div style="font-weight:700;font-size:.92rem;margin-bottom:8px">⚙️ Bulk Profit Operations</div>
-                    <div style="font-size:.76rem;color:var(--t2);margin-bottom:10px">Uses the same daily profit logic as
-                        global run. Choose users and mode below.</div>
-                    <div class="fg"><label class="fl">Mode</label>
-                        <select class="fi" id="bp-mode">
-                            <option value="selected">Run for selected users only</option>
-                            <option value="exclude">Run for all except excluded users</option>
-                        </select>
-                    </div>
-                    <div class="fg"><label class="fl">Search User (name, email, or UID)</label><input class="fi"
-                            id="bp-user-search" placeholder="Type to search users" oninput="bulkProfitSearchUsers()">
-                    </div>
-                    <div id="bp-user-results" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-                    <div style="font-size:.74rem;color:var(--t3);margin-bottom:6px">Selected users</div>
-                    <div id="bp-selected-users" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="btn btn-gh btn-sm" onclick="bulkProfitClearUsers()">Clear Selected</button>
-                        <button class="btn btn-gold btn-sm" onclick="adminRunBulkProfits()">▶ Run Bulk Profits</button>
-                    </div>
-                </div>
+
             </div>
 
             <div id="at-fees" class="atab">
@@ -8139,7 +8127,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 'doLogin', 'doRegister', 'doForgot', 'doLogout', 'doInvest', 'doWithdraw',
                 'doStake', 'doLoan', 'doTicket', 'doCheckin', 'doSpin', 'submitDeposit',
                 'submitKYC', 'saveBirthday', 'savePIN', 'openSetPin', 'sendBroadcast',
-                'runDailyProfits', 'searchUsers', 'exportCSV', 'redeemPrizeCode',
+                'searchUsers', 'exportCSV', 'redeemPrizeCode',
                 'submitSurvey', 'skipSurvey', 'submitTestimonial', 'buyTickets',
                 'endContest', 'setContest', 'setDeal', 'setDraw', 'runDraw',
                 'generatePrizeCode', 'publishBlog', 'createSurvey', 'copyRefCode',
@@ -13800,6 +13788,97 @@ Total: $${fmt(totalPayout)}`);
         // ════════════════════════════════════════════════════════
         // ADMIN — TICKETS
         // ════════════════════════════════════════════════════════
+        window._adminCreateTicketUser = null;
+
+        function toggleAdminCreateTicket() {
+            const card = $('admin-create-ticket-card');
+            if (!card) return;
+            card.style.display = card.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function adminCreateTicketSearchUsers() {
+            const q = ($('act-user-search')?.value || '').trim().toLowerCase();
+            const el = $('act-user-results');
+            if (!el) return;
+            if (!q) { el.innerHTML = ''; return; }
+            const list = (window.AU || []).filter(u =>
+                (u.name || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q) ||
+                (u.phone || '').toLowerCase().includes(q) ||
+                (u.id || '').toLowerCase().includes(q)
+            ).slice(0, 8);
+            el.innerHTML = list.length ? list.map(u => `<button class="btn btn-gh btn-sm" onclick="adminCreateTicketSelectUser('${u.id}')">${escapeHtml(u.name || 'User')} · ${escapeHtml((u.email || '').slice(0, 24))}${(u.email || '').length > 24 ? '…' : ''}</button>`).join('') : '<span style="font-size:.75rem;color:var(--t3)">No matching users</span>';
+        }
+
+        function adminCreateTicketSelectUser(uid) {
+            const u = (window.AU || []).find(x => x.id === uid);
+            if (!u) return toast('User not found', 'tr');
+            window._adminCreateTicketUser = u;
+            const summary = $('act-selected-user');
+            if (summary) summary.innerHTML = `Selected: <b>${escapeHtml(u.name || 'Member')}</b> · ${escapeHtml(u.email || '')} · ${escapeHtml(u.phone || uid)}`;
+            if ($('act-user-results')) $('act-user-results').innerHTML = '';
+            if ($('act-user-search')) $('act-user-search').value = '';
+        }
+
+        async function adminCreateTicketForUser() {
+            const u = window._adminCreateTicketUser;
+            if (!u) return toast('Select a user first', 'ty');
+            const subject = ($('act-subject')?.value || '').trim();
+            const message = ($('act-message')?.value || '').trim();
+            const category = ($('act-category')?.value || '').trim() || 'support';
+            if (!subject) return toast('Enter a subject', 'ty');
+            if (!message) return toast('Enter the initial message', 'ty');
+            const agentName = window._ticketAgentName || prompt('Enter your agent name (e.g. Doreen):');
+            if (!agentName || !agentName.trim()) return;
+            window._ticketAgentName = agentName.trim().includes('Support') ? agentName.trim() : agentName.trim() + ' - Support';
+            const severityInfo = detectSupportSeverity(message + ' ' + subject);
+            const tickId = 'TK-' + Date.now().toString(36).toUpperCase();
+            const firstMsg = { from: 'user', name: u.name || 'Member', text: message, image: null, time: new Date().toISOString() };
+            const ticketDoc = {
+                uid: u.id,
+                userName: u.name || 'Member',
+                userEmail: u.email || '',
+                ticketId: tickId,
+                subject,
+                category,
+                severity: severityInfo.severity,
+                status: 'open',
+                source: 'admin_created',
+                forceHuman: true,
+                aiSuggested: false,
+                createdByAdmin: true,
+                createdByAgentName: window._ticketAgentName,
+                messages: [firstMsg],
+                createdAt: FS().serverTimestamp(),
+                updatedAt: FS().serverTimestamp()
+            };
+            const ticketRef = await db.collection('tickets').add(ticketDoc);
+            await db.collection('adminNotifs').add({ type: 'ticket', severity: severityInfo.severity, msg: `New ${severityInfo.severity} ticket from ${u.name || 'Member'}: ${subject}`, uid: u.id, read: false, createdAt: FS().serverTimestamp() });
+            await db.collection('userNotifs').add({ uid: u.id, msg: `🎧 Support ticket ${tickId} has been opened: ${subject}`, read: false, createdAt: FS().serverTimestamp() });
+            await tg(`🎧 <b>Support Ticket</b>
+Ticket: ${tickId}
+Severity: ${severityInfo.severity.toUpperCase()}
+User: ${u.name || 'Member'} (${u.email || ''})
+Subject: ${subject}
+Message: ${message || '—'}
+Created by: ${window._ticketAgentName}`);
+            if (severityInfo.matched.length && (severityInfo.severity === 'high' || severityInfo.severity === 'critical')) {
+                await tg(`🚨 <b>High-Risk Trigger</b>
+Ticket: ${tickId}
+User: ${u.name || 'Member'}
+Triggers: ${severityInfo.matched.join(', ')}`);
+            }
+            try {
+                await sendTransactionalEmailAsync('ticket_created', u.email || '', { name: u.name || 'Member', ticketId: tickId, subject, message, severity: severityInfo.severity, replyTo: 'support@starlifeadvert.com' });
+            } catch (e) { console.error('[admin ticket email] failed', e); }
+            toast(`Ticket ${tickId} created ✓`);
+            $('act-subject').value = ''; $('act-message').value = ''; $('act-category').value = 'support';
+            window._adminCreateTicketUser = null;
+            if ($('act-selected-user')) $('act-selected-user').textContent = 'No user selected';
+            loadAdminTickets('open');
+            return { id: ticketRef.id, ticketId: tickId };
+        }
+
         async function loadAdminTickets(filter = 'open') {
             let q = filter !== 'all' ? db.collection('tickets').where('status', '==', filter) : db.collection('tickets');
             const snap = await q.get();
@@ -13984,7 +14063,7 @@ Total: $${fmt(totalPayout)}`);
                     read: false,
                     createdAt: FS().serverTimestamp()
                 });
-                sendTransactionalEmail('ticket_reply', t.userEmail, { name: t.userName, ticketId: t.ticketId, subject: t.subject, replyText: newMsg.text });
+                sendTransactionalEmail('ticket_reply', t.userEmail, { name: t.userName, ticketId: t.ticketId, subject: t.subject, replyText: newMsg.text, agentName });
 
                 // Clear reply box
                 const ri = $('m-tick-reply'); if (ri) ri.value = '';
@@ -15052,7 +15131,6 @@ Total: $${fmt(totalPayout)}`);
                     + '<div class="ai-time">' + fmtDT(a.createdAt) + '</div></div></div>'
                     + '<div class="ai-amt ' + (pos ? 'pos' : 'neg') + '">' + (pos ? '+' : '') + '$' + fmt(a.amt) + '</div></div>';
             }).join('');
-            if (window.bulkProfitRenderSelected) bulkProfitRenderSelected();
         }
 
         function exportCSV() {
@@ -18945,294 +19023,6 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                 }
             } catch (e) { if (el) el.innerHTML = '<div class="es">Error</div>'; if (usageEl) usageEl.innerHTML = '<div class="es">Error</div>'; }
         }
-
-        // ════════════════════════════════════════════════════════
-        // DAILY PROFITS
-        // ════════════════════════════════════════════════════════
-        function shouldRunProfitForUid(uid, opts) {
-            const mode = opts?.mode || 'all';
-            const set = opts?.uidSet || null;
-            if (mode === 'selected') return !!(set && set.has(uid));
-            if (mode === 'exclude') return !(set && set.has(uid));
-            return true;
-        }
-
-        async function runDailyProfitsInternal(opts = { mode: 'all', uidSet: null, label: 'global' }) {
-            if (window._profitRunLock) { toast('A profit run is already in progress', 'ty'); return null; }
-            window._profitRunLock = true;
-            toast('Processing…', 'ty', 30000);
-            const today = new Date().toDateString();
-            let invCount = 0, shCount = 0, savCount = 0;
-
-            // ── Helper: commit a batch and start a new one ──────────
-            // Firestore max is 500 ops per batch. We flush every 400 to be safe.
-            const BATCH_FLUSH = 400;
-            async function flushBatch(batch, opCount) {
-                if (opCount > 0) await batch.commit();
-                return { batch: db.batch(), opCount: 0 };
-            }
-
-            try {
-                // ── PART 1: Investment profits ───────────────────────
-                const invSnap = await db.collection('investments').where('status', '==', 'active').get();
-
-                // Pre-load all affected users in ONE batch read — avoids N individual reads
-                const uidsNeeded = [...new Set(
-                    invSnap.docs
-                        .map(d => d.data().uid)
-                        .filter(uid => uid && shouldRunProfitForUid(uid, opts))
-                )];
-                const userCache = {};
-                // Firestore 'in' queries max 30 items — chunk
-                for (let i = 0; i < uidsNeeded.length; i += 30) {
-                    const chunk = uidsNeeded.slice(i, i + 30);
-                    const snap = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
-                    snap.docs.forEach(d => { userCache[d.id] = d.data(); });
-                }
-
-                let wb = db.batch(), wbOps = 0;
-                for (const doc of invSnap.docs) {
-                    const inv = doc.data();
-                    if (!inv || !inv.uid) continue;
-                    if (!shouldRunProfitForUid(inv.uid, opts)) continue;
-                    if (inv.lastProfitDate === today) continue;
-                    if (inv.earningEnabled === false) continue;
-                    if ((inv.amount || 0) <= 0) continue;
-                    if (['deducted', 'inactive', 'cancelled'].includes(String(inv.status || '').toLowerCase())) continue;
-
-                    const uData = userCache[inv.uid];
-                    if (!uData || uData.isBanned) continue;
-
-                    const rate = getEffectiveInvestmentRate(uData);
-                    const profit = parseFloat(((inv.amount || 0) * rate).toFixed(4));
-                    if (profit <= 0) continue;
-
-                    // Auto-reinvest split
-                    let reinvestAmt = 0, balanceProfit = profit;
-                    if (uData.autoReinvest && uData.autoReinvestPct > 0) {
-                        reinvestAmt  = parseFloat((profit * uData.autoReinvestPct / 100).toFixed(4));
-                        balanceProfit = parseFloat((profit - reinvestAmt).toFixed(4));
-                    }
-
-                    // User: credit balance + totalEarned
-                    wb.update(db.collection('users').doc(inv.uid), {
-                        balance:     FS().increment(balanceProfit),
-                        totalEarned: FS().increment(profit)
-                    });
-                    wbOps++;
-
-                    // Investment: mark paid
-                    wb.update(doc.ref, {
-                        totalPaid:      FS().increment(profit),
-                        lastProfitDate: today,
-                        lastProfitAt:   FS().serverTimestamp()
-                    });
-                    wbOps++;
-
-                    // Auto-reinvest new investment record
-                    if (reinvestAmt > 0) {
-                        const newInvRef = db.collection('investments').doc();
-                        wb.set(newInvRef, { uid: inv.uid, userName: uData.name, userEmail: uData.email, amount: reinvestAmt, method: 'Auto-Reinvest', txid: 'AR-' + genTxId(), status: 'active', earningEnabled: true, dailyProfit: reinvestAmt * rate, totalPaid: 0, createdAt: FS().serverTimestamp() });
-                        wbOps++;
-                        wb.set(db.collection('activity').doc(), { uid: inv.uid, desc: `Auto-reinvested $${fmt(reinvestAmt)} (${uData.autoReinvestPct}% of $${fmt(profit)} profit)`, amt: -reinvestAmt, icon: '🔄', type: 'profit', createdAt: FS().serverTimestamp() });
-                        wbOps++;
-                    }
-
-                    // Activity log
-                    wb.set(db.collection('activity').doc(), { uid: inv.uid, desc: `Investment daily profit ${(rate * 100).toFixed(2)}% (${today})`, amt: profit, icon: '📈', type: 'profit', createdAt: FS().serverTimestamp() });
-                    wbOps++;
-
-                    // User notification
-                    wb.set(db.collection('userNotifs').doc(), { uid: inv.uid, msg: `📈 Daily profit +$${profit.toFixed(2)} from $${fmt(inv.amount)} investment at ${(rate * 100).toFixed(2)}%`, read: false, createdAt: FS().serverTimestamp() });
-                    wbOps++;
-
-                    invCount++;
-
-                    // Flush before hitting Firestore 500 limit
-                    if (wbOps >= BATCH_FLUSH) {
-                        const r = await flushBatch(wb, wbOps);
-                        wb = r.batch; wbOps = r.opCount;
-                    }
-                }
-                // Commit remaining
-                if (wbOps > 0) await wb.commit();
-
-                // ── PART 2: Shareholder profits ──────────────────────
-                const DAILY_POOL = parseFloat((2000000 / 365).toFixed(4));
-                const BASE_POOL  = 500000;
-                const shSnap     = await db.collection('users').where('shareholderStake', '>', 0).get();
-                const realStake  = shSnap.docs.reduce((s, d) => s + (d.data().shareholderStake || 0), 0);
-                const totalStake = realStake + BASE_POOL;
-
-                if (realStake > 0) {
-                    let sb = db.batch(), sbOps = 0;
-                    for (const doc of shSnap.docs) {
-                        const u = doc.data();
-                        if (!u || u.isBanned) continue;
-                        if (u.shareholderEarningsPaused) continue;
-                        if (!shouldRunProfitForUid(doc.id, opts)) continue;
-                        if (u.shLastProfitDate === today) continue;
-                        const stake = u.shareholderStake || 0;
-                        if (stake <= 0) continue;
-                        const earn = parseFloat(((stake / totalStake) * DAILY_POOL).toFixed(4));
-                        if (earn <= 0) continue;
-
-                        // ✅ FIX: credit BOTH shareholderEarned AND balance so user actually receives the money
-                        sb.update(doc.ref, {
-                            balance:                  FS().increment(earn),   // ← was missing before
-                            shareholderEarned:        FS().increment(earn),
-                            shareholderDistributed:   FS().increment(earn),
-                            totalEarned:              FS().increment(earn),
-                            shLastProfitDate:         today
-                        });
-                        sbOps++;
-
-                        sb.set(db.collection('activity').doc(), { uid: doc.id, desc: `Shareholder daily earn ($${stake.toFixed(2)} stake / $${totalStake.toFixed(2)} pool × $${DAILY_POOL.toFixed(2)}) = $${earn.toFixed(4)} (${today})`, amt: earn, icon: '💎', type: 'shareholder', createdAt: FS().serverTimestamp() });
-                        sbOps++;
-
-                        sb.set(db.collection('userNotifs').doc(), { uid: doc.id, msg: `💎 Shareholder earning +$${earn.toFixed(4)} from $${stake.toFixed(2)} stake`, read: false, createdAt: FS().serverTimestamp() });
-                        sbOps++;
-
-                        shCount++;
-
-                        if (sbOps >= BATCH_FLUSH) {
-                            const r = await flushBatch(sb, sbOps);
-                            sb = r.batch; sbOps = r.opCount;
-                        }
-                    }
-                    if (sbOps > 0) await sb.commit();
-                }
-
-                // ── PART 3: Savings Wallet profits ──────────────────
-                const savSnap = await db.collection('savings').where('status', '==', 'active').get();
-
-                // Pre-load savings users
-                const savUids = [...new Set(savSnap.docs.map(d => d.data().uid).filter(Boolean))];
-                const savUserCache = {};
-                for (let i = 0; i < savUids.length; i += 30) {
-                    const chunk = savUids.slice(i, i + 30);
-                    const snap = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
-                    snap.docs.forEach(d => { savUserCache[d.id] = d.data(); });
-                }
-
-                let svb = db.batch(), svbOps = 0;
-                for (const doc of savSnap.docs) {
-                    const sav = doc.data();
-                    if (!sav || !sav.uid) continue;
-                    if (!shouldRunProfitForUid(sav.uid, opts)) continue;
-                    if (sav.savLastProfitDate === today) continue;
-
-                    const unlockDate = sav.unlockDate ? new Date(sav.unlockDate.seconds * 1000) : null;
-                    if (unlockDate && new Date() > unlockDate) {
-                        svb.update(doc.ref, { status: 'matured' });
-                        svbOps++;
-                        if (svbOps >= BATCH_FLUSH) { const r = await flushBatch(svb, svbOps); svb = r.batch; svbOps = r.opCount; }
-                        continue;
-                    }
-
-                    const uData = savUserCache[sav.uid];
-                    if (!uData || uData.isBanned) continue;
-
-                    const profit = parseFloat(((sav.amount || 0) * 0.03).toFixed(4));
-                    if (profit <= 0) continue;
-
-                    svb.update(db.collection('users').doc(sav.uid), {
-                        savingsEarned: FS().increment(profit),
-                        totalEarned:   FS().increment(profit)
-                    });
-                    svbOps++;
-
-                    svb.update(doc.ref, {
-                        totalPaid:         FS().increment(profit),
-                        savLastProfitDate: today,
-                        savLastProfitAt:   FS().serverTimestamp()
-                    });
-                    svbOps++;
-
-                    svb.set(db.collection('activity').doc(), { uid: sav.uid, desc: `Savings 3% daily profit on $${fmt(sav.amount || 0)} (${today})`, amt: profit, icon: '🏦', type: 'savings', createdAt: FS().serverTimestamp() });
-                    svbOps++;
-
-                    svb.set(db.collection('userNotifs').doc(), { uid: sav.uid, msg: `🏦 Savings profit: +$${profit.toFixed(4)} (3% on $${fmt(sav.amount || 0)})`, read: false, createdAt: FS().serverTimestamp() });
-                    svbOps++;
-
-                    savCount++;
-
-                    if (svbOps >= BATCH_FLUSH) {
-                        const r = await flushBatch(svb, svbOps);
-                        svb = r.batch; svbOps = r.opCount;
-                    }
-                }
-                if (svbOps > 0) await svb.commit();
-
-                // Renew verified subscriptions
-                try { await renewVerifiedSubscriptions(); } catch (e) {}
-
-                toast(`✓ Done! Investments: ${invCount} · Shareholders: ${shCount} · Savings: ${savCount}`);
-                tg(`📈 <b>Daily Profits Run</b>\n\n💰 Investments: ${invCount}\n💎 Shareholders: ${shCount}\n🏦 Savings: ${savCount}\n📅 ${today}\nMode: ${opts?.label || 'global'}`);
-                loadAdminAll();
-                return { invCount, shCount, savCount };
-
-            } catch (e) {
-                toast('Error: ' + e.message, 'tr');
-                console.error('runDailyProfitsInternal error:', e);
-                return null;
-            } finally {
-                window._profitRunLock = false;
-            }
-        }
-
-        async function runDailyProfits() {
-            if (!confirm('Run daily profits for investments AND shareholders?')) return;
-            await runDailyProfitsInternal({ mode: 'all', uidSet: null, label: 'global' });
-        }
-        window.runDailyProfits = runDailyProfits;
-
-        window._bulkProfitSelected = new Set();
-        function bulkProfitGetUserPool() { return (window.AU || []).filter(u => !u.isBanned); }
-        function bulkProfitRenderSelected() {
-            const el = $('bp-selected-users'); if (!el) return;
-            const ids = [...window._bulkProfitSelected];
-            const map = {}; (window.AU || []).forEach(u => { map[u.id] = u; });
-            if (!ids.length) { el.innerHTML = '<span style="font-size:.75rem;color:var(--t3)">No users selected</span>'; return; }
-            el.innerHTML = ids.map(id => {
-                const u = map[id] || {};
-                const name = u.name || u.email || id.substring(0, 8);
-                return `<span class="badge bmut" style="display:inline-flex;align-items:center;gap:6px">${name}<button onclick="bulkProfitRemoveUser('${id}')" style="border:none;background:none;color:var(--red);cursor:pointer;font-weight:700">×</button></span>`;
-            }).join('');
-        }
-        function bulkProfitSearchUsers() {
-            const q = ($('bp-user-search')?.value || '').trim().toLowerCase();
-            const el = $('bp-user-results'); if (!el) return;
-            if (!q) { el.innerHTML = ''; return; }
-            const list = bulkProfitGetUserPool().filter(u =>
-                (u.name || '').toLowerCase().includes(q) ||
-                (u.email || '').toLowerCase().includes(q) ||
-                (u.id || '').toLowerCase().includes(q)
-            ).slice(0, 8);
-            el.innerHTML = list.length ? list.map(u => `<button class="btn btn-gh btn-sm" onclick="bulkProfitAddUser('${u.id}')">${u.name || 'User'} · ${(u.email || '').slice(0, 22)}${(u.email || '').length > 22 ? '…' : ''}</button>`).join('') : '<span style="font-size:.75rem;color:var(--t3)">No matching users</span>';
-        }
-        function bulkProfitAddUser(uid) { window._bulkProfitSelected.add(uid); bulkProfitRenderSelected(); }
-        function bulkProfitRemoveUser(uid) { window._bulkProfitSelected.delete(uid); bulkProfitRenderSelected(); }
-        function bulkProfitClearUsers() { window._bulkProfitSelected.clear(); bulkProfitRenderSelected(); if ($('bp-user-results')) $('bp-user-results').innerHTML = ''; if ($('bp-user-search')) $('bp-user-search').value = ''; }
-
-        async function adminRunBulkProfits() {
-            const mode = $('bp-mode')?.value || 'selected';
-            const ids = [...window._bulkProfitSelected];
-            if (!ids.length) return toast('Select at least one user first', 'ty');
-            const map = {}; (window.AU || []).forEach(u => { map[u.id] = u; });
-            const names = ids.slice(0, 6).map(id => map[id]?.name || map[id]?.email || id.substring(0, 6)).join(', ');
-            const msg = mode === 'selected'
-                ? `Run profits for ${ids.length} selected user(s)?
-
-${names}${ids.length > 6 ? ' ...' : ''}`
-                : `Run profits for all eligible users EXCEPT ${ids.length} selected user(s)?
-
-${names}${ids.length > 6 ? ' ...' : ''}`;
-            if (!confirm(msg)) return;
-            const uidSet = new Set(ids);
-            await runDailyProfitsInternal({ mode: mode === 'selected' ? 'selected' : 'exclude', uidSet, label: mode === 'selected' ? 'selected-only' : 'all-except-selected' });
-        }
-
 
         // ════════════════════════════════════════════════════════
         // KYC VERIFICATION
