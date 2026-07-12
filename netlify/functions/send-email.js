@@ -722,6 +722,7 @@ export default async (req, context) => {
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6">A transaction was made using your virtual card ending in <strong>${esc(data.last4 || '----')}</strong>.</p>
         ${rows([
           ['Merchant', data.merchant || data.description || 'Starlife'],
+          ['Transaction ID', data.transactionId || '—'],
           ['Amount', data.amountText || money(data.amount, data.currency || 'USD')],
           ['Date', fmtDateParts(data.timestamp).date],
           ['Time', fmtDateParts(data.timestamp).time],
