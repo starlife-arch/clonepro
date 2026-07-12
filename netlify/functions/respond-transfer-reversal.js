@@ -27,14 +27,18 @@ export default async (req, context) => {
         if (Number(r.balance || 0) < Number(tr.received || 0)) throw new Error('Recipient balance is insufficient');
         t.update(receiverRef, { balance: admin.firestore.FieldValue.increment(-cents(tr.received)), heldAmount: admin.firestore.FieldValue.increment(-cents(tr.received)) });
         t.update(senderRef, { balance: admin.firestore.FieldValue.increment(cents(tr.amount)) });
-        t.set(db.collection('activity').doc(), { uid: tr.fromUid, desc: `↩️ Transfer reversal approved — ${id} refunded in full`, amt: cents(tr.amount), icon: '↩️', type: 'transfer_reversal', createdAt: admin.firestore.FieldValue.serverTimestamp() });
-        t.set(db.collection('activity').doc(), { uid: tr.toUid, desc: `↩️ Transfer reversal approved — ${id} deducted`, amt: -cents(tr.received), icon: '↩️', type: 'transfer_reversal', createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        t.set(db.collection('activity').doc(), { uid: tr.fromUid, desc: `↩️ Transfer reversal approved — $${cents(tr.amount).toFixed(2)} returned from ${tr.toName || 'recipient'}`, amt: cents(tr.amount), icon: '↩️', type: 'transfer_reversal', txId: id, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        t.set(db.collection('activity').doc(), { uid: tr.toUid, desc: `↩️ Transfer reversal approved — $${cents(tr.received).toFixed(2)} deducted and returned to ${tr.fromName || 'sender'}`, amt: -cents(tr.received), icon: '↩️', type: 'transfer_reversal', txId: id, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        t.set(db.collection('userNotifs').doc(), { uid: tr.fromUid, msg: `Your reversal request for ${id} was approved. $${cents(tr.amount).toFixed(2)} returned to your wallet.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        t.set(db.collection('userNotifs').doc(), { uid: tr.toUid, msg: `Transfer reversal ${id} approved. $${cents(tr.received).toFixed(2)} deducted and returned to ${tr.fromName || 'sender'}.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         finalStatus = 'approved';
       } else {
         t.update(receiverRef, { heldAmount: admin.firestore.FieldValue.increment(-cents(tr.received)) });
+        t.set(db.collection('userNotifs').doc(), { uid: tr.fromUid, msg: `Your reversal request for ${id} was declined by ${tr.toName || 'recipient'}.`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         finalStatus = 'rejected';
       }
       t.update(transferRef, { reversalStatus: finalStatus, status: approve ? 'reversed' : 'completed', reversalResolvedAt: admin.firestore.FieldValue.serverTimestamp(), reversalResolvedBy: userId, reversalResolvedByAdmin: !!adminOverride });
+      t.set(db.collection('transferReversals').doc(id), { status: finalStatus, resolvedAt: admin.firestore.FieldValue.serverTimestamp(), resolvedBy: adminOverride ? 'admin' : 'recipient' }, { merge: true });
       transfer = { id, txId: id, ...tr };
     });
     if (approve && Number(transfer.fee || 0) > 0) await creditPlatform(db, -Number(transfer.fee), `Transfer fee returned for reversal ${id}`, id);

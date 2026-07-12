@@ -5684,6 +5684,22 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 </div>
             </div>
 
+            <div class="modal" id="m-activity-detail" style="display:none">
+                <div class="modal-box">
+                    <div class="modal-hdr"><span id="ad-icon" style="font-size:1.5rem">💰</span><span id="ad-title" style="font-weight:700;margin-left:8px">Transaction</span></div>
+                    <div class="modal-body">
+                        <div class="detail-row"><span>Description</span><span id="ad-desc">—</span></div>
+                        <div class="detail-row"><span>Amount</span><span id="ad-amt">—</span></div>
+                        <div class="detail-row"><span>Transaction ID</span><span id="ad-txid" style="font-family:monospace;font-size:.8rem">—</span></div>
+                        <div class="detail-row"><span>Date</span><span id="ad-date">—</span></div>
+                        <div class="detail-row"><span>Time</span><span id="ad-time">—</span></div>
+                        <div class="detail-row"><span>Day</span><span id="ad-day">—</span></div>
+                        <div class="detail-row"><span>Type</span><span id="ad-type">—</span></div>
+                    </div>
+                    <div class="modal-acts"><button class="btn btn-gh" onclick="closeModal('m-activity-detail')">Close</button></div>
+                </div>
+            </div>
+
             <!-- TRANSFER TAB -->
             <div id="t-transfer" class="itc" style="display:none">
                 <div class="ptitle">💸 Transfer / Gift</div>
@@ -5776,7 +5792,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     </div>
                 </div>
 
-                <div class="card" style="margin-bottom:14px"><div style="font-weight:800;margin-bottom:8px">Request Transfer Reversal</div><div class="fg"><label class="fl">Transaction ID</label><input class="fi" id="tf-reversal-tx" placeholder="TF-... or CP-..."></div><button class="btn btn-gh btn-full" onclick="requestTransferReversal()">Request Reversal</button><div style="font-size:.72rem;color:var(--t3);margin-top:8px">Cash transfers only. Recipient must have enough available balance for a temporary hold.</div></div><div class="sh"><h3>Pending Reversals</h3></div><div id="tf-pending-reversals"><div class="es">No pending reversals</div></div>
+                <div class="card" style="margin-bottom:14px"><div style="font-weight:800;margin-bottom:8px">Request Transfer Reversal</div><div class="fg"><label class="fl">Transaction ID</label><input class="fi" id="tf-reversal-tx" placeholder="TF-... or CP-..."></div><button class="btn btn-gh btn-full" onclick="requestTransferReversal()">Request Reversal</button><div id="tf-reversal-help" style="display:none;font-size:.78rem;color:var(--gold);margin-top:10px;line-height:1.45"></div><div style="font-size:.72rem;color:var(--t3);margin-top:8px">Cash transfers only. Recipient must have enough available balance for a temporary hold.</div></div><div class="sh"><h3>Incoming Reversal Requests</h3></div><div id="tf-pending-reversals"><div class="es">No pending reversals</div></div>
 
                 <!-- Transfer history -->
                 <div class="sh">
@@ -6645,6 +6661,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     <div class="fg"><label class="fl">Default Daily Investment Earning (%)</label><input class="fi" id="fin-invest-daily-pct" type="number" min="0" max="100" step="0.0001"></div>
                     <div class="fg"><label class="fl"><input type="checkbox" id="fin-bg-enabled"> Enable moving finance background animation</label></div>
                     <button class="btn btn-p btn-full" onclick="adminSaveFinancialSettings()">Save Financial Settings</button>
+                    <div class="card" style="margin-top:12px;background:var(--s2)"><div style="font-weight:700;margin-bottom:8px">↩️ Manual Transfer Reversal</div><div class="fg"><label class="fl">From User (wants money back) Member ID</label><input class="fi" id="manual-rev-from" placeholder="Member ID"></div><div class="fg"><label class="fl">To User (received money) Member ID</label><input class="fi" id="manual-rev-to" placeholder="Member ID"></div><div class="fg"><label class="fl">Amount to Reverse (USD)</label><input class="fi" id="manual-rev-amount" type="number" step="0.01" min="0.01"></div><div class="fg"><label class="fl">Reason / Note</label><input class="fi" id="manual-rev-reason" placeholder="Admin manual reversal"></div><button class="btn btn-p btn-full" onclick="adminProcessManualReversal()">Process Manual Reversal</button></div><div class="card" style="margin-top:12px;background:var(--s2)"><div style="font-weight:700;margin-bottom:6px">🔧 Transfer ID Backfill</div><div style="font-size:.78rem;color:var(--t3);margin-bottom:10px">One-time tool to make older transfers reversible. Safe to run multiple times — only updates docs missing a txId.</div><div id="backfill-status" style="font-size:.8rem;color:var(--t2);margin-bottom:8px"></div><button class="btn btn-gh btn-sm" onclick="runTransferIdBackfill()">Run Transfer ID Backfill</button></div>
                     <div class="card" style="margin-top:12px;background:var(--s2)">
                         <div style="font-weight:700;margin-bottom:8px">Withdrawal Schedule</div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="fin-wd-days">
@@ -9901,11 +9918,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (filter !== 'all') list = list.filter(a => a.type === filter);
                 const renderItem = a => {
                     const pos = (a.amt || 0) >= 0;
-                    return `<div class="ai"><div class="ai-l"><div class="ai-ico ${pos ? 'g' : 'r'}">${a.icon || '💰'}</div><div><div class="ai-desc">${a.desc}</div><div class="ai-time">${fmtDT(a.createdAt)}</div></div></div><div class="ai-amt ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}$${fmt(Math.abs(a.amt || 0))}</div></div>`;
+                    return `<div class="ai" onclick="openActivityDetail(${JSON.stringify(a).replace(/"/g, '&quot;')})" style="cursor:pointer"><div class="ai-l"><div class="ai-ico ${pos ? 'g' : 'r'}">${a.icon || '💰'}</div><div><div class="ai-desc">${escapeHtml(a.desc || '')}</div><div class="ai-time">${fmtDT(a.createdAt)}</div></div></div><div class="ai-amt ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}$${fmt(Math.abs(a.amt || 0))}</div></div>`;
                 };
                 const html = list.length ? list.map(renderItem).join('') : '<div class="es"><div class="ei">📋</div>No activity yet</div>';
                 if (el) el.innerHTML = html;
-                if (home) home.innerHTML = list.slice(0, 6).length ? list.slice(0, 6).map(renderItem).join('') : '<div class="es"><div class="ei">📋</div>No activity yet</div>';
+                if (home) home.innerHTML = list.slice(0, 5).length ? list.slice(0, 5).map(renderItem).join('') : '<div class="es"><div class="ei">📋</div>No activity yet</div>';
             } catch (e) {
                 console.error('loadActivity error:', e);
                 if (el) el.innerHTML = '<div class="es">Error loading activity</div>';
@@ -13045,6 +13062,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
       <div class="ar-top"><div>
         <div class="ar-name">${u.name || '—'} ${blockBadge} ${kycBadge} ${u.isBanned ? '<span class="badge br">BANNED</span>' : ''} ${msgAlertBadge} ${u.isRestricted ? '<span class="badge" style="background:rgba(255,112,67,.15);color:var(--orange);border:1px solid rgba(255,112,67,.3)">RESTRICTED</span>' : ''}</div>
         <div class="ar-sub">${u.email} · ${u.phone || '—'}</div>
+        <div class="ar-sub">Username: <strong>${u.username ? (String(u.username).startsWith('@') ? u.username : '@' + u.username) : (u.displayName || u.name || '—')}</strong> · Phone: <strong>${u.phone || u.phoneNumber || 'Not provided'}</strong></div>
         <div class="ar-sub">Balance: <strong style="color:var(--g)">$${fmt(u.balance)}</strong>${(u.heldAmount || 0) > 0 ? ' · <span style="color:var(--red)">🔒 Held: $' + fmt(u.heldAmount || 0) + '</span>' : ''} · Invested: $${fmt(u.totalInvested)} · Stake: $${fmt(u.shareholderStake)}</div>
         <div class="ar-sub">Member ID: ${memberIdFromUid(u.id)} · Points: ${u.surveyPoints || 0} · Savings: $${fmt(u.savingsBalance || 0)}</div>
         <div class="ar-sub">Ref: ${u.referralCode || '—'} · Referral Earned: $${fmt(u.referralEarned || 0)} · Bonus Paid: ${u.referralBonusPaid ? 'Yes' : 'No'} · Joined: ${fmtD(u.createdAt)}</div>
@@ -16172,8 +16190,8 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 });
                 // Only runs if transaction succeeded
                 if (isCash && fee > 0) creditPlatformAccount('operations', fee, `Transfer fee: ${u.name} → ${toName}`, txId).catch(e => console.warn('Acct credit fail', e));
-                await logAct(u.uid, `Gift sent to ${toName}: ${typeLabel}${msg ? ' — "' + msg + '"' : ''}`, -amt, icon, 'transfer');
-                await logAct(toUid, `Gift received from ${u.name}: ${isCash ? '$' + fmt(received) + ' (' + fmt(transferFeeRate * 100) + '% fee $' + fmt(fee) + ' deducted)' : amt + ' pts'}${msg ? ' — "' + msg + '"' : ''}`, received, icon, 'transfer');
+                await db.collection('activity').add({ uid: u.uid, desc: `Gift sent to ${toName}: ${typeLabel}${msg ? ' — "' + msg + '"' : ''}`, amt: -amt, icon, type: 'transfer', txId, toUid, toName, fromName: u.name, isCash, createdAt: FS().serverTimestamp() });
+                await db.collection('activity').add({ uid: toUid, desc: `Gift received from ${u.name}: ${isCash ? '$' + fmt(received) + ' (' + fmt(transferFeeRate * 100) + '% fee $' + fmt(fee) + ' deducted)' : amt + ' pts'}${msg ? ' — "' + msg + '"' : ''}`, amt: received, icon, type: 'transfer', txId, fromUid: u.uid, fromName: u.name, toName, isCash, createdAt: FS().serverTimestamp() });
                 await db.collection('userNotifs').add({ uid: toUid, msg: `🎁 ${u.name} sent you ${typeLabel}!${msg ? ' Message: "' + msg + '"' : ''}`, read: false, createdAt: FS().serverTimestamp() });
                 sendTransactionNoticeEmail(u.email, { name: u.name, direction: 'sent', counterparty: maskEmailForNotification(_tfRecipient.email || ''), amount: amt, amountText: isCash ? '$' + fmt(amt) : amt + ' points', transactionId: txId, transactionType: isCash ? 'Internal transfer' : 'Points transfer', status: 'Completed' });
                 sendTransactionNoticeEmail(_tfRecipient.email, { name: toName, direction: 'received', counterparty: maskEmailForNotification(u.email || ''), amount: received, amountText: isCash ? '$' + fmt(received) : received + ' points', transactionId: txId, transactionType: isCash ? 'Internal transfer' : 'Points transfer', status: 'Completed' });
@@ -16195,28 +16213,116 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             }
         }
 
+        function openActivityDetail(a) {
+            const raw = a?.createdAt;
+            const dt = raw?.seconds ? new Date(raw.seconds * 1000) : (raw ? new Date(raw) : new Date());
+            $('ad-icon').textContent = a.icon || '💰';
+            $('ad-title').textContent = a.type ? a.type.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : 'Transaction';
+            $('ad-desc').textContent = a.desc || '—';
+            const amt = Number(a.amt || 0);
+            $('ad-amt').textContent = (amt >= 0 ? '+' : '') + '$' + fmt(Math.abs(amt));
+            $('ad-amt').style.color = amt >= 0 ? 'var(--g)' : 'var(--red)';
+            $('ad-txid').textContent = a.txId || a.id || '—';
+            $('ad-date').textContent = dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+            $('ad-time').textContent = dt.toLocaleTimeString('en-US');
+            $('ad-day').textContent = dt.toLocaleDateString('en-US', { weekday:'long' });
+            $('ad-type').textContent = a.type || '—';
+            openModal('m-activity-detail');
+        }
+
         async function loadTransferHistory() {
             const u = window.CU;
             const el = $('tf-history'); if (!el) return;
+            loadPendingReversals();
             try {
-                const snap = await db.collection('activity').where('uid', '==', u.uid).where('type', '==', 'transfer').get();
-                const list = snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                const snap = await db.collection('activity').where('uid', '==', u.uid).where('type', '==', 'transfer').orderBy('createdAt', 'desc').limit(50).get();
+                const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 if (!list.length) { el.innerHTML = '<div class="es">No transfers yet</div>'; return; }
-                el.innerHTML = list.slice(0, 20).map(a => {
+                el.innerHTML = list.map(a => {
                     const pos = (a.amt || 0) >= 0;
-                    return `<div class="ai"><div class="ai-l"><div class="ai-ico ${pos ? 'g' : 'r'}">${a.icon || '💸'}</div><div><div class="ai-desc">${a.desc}</div><div class="ai-time">${fmtDT(a.createdAt)}</div></div></div><div class="ai-amt ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}${pos ? '$' + fmt(a.amt) : '-$' + fmt(Math.abs(a.amt))}</div></div>`;
+                    return `<div class="ai" onclick="openActivityDetail(${JSON.stringify(a).replace(/"/g, '&quot;')})" style="cursor:pointer"><div class="ai-l"><div class="ai-ico ${pos ? 'g' : 'r'}">${a.icon || '💸'}</div><div><div class="ai-desc">${escapeHtml(a.desc || '')}</div><div class="ai-time">${fmtDT(a.createdAt)}</div></div></div><div class="ai-amt ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}${pos ? '$' + fmt(a.amt) : '-$' + fmt(Math.abs(a.amt))}</div></div>`;
                 }).join('');
-            } catch (e) { el.innerHTML = '<div class="es">No transfers yet</div>'; }
+            } catch (e) { console.error('loadTransferHistory error:', e); el.innerHTML = '<div class="es">No transfers yet</div>'; }
         }
 
 
         function openMemberLookupPanel(){ $('member-lookup-panel').style.display='block'; ['predictions-panel','snake-panel','crash-panel'].forEach(id=>{ if($(id))$(id).style.display='none'; }); }
         function closeMemberLookupPanel(){ $('member-lookup-panel').style.display='none'; }
         async function submitMemberLookup(){ const memberId=($('ml-member-id')?.value||'').trim().toUpperCase(); if(!memberId)return toast('Enter a Member ID','ty'); if(!window.CU?.uid)return toast('Login required','tr'); const el=$('ml-result'); if(el)el.innerHTML='<div class="es">Charging and loading…</div>'; try{ const res=await fetch('/.netlify/functions/member-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:window.CU.uid,memberId})}); const data=await res.json().catch(()=>({})); if(!res.ok||!data.success)throw new Error(data.error||'Lookup failed'); const m=data.member||{}; if(el)el.innerHTML=`<div class="card" style="background:var(--s2)"><div style="font-weight:900;color:var(--gold);margin-bottom:8px">${escapeHtml(m.name||'Member')}</div><div style="font-size:.82rem;color:var(--t2);line-height:1.7">Member ID: <b>${escapeHtml(m.memberId||memberId)}</b><br>Joined: ${escapeHtml(m.joined||'—')}<br>Verified: ${m.verified?'Yes':'No'} · VIP: ${escapeHtml(String(m.vipLevel||'—'))}<br>Total invested: $${fmt(m.totalInvested||0)}<br>Current stake: $${fmt(m.shareholderStake||0)}<br>Total earned: $${fmt(m.totalEarned||0)}</div></div>`; toast('Lookup complete — $1,200 charged','tg'); await refreshCurrentUserForGames?.(); }catch(e){ if(el)el.innerHTML=''; toast(e.message||'Lookup failed','tr'); } }
-        async function requestTransferReversal(){ const txId=($('tf-reversal-tx')?.value||'').trim().toUpperCase(); if(!txId)return toast('Enter transaction ID','ty'); try{ const res=await fetch('/.netlify/functions/request-transfer-reversal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:window.CU?.uid,txId})}); const data=await res.json().catch(()=>({})); if(!res.ok||!data.success)throw new Error(data.error||'Request failed'); toast('Reversal request submitted','tg'); $('tf-reversal-tx').value=''; loadPendingReversals(); }catch(e){ toast(e.message||'Request failed','tr'); } }
-        async function loadPendingReversals(){ const el=$('tf-pending-reversals'); if(!el||!window.CU?.uid)return; try{ const snap=await db.collection('transfers').where('toUid','==',window.CU.uid).where('reversalStatus','==','pending').get(); const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.reversalRequestedAt?.seconds||0)-(a.reversalRequestedAt?.seconds||0)); el.innerHTML=list.length?list.map(t=>`<div class="ai"><div><div class="ai-desc">${escapeHtml(t.id)} · ${escapeHtml(t.fromName||'Sender')} requests reversal of $${fmt(t.received||0)}</div><div class="ai-time">${fmtDT(t.reversalRequestedAt)}</div></div><div style="display:flex;gap:6px"><button class="btn btn-p btn-sm" onclick="respondTransferReversal('${t.id}','approve')">Approve</button><button class="btn btn-d btn-sm" onclick="respondTransferReversal('${t.id}','reject')">Reject</button></div></div>`).join(''):'<div class="es">No pending reversals</div>'; }catch(e){ el.innerHTML='<div class="es">No pending reversals</div>'; } }
+        async function requestTransferReversal(){ const txId=($('tf-reversal-tx')?.value||'').trim().toUpperCase(); const help=$('tf-reversal-help'); if(help){help.style.display='none';help.innerHTML='';} if(!txId)return toast('Enter transaction ID','ty'); try{ const res=await fetch('/.netlify/functions/request-transfer-reversal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:window.CU?.uid,txId})}); const data=await res.json().catch(()=>({})); if(!res.ok||!data.success)throw new Error(data.error||'Request failed'); toast('Reversal request submitted','tg'); $('tf-reversal-tx').value=''; loadPendingReversals(); }catch(e){ const msg=e.message||'Request failed'; if(help && /not found|predates|old transfers|tracking system/i.test(msg)){ help.style.display='block'; help.innerHTML=`${escapeHtml(msg)}<br><button class="btn btn-gh btn-sm" style="margin-top:8px" onclick="closeModal('m-activity-detail');nav('support')">Contact Support →</button>`; } toast(msg,'tr'); } }
+        async function loadPendingReversals(){ const el=$('tf-pending-reversals'); if(!el||!window.CU?.uid)return; try{ const snap=await db.collection('transferReversals').where('recipientId','==',window.CU.uid).where('status','==','pending').get(); const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.requestedAt?.seconds||0)-(a.requestedAt?.seconds||0)); el.innerHTML=list.length?list.map(t=>`<div class="card" style="margin-bottom:10px"><div style="font-weight:800;margin-bottom:8px">↩ Reversal Request</div><div style="font-size:.82rem;line-height:1.7;color:var(--t2)">From: <b>${escapeHtml(t.requesterName||'Sender')}</b><br>Transaction: <span style="font-family:monospace">${escapeHtml(t.txId||t.id)}</span><br>Amount requested back: <b>$${fmt(t.amount||0)}</b><br>Reason: ${escapeHtml(t.reason||'No reason provided')}<br>Requested: ${fmtDT(t.requestedAt)}</div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-p btn-sm" onclick="respondTransferReversal('${t.txId||t.id}','approve')">✅ Approve</button><button class="btn btn-d btn-sm" onclick="respondTransferReversal('${t.txId||t.id}','reject')">❌ Reject</button></div></div>`).join(''):'<div class="es">No pending reversals</div>'; }catch(e){ el.innerHTML='<div class="es">No pending reversals</div>'; } }
         async function respondTransferReversal(txId,decision,adminOverride=false){ if(!confirm(`${decision==='approve'?'Approve':'Reject'} reversal ${txId}?`))return; try{ const res=await fetch('/.netlify/functions/respond-transfer-reversal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:window.CU?.uid,txId,decision,adminOverride})}); const data=await res.json().catch(()=>({})); if(!res.ok||!data.success)throw new Error(data.error||'Response failed'); toast('Reversal updated','tg'); loadPendingReversals(); loadAdminReversals(); }catch(e){ toast(e.message||'Response failed','tr'); } }
-        async function loadAdminReversals(){ const el=$('at-reversals-list'); if(!el)return; try{ const snap=await db.collection('transfers').where('reversalStatus','==','pending').get(); const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.reversalRequestedAt?.seconds||0)-(a.reversalRequestedAt?.seconds||0)); el.innerHTML=list.length?list.map(t=>`<div class="arow"><div class="ar-name">${escapeHtml(t.id)} · ${escapeHtml(t.fromName||'Sender')} → ${escapeHtml(t.toName||'Receiver')}</div><div class="ar-sub">Amount ${fmt(t.amount)} · Received ${fmt(t.received)} · Method ${escapeHtml(t.method||'')}</div><div class="ar-acts"><button class="btn btn-p btn-sm" onclick="respondTransferReversal('${t.id}','approve',true)">Admin Approve</button><button class="btn btn-d btn-sm" onclick="respondTransferReversal('${t.id}','reject',true)">Admin Reject</button></div></div>`).join(''):'<div class="es">No pending reversals</div>'; }catch(e){ el.innerHTML='<div class="es">No pending reversals</div>'; } }
+        async function loadAdminReversals(){ const el=$('at-reversals-list'); if(!el)return; try{ const snap=await db.collection('transferReversals').where('status','==','pending').get(); const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.requestedAt?.seconds||0)-(a.requestedAt?.seconds||0)); el.innerHTML=list.length?list.map(t=>`<div class="arow"><div class="ar-name">${escapeHtml(t.txId||t.id)} · ${escapeHtml(t.requesterName||'Sender')} → ${escapeHtml(t.recipientName||'Receiver')}</div><div class="ar-sub">Amount $${fmt(t.amount||0)} · Reason ${escapeHtml(t.reason||'—')}</div><div class="ar-acts"><button class="btn btn-p btn-sm" onclick="respondTransferReversal('${t.txId||t.id}','approve',true)">Admin Approve</button><button class="btn btn-d btn-sm" onclick="respondTransferReversal('${t.txId||t.id}','reject',true)">Admin Reject</button></div></div>`).join(''):'<div class="es">No pending reversals</div>'; }catch(e){ el.innerHTML='<div class="es">No pending reversals</div>'; } }
+        async function findUserByMemberId(mid) {
+            const wanted = String(mid || '').trim().toUpperCase();
+            if (!wanted) return null;
+            const snap = await db.collection('users').get();
+            const doc = snap.docs.find(d => memberIdFromUid(d.id).toUpperCase() === wanted || String(d.data().memberId || d.data().memberCode || '').toUpperCase() === wanted);
+            return doc ? { id: doc.id, ...doc.data() } : null;
+        }
+        async function adminProcessManualReversal() {
+            const fromMid = $('manual-rev-from')?.value, toMid = $('manual-rev-to')?.value;
+            const amount = Number($('manual-rev-amount')?.value || 0);
+            const reason = $('manual-rev-reason')?.value.trim() || 'Admin manual reversal';
+            if (!fromMid || !toMid || !amount || amount <= 0) return toast('Enter both member IDs and a valid amount', 'ty');
+            const requester = await findUserByMemberId(fromMid), recipient = await findUserByMemberId(toMid);
+            if (!requester || !recipient) return toast('One or both users not found', 'tr');
+            if (!confirm(`Move $${fmt(amount)} from ${recipient.name || 'recipient'} to ${requester.name || 'requester'}?`)) return;
+            const txId = 'MAN-REV-' + Date.now();
+            try {
+                await db.runTransaction(async t => {
+                    const rRef = db.collection('users').doc(recipient.id), qRef = db.collection('users').doc(requester.id);
+                    const rSnap = await t.get(rRef); if (!rSnap.exists) throw new Error('Recipient not found');
+                    const r = rSnap.data() || {}, available = Number(r.balance || 0) - Number(r.heldAmount || 0);
+                    if (available < amount) throw new Error(`Recipient has insufficient available balance ($${fmt(available)})`);
+                    t.update(rRef, { balance: FS().increment(-amount) });
+                    t.update(qRef, { balance: FS().increment(amount) });
+                    t.set(db.collection('activity').doc(), { uid: requester.id, desc: `Manual reversal approved by admin — $${fmt(amount)} returned from ${recipient.name || 'recipient'}`, amt: amount, icon: '↩️', type: 'transfer', txId, createdAt: FS().serverTimestamp() });
+                    t.set(db.collection('activity').doc(), { uid: recipient.id, desc: `Manual reversal by admin — $${fmt(amount)} deducted and returned to ${requester.name || 'requester'}`, amt: -amount, icon: '↩️', type: 'transfer', txId, createdAt: FS().serverTimestamp() });
+                    t.set(db.collection('userNotifs').doc(), { uid: requester.id, msg: `Manual reversal processed. $${fmt(amount)} returned from ${recipient.name || 'recipient'}.`, read: false, createdAt: FS().serverTimestamp() });
+                    t.set(db.collection('userNotifs').doc(), { uid: recipient.id, msg: `Manual reversal processed. $${fmt(amount)} deducted and returned to ${requester.name || 'requester'}.`, read: false, createdAt: FS().serverTimestamp() });
+                    t.set(db.collection('transferReversals').doc(txId), { txId, requesterId: requester.id, requesterName: requester.name || 'Member', recipientId: recipient.id, recipientName: recipient.name || 'Member', amount, reason, status: 'approved', requestedAt: FS().serverTimestamp(), resolvedAt: FS().serverTimestamp(), resolvedBy: 'admin' });
+                });
+                sendTransactionNoticeEmail(requester.email, { name: requester.name || 'Member', title: `Transfer Reversal Approved — $${fmt(amount)} Returned`, message: `Your manual reversal has been approved. $${fmt(amount)} has been returned to your wallet from ${recipient.name || 'recipient'}.`, transactionId: txId, amount, amountText: '$' + fmt(amount), status: 'Refunded to wallet' });
+                sendTransactionNoticeEmail(recipient.email, { name: recipient.name || 'Member', title: `Transfer Reversal Approved — $${fmt(amount)} Deducted`, message: `A manual transfer reversal has been approved. $${fmt(amount)} has been deducted from your wallet and returned to ${requester.name || 'requester'}.`, transactionId: txId, amount, amountText: '$' + fmt(amount), status: 'Deducted from wallet' });
+                toast(`Manual reversal processed. $${fmt(amount)} moved from ${recipient.name || 'recipient'} to ${requester.name || 'requester'}.`, 'tg');
+            } catch (e) { toast(e.message || 'Manual reversal failed', 'tr'); }
+        }
+
+        async function runTransferIdBackfill() {
+            if (!confirm('Run transfer ID backfill? This will update old transfer records to make them reversible. Continue?')) return;
+            const statusEl = document.getElementById('backfill-status');
+            if (statusEl) statusEl.textContent = 'Running... please wait.';
+            try {
+                let processed = 0, updated = 0, skipped = 0;
+                const snap = await db.collection('activity').where('type', '==', 'transfer').get();
+                const docs = snap.docs;
+                for (let i = 0; i < docs.length; i += 400) {
+                    const batch = db.batch();
+                    for (const doc of docs.slice(i, i + 400)) {
+                        processed++;
+                        const data = doc.data() || {};
+                        if (data.txId) { skipped++; continue; }
+                        const desc = data.desc || '';
+                        const explicitMatch = desc.match(/\b(TF-\d+|CP-\d+|GW-\w+-\d+)\b/);
+                        if (explicitMatch) { batch.update(doc.ref, { txId: explicitMatch[1] }); updated++; continue; }
+                        if (data.createdAt?.seconds) {
+                            batch.update(doc.ref, { txId: 'TF-' + (data.createdAt.seconds * 1000), txIdReconstructed: true });
+                            updated++;
+                        }
+                    }
+                    await batch.commit();
+                    if (statusEl) statusEl.textContent = `Processing... ${processed} of ${docs.length} docs checked, ${updated} updated.`;
+                }
+                if (statusEl) statusEl.textContent = `✅ Done. ${docs.length} docs checked, ${updated} updated, ${skipped} already had txId.`;
+                toast(`Backfill complete. ${updated} transfer records updated.`, 'tg');
+            } catch (e) {
+                console.error('Backfill error:', e);
+                if (statusEl) statusEl.textContent = '❌ Error: ' + e.message;
+                toast('Backfill failed: ' + e.message, 'tr');
+            }
+        }
+
         async function loadAdminMemberLookups(){ const el=$('at-memberlookups-list'); if(!el)return; try{ const snap=await db.collection('memberLookups').get(); const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.timestamp?.seconds||0)-(a.timestamp?.seconds||0)).slice(0,100); el.innerHTML=list.length?list.map(l=>`<div class="arow"><div class="ar-name">${escapeHtml(l.requestedByName||l.requestedBy)} looked up ${escapeHtml(l.targetMemberId||l.targetUid)}</div><div class="ar-sub">Charged $${fmt(l.amountCharged||0)} · ${fmtDT(l.timestamp)}</div></div>`).join(''):'<div class="es">No lookups yet</div>'; }catch(e){ el.innerHTML='<div class="es">No lookups yet</div>'; } }
 
         // ════════════════════════════════════════════════════════
