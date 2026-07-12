@@ -523,13 +523,19 @@ export default async (req, context) => {
     }
     case 'ticket_reply': {
       subject = `Re: Support Ticket ${data.ticketId} — ${data.subject}`;
+      const agentName = data.agentName || 'Starlife Support';
       html = layout('New reply on your support ticket', `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Dear ${esc(greetingName)},</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Our support team replied to your ticket <strong>${esc(data.ticketId)}</strong>:</p>
+        <div style="margin:0 0 14px;padding:12px 14px;background:#f8fbf9;border:1px solid #dce8df;border-radius:12px">
+          <div style="font-size:12px;color:#53645a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Answered by</div>
+          <div style="font-size:15px;font-weight:700;color:#087d3a">${esc(agentName)}</div>
+        </div>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">${esc(agentName)} replied to your ticket <strong>${esc(data.ticketId)}</strong>:</p>
         <div style="margin:14px 0;padding:14px;background:#eefaf1;border:1px solid #0bbf58;border-radius:12px">
           <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(data.replyText || '')}</div>
         </div>
-        <p style="margin:0;font-size:15px;line-height:1.6">Reply to this email to continue the conversation, or open "My Tickets" in your dashboard.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Open "My Tickets" in your dashboard to continue the conversation.</p>
+        <p style="margin:0;font-size:15px;line-height:1.6">Regards,<br><strong>${esc(agentName)}</strong><br>Starlife Support</p>
       `, `New reply on ticket ${data.ticketId}`);
       break;
     }
