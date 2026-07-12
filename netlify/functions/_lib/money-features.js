@@ -47,16 +47,17 @@ async function notifyReversal(db, transfer, stage, decision = '') {
   const requesterName = from.name || transfer.fromName || 'Member';
   const recipientName = to.name || transfer.toName || 'Member';
   if (stage === 'requested') {
-    await sendEmail('transaction_notice', from.email, { name: requesterName, title: `Transfer Reversal Requested — ${txId}`, message: `Your reversal request for ${txId} has been sent to ${recipientName} for review. Amount requested back: ${received}.`, transactionId: txId, amount: transfer.received, amountText: received, status: 'Pending recipient review', counterparty: recipientName });
-    await sendEmail('transaction_notice', to.email, { name: recipientName, title: `Incoming Transfer Reversal Request — ${received}`, message: `${requesterName} requested a reversal for transaction ${txId}. If approved, ${received} will be deducted from your wallet and returned to ${requesterName}.`, transactionId: txId, amount: transfer.received, amountText: received, status: 'Action required', counterparty: requesterName });
+    await sendEmail('reversal_requested_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.amount, amountText: amount, counterparty: recipientName });
+    await sendEmail('reversal_requested_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName, actionUrl: siteUrl() });
     await sendTelegramMessage(`↩️ <b>Transfer reversal requested</b>\nTX: ${txId}\nAmount: ${received}\nRequester: ${requesterName}\nRecipient: ${recipientName}`).catch(()=>{});
   } else {
     const approved = decision === 'approved';
     if (approved) {
-      await sendEmail('transaction_notice', from.email, { name: requesterName, title: `Transfer Reversal Approved — ${amount} Returned`, message: `Your reversal request has been approved. ${amount} has been returned to your wallet. Reversed from ${recipientName}.`, transactionId: txId, amount: transfer.amount, amountText: amount, status: 'Refunded to wallet', counterparty: recipientName });
-      await sendEmail('transaction_notice', to.email, { name: recipientName, title: `Transfer Reversal Approved — ${received} Deducted`, message: `A transfer reversal has been approved. ${received} has been deducted from your wallet and returned to ${requesterName}.`, transactionId: txId, amount: transfer.received, amountText: received, status: 'Deducted from wallet', counterparty: requesterName });
+      await sendEmail('reversal_approved_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.amount, amountText: amount, counterparty: recipientName });
+      await sendEmail('reversal_approved_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName });
     } else {
-      await sendEmail('transaction_notice', from.email, { name: requesterName, title: 'Transfer Reversal Declined', message: `Your reversal request for transaction ${txId} (${received}) was declined by ${recipientName}. If you believe this is an error, please contact support.`, transactionId: txId, amount: transfer.received, amountText: received, status: 'Declined', counterparty: recipientName });
+      await sendEmail('reversal_rejected_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: recipientName });
+      await sendEmail('reversal_rejected_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName });
     }
     await sendTelegramMessage(`↩️ <b>Transfer reversal ${decision}</b>\nTX: ${txId}\nAmount: ${received}\nRequester: ${requesterName}\nRecipient: ${recipientName}`).catch(()=>{});
   }

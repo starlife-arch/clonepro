@@ -57,6 +57,12 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   withdrawal_approved: 'withdrawals',
   withdrawal_rejected: 'withdrawals',
   transaction_notice: 'transfers',
+  reversal_requested_sender: 'transfers',
+  reversal_requested_receiver: 'transfers',
+  reversal_approved_sender: 'transfers',
+  reversal_approved_receiver: 'transfers',
+  reversal_rejected_sender: 'transfers',
+  reversal_rejected_receiver: 'transfers',
   starlife_credit: 'noreply',
   purchase_confirmation: 'cards',
   p2p_trade: 'p2p',
@@ -435,6 +441,81 @@ export default async (req, context) => {
           ['Destination Details', data.destination || data.detailsMasked || data.details],
         ])}
         <p style="margin:0;font-size:15px;line-height:1.6">Reason: ${esc(data.reason || 'Please contact support.')}</p>
+      `);
+      break;
+    case 'reversal_requested_sender':
+      subject = 'Reversal Requested — Awaiting Response';
+      html = layout('Reversal requested', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, your request to reverse transaction ${esc(data.transactionId)} has been submitted. ${esc(data.counterparty || 'The recipient')} has been notified and needs to approve or reject it. We'll email you as soon as they respond.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount Requested Back', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Requested From', data.counterparty],
+          ['Status', 'Pending recipient response'],
+        ])}
+      `);
+      break;
+    case 'reversal_requested_receiver': {
+      subject = 'Action Needed — Reversal Requested on a Payment You Received';
+      const actionUrl = esc(data.actionUrl || brand.url);
+      html = layout('Action needed — reversal requested', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, ${esc(data.counterparty || 'A member')} has requested to reverse transaction ${esc(data.transactionId)} for ${esc(data.amountText || money(data.amount, data.currency || 'USD'))}. This amount is temporarily on hold in your wallet. Please log in to approve or reject this request.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount On Hold', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Requested By', data.counterparty],
+          ['Status', 'Action required'],
+        ])}
+        <p style="margin:14px 0 0"><a href="${actionUrl}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Log in to respond →</a></p>
+      `);
+      break;
+    }
+    case 'reversal_approved_sender':
+      subject = `Reversal Approved — ${data.amountText || money(data.amount, data.currency || 'USD')} Refunded`;
+      html = layout('Reversal approved', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, your reversal request for transaction ${esc(data.transactionId)} was approved. ${esc(data.amountText || money(data.amount, data.currency || 'USD'))} has been refunded to your wallet in full.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount Refunded', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Refunded From', data.counterparty],
+          ['Status', 'Refunded in full'],
+        ])}
+      `);
+      break;
+    case 'reversal_approved_receiver':
+      subject = `Reversal Approved — ${data.amountText || money(data.amount, data.currency || 'USD')} Deducted From Your Wallet`;
+      html = layout('Reversal approved', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, you approved the reversal request from ${esc(data.counterparty || 'the sender')}. ${esc(data.amountText || money(data.amount, data.currency || 'USD'))} has been deducted from your wallet and returned to them.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount Deducted', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Returned To', data.counterparty],
+          ['Status', 'Deducted from wallet'],
+        ])}
+      `);
+      break;
+    case 'reversal_rejected_sender':
+      subject = 'Reversal Request Declined';
+      html = layout('Reversal request declined', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, your reversal request for transaction ${esc(data.transactionId)} (${esc(data.amountText || money(data.amount, data.currency || 'USD'))}) was declined by ${esc(data.counterparty || 'the recipient')}. If you believe this is a mistake, contact support.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Declined By', data.counterparty],
+          ['Status', 'Declined'],
+        ])}
+      `);
+      break;
+    case 'reversal_rejected_receiver':
+      subject = 'You Declined a Reversal Request';
+      html = layout('Reversal request declined', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)}, you declined the reversal request from ${esc(data.counterparty || 'the sender')} for transaction ${esc(data.transactionId)}. No funds were moved and your balance is unaffected.</p>
+        ${txRows([
+          ['Transaction ID', data.transactionId],
+          ['Amount', data.amountText || money(data.amount, data.currency || 'USD')],
+          ['Requested By', data.counterparty],
+          ['Status', 'No funds moved'],
+        ])}
       `);
       break;
     case 'transaction_notice': {
