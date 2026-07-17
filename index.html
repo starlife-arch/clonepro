@@ -8964,7 +8964,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             try {
                 const snap = await db.collection('platformSettings').doc('loginVideo').get();
                 if (!snap.exists || !snap.data()?.videoUrl) return;
-                const v = snap.data(); const key = 'loginVideoShown_' + (v.fileId || v.videoUrl);
+                const v = snap.data(); const key = 'loginVideoShown_' + (v.publicId || v.videoUrl);
                 if (sessionStorage.getItem(key) === 'true') return;
                 sessionStorage.setItem(key, 'true');
                 const player = $('login-video-player'); if (!player) return;

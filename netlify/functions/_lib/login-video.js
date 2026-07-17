@@ -1,4 +1,7 @@
+import cloudinaryPkg from 'cloudinary';
 import { getDb, admin } from './firebase.js';
+
+const { v2: cloudinary } = cloudinaryPkg;
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -11,44 +14,35 @@ async function isAdminUser(db, uid) {
   return !!(user.isAdmin || user.adminRole || user.email === process.env.ADMIN_EMAIL);
 }
 
-function requireImageKit() {
-  const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-  const publicKey = process.env.IMAGEKIT_PUBLIC_KEY;
-  const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT;
-  if (!privateKey || !publicKey || !urlEndpoint) throw new Error('ImageKit environment variables are not configured.');
-  return { privateKey, publicKey, urlEndpoint };
-}
-
-function imageKitAuth(privateKey) {
-  return 'Basic ' + Buffer.from(`${privateKey}:`).toString('base64');
-}
-
-async function uploadToImageKit({ fileBuffer, fileName, privateKey }) {
-  const form = new FormData();
-  form.append('file', new Blob([fileBuffer]), fileName);
-  form.append('fileName', fileName);
-  form.append('folder', '/login-videos');
-  form.append('useUniqueFileName', 'true');
-  const res = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
-    method: 'POST',
-    headers: { Authorization: imageKitAuth(privateKey) },
-    body: form
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'ImageKit upload failed.');
-  return data;
-}
-
-async function deleteFromImageKit(fileId, privateKey) {
-  if (!fileId) return;
-  const res = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
-    method: 'DELETE',
-    headers: { Authorization: imageKitAuth(privateKey) }
-  });
-  if (!res.ok && res.status !== 404) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || data.error || 'ImageKit delete failed.');
+function requireCloudinaryVideoConfig() {
+  const cloudName = process.env.CLOUDINARY_VIDEO_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_VIDEO_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_VIDEO_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error('Cloudinary video environment variables are not configured.');
   }
+  return { cloudName, apiKey, apiSecret };
 }
 
-export { getDb, admin, json, isAdminUser, requireImageKit, uploadToImageKit, deleteFromImageKit };
+function configureCloudinaryVideo() {
+  const { cloudName, apiKey, apiSecret } = requireCloudinaryVideoConfig();
+  cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+  return cloudinary;
+}
+
+async function uploadLoginVideoToCloudinary(filePath, publicId) {
+  return configureCloudinaryVideo().uploader.upload(filePath, {
+    resource_type: 'video',
+    folder: 'login-videos',
+    public_id: publicId,
+    overwrite: true,
+    unique_filename: true
+  });
+}
+
+async function deleteLoginVideoFromCloudinary(publicId) {
+  if (!publicId) return;
+  await configureCloudinaryVideo().uploader.destroy(publicId, { resource_type: 'video', invalidate: true });
+}
+
+export { getDb, admin, json, isAdminUser, uploadLoginVideoToCloudinary, deleteLoginVideoFromCloudinary };
