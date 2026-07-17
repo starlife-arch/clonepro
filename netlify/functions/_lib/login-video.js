@@ -30,6 +30,11 @@ function configureCloudinaryVideo() {
   return cloudinary;
 }
 
+function signLoginVideoUpload(params) {
+  const { apiSecret } = requireCloudinaryVideoConfig();
+  return cloudinary.utils.api_sign_request(params, apiSecret);
+}
+
 async function uploadLoginVideoToCloudinary(filePath, publicId) {
   return configureCloudinaryVideo().uploader.upload(filePath, {
     resource_type: 'video',
@@ -45,4 +50,4 @@ async function deleteLoginVideoFromCloudinary(publicId) {
   await configureCloudinaryVideo().uploader.destroy(publicId, { resource_type: 'video', invalidate: true });
 }
 
-export { getDb, admin, json, isAdminUser, uploadLoginVideoToCloudinary, deleteLoginVideoFromCloudinary };
+export { getDb, admin, json, isAdminUser, requireCloudinaryVideoConfig, signLoginVideoUpload, uploadLoginVideoToCloudinary, deleteLoginVideoFromCloudinary };

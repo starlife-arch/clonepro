@@ -8944,10 +8944,24 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             let duration = 0;
             try { duration = await getVideoDuration(file); } catch (e) { return toast(e.message, 'tr'); }
             if (duration > 120) return toast('Video is too long. Maximum length is 2 minutes (120 seconds).', 'tr', 6000);
-            const fd = new FormData(); fd.append('adminId', auth.currentUser.uid); fd.append('duration', String(duration)); fd.append('video', file);
-            const res = await fetch('/.netlify/functions/admin-upload-login-video', { method:'POST', body: fd });
+            let signData = {};
+            try {
+                const signRes = await fetch('/.netlify/functions/admin-sign-login-video-upload', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ adminId: auth.currentUser.uid, fileName: file.name }) });
+                signData = await signRes.json().catch(() => ({}));
+                if (!signRes.ok || !signData.success) throw new Error(signData.error || 'Could not prepare Cloudinary upload.');
+            } catch (e) { return toast(e.message || 'Could not prepare Cloudinary upload.', 'tr', 7000); }
+
+            const uploadFd = new FormData();
+            uploadFd.append('file', file);
+            uploadFd.append('api_key', signData.apiKey);
+            Object.entries(signData.params || {}).forEach(([k, v]) => uploadFd.append(k, v));
+            const cloudRes = await fetch(signData.uploadUrl, { method:'POST', body: uploadFd });
+            const uploaded = await cloudRes.json().catch(() => ({}));
+            if (!cloudRes.ok || !uploaded.public_id) return toast(uploaded.error?.message || 'Cloudinary upload failed.', 'tr', 8000);
+
+            const res = await fetch('/.netlify/functions/admin-upload-login-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ adminId: auth.currentUser.uid, duration, name: file.name, uploaded }) });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.success) return toast(data.error || 'Upload failed.', 'tr', 6000);
+            if (!res.ok || !data.success) return toast(data.error || 'Upload failed after Cloudinary upload.', 'tr', 6000);
             input.value = ''; toast('Login video uploaded ✓', 'tg'); loadAdminLoginVideo();
         }
 
