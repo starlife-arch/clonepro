@@ -1256,6 +1256,11 @@
             margin-top: 16px
         }
 
+        .login-video-modal { max-width: min(720px, 94vw); padding: 18px; position: relative; }
+        .login-video-close { position:absolute; top:10px; right:10px; width:36px; height:36px; border-radius:50%; border:1px solid var(--bd); background:var(--s2); color:var(--t1); cursor:pointer; font-size:1.1rem; z-index:2; }
+        .login-video-player { width:100%; max-height:70vh; border-radius:16px; background:#000; display:block; }
+        .login-video-admin-preview { width:100%; max-height:260px; border-radius:12px; background:#000; margin:10px 0; }
+
         /* DIVIDER */
         .div {
             height: 1px;
@@ -7302,6 +7307,16 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <div style="font-weight:600;margin-bottom:8px">Current Ticker</div>
                 <div id="ma-preview" class="es">Loading ticker settings...</div>
             </div>
+                <div class="card" style="margin-top:14px">
+                    <div style="font-weight:700;margin-bottom:8px">🎬 Login Video</div>
+                    <div style="font-size:.78rem;color:var(--t2);margin-bottom:12px">Max 2 minutes (120 seconds). This plays for every user right after they log in.</div>
+                    <div id="login-video-admin-current" class="es">Loading current login video...</div>
+                    <div class="fg" style="margin-top:12px"><label class="fl">Upload replacement video</label><input class="fi" id="login-video-file" type="file" accept="video/*"></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-p" onclick="adminUploadLoginVideo()">⬆ Upload / Replace Video</button>
+                        <button class="btn btn-d" id="login-video-delete-btn" onclick="adminDeleteLoginVideo()" disabled>🗑 Delete Video</button>
+                    </div>
+                </div>
         </div>
 
         <div id="at-targeted" class="atab">
@@ -7998,6 +8013,19 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         </div>
     </div>
 
+
+    <div class="mover" id="m-login-video">
+        <div class="modal login-video-modal">
+            <button class="login-video-close" onclick="closeLoginVideoModal()" aria-label="Skip login video">✕</button>
+            <div class="modal-title" style="padding-right:38px">📣 Quick update from Starlife</div>
+            <video id="login-video-player" class="login-video-player" controls muted playsinline></video>
+            <div class="modal-acts" style="justify-content:flex-end">
+                <button class="btn btn-gh" onclick="toggleLoginVideoMute()">🔊 Unmute / Mute</button>
+                <button class="btn btn-p" onclick="closeLoginVideoModal()">Skip / Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="mover" id="m-pred-bet"><div class="modal" style="max-width:430px"><div class="modal-title" id="pred-bet-title">Place Prediction Bet</div><div id="pred-bet-body"></div><div class="modal-acts"><button class="btn btn-p" onclick="placePredictionBet()">Place Bet</button><button class="btn btn-gh" onclick="closeModal('m-pred-bet')">Cancel</button></div></div></div>
     <div class="mover" id="m-game-wallet-in"><div class="modal" style="max-width:430px"><div class="modal-title">+ Add Funds to Game Wallet</div><div id="gw-in-info" style="font-size:.85rem;color:var(--t2);margin-bottom:10px"></div><div class="fg"><label class="fl">Amount</label><input class="fi" id="gw-in-amount" type="number" min="1" max="500" step="0.01"></div><div class="modal-acts"><button class="btn btn-p" onclick="confirmGameWalletIn()">Confirm</button><button class="btn btn-gh" onclick="closeModal('m-game-wallet-in')">Cancel</button></div></div></div>
     <div class="mover" id="m-game-wallet-out"><div class="modal" style="max-width:430px"><div class="modal-title">↩ Withdraw Funds</div><div id="gw-out-info" style="font-size:.85rem;color:var(--t2);margin-bottom:10px"></div><div class="fg"><label class="fl">Amount</label><input class="fi" id="gw-out-amount" type="number" min="1" step="0.01"></div><div class="modal-acts"><button class="btn btn-p" onclick="confirmGameWalletOut()">Confirm</button><button class="btn btn-gh" onclick="closeModal('m-game-wallet-out')">Cancel</button></div></div></div>
@@ -8200,7 +8228,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 'createVirtualCard', 'submitCreateVirtualCard', 'loadMyCards', 'openTempPinModal', 'generateTempAccessPin', 'submitGenerateTempPin',
                 'toggleCardBlock', 'payWithCard', 'submitCardPayment', 'loadAdminVirtualCards',
                 'toggleCardNumber', 'toggleCVV', 'editLimit', 'saveCardLimit', 'closeLimitEdit', 'updateCardLimit', 'deleteCard',
-                'adminSetDailyLimit', 'adminBanCard', 'adminDeleteCard'
+                'adminSetDailyLimit', 'adminBanCard', 'adminDeleteCard', 'adminUploadLoginVideo', 'adminDeleteLoginVideo', 'closeLoginVideoModal', 'toggleLoginVideoMute'
             ];
             names.forEach(function (n) {
                 // Only register if it's NOT the stub (stubs call _safe)
@@ -8886,6 +8914,67 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }
         });
 
+
+        async function getVideoDuration(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(video.duration || 0); };
+                video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read video duration.')); };
+                video.src = url;
+            });
+        }
+
+        async function loadAdminLoginVideo() {
+            const el = $('login-video-admin-current'); if (!el) return;
+            try {
+                const snap = await db.collection('platformSettings').doc('loginVideo').get();
+                const btn = $('login-video-delete-btn');
+                if (!snap.exists || !snap.data()?.videoUrl) { el.innerHTML = '<div class="es">No login video is active.</div>'; if (btn) btn.disabled = true; return; }
+                const v = snap.data(); if (btn) btn.disabled = false;
+                el.innerHTML = `<video class="login-video-admin-preview" src="${escapeHtml(v.videoUrl)}" controls playsinline></video><div style="font-size:.78rem;color:var(--t2)">Active video uploaded ${escapeHtml(fmtDT(v.uploadedAt) || 'recently')} · ${Number(v.duration || 0).toFixed(1)}s</div>`;
+            } catch (e) { el.innerHTML = '<div class="es">Failed to load login video.</div>'; }
+        }
+
+        async function adminUploadLoginVideo() {
+            const input = $('login-video-file'); const file = input?.files?.[0];
+            if (!file) return toast('Choose a video file first.', 'ty');
+            if (!file.type.startsWith('video/')) return toast('Only video files are allowed.', 'tr');
+            let duration = 0;
+            try { duration = await getVideoDuration(file); } catch (e) { return toast(e.message, 'tr'); }
+            if (duration > 120) return toast('Video is too long. Maximum length is 2 minutes (120 seconds).', 'tr', 6000);
+            const fd = new FormData(); fd.append('adminId', auth.currentUser.uid); fd.append('duration', String(duration)); fd.append('video', file);
+            const res = await fetch('/.netlify/functions/admin-upload-login-video', { method:'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) return toast(data.error || 'Upload failed.', 'tr', 6000);
+            input.value = ''; toast('Login video uploaded ✓', 'tg'); loadAdminLoginVideo();
+        }
+
+        async function adminDeleteLoginVideo() {
+            if (!confirm('Delete the active login video?')) return;
+            const res = await fetch('/.netlify/functions/admin-delete-login-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ adminId: auth.currentUser.uid }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) return toast(data.error || 'Delete failed.', 'tr', 6000);
+            toast('Login video deleted', 'tg'); loadAdminLoginVideo();
+        }
+
+        async function checkLoginVideoForSession() {
+            if (!window.CU?.uid || window.CU?.isAdmin) return;
+            try {
+                const snap = await db.collection('platformSettings').doc('loginVideo').get();
+                if (!snap.exists || !snap.data()?.videoUrl) return;
+                const v = snap.data(); const key = 'loginVideoShown_' + (v.fileId || v.videoUrl);
+                if (sessionStorage.getItem(key) === 'true') return;
+                sessionStorage.setItem(key, 'true');
+                const player = $('login-video-player'); if (!player) return;
+                player.src = v.videoUrl; player.muted = true; player.currentTime = 0; openModal('m-login-video');
+                player.play().catch(() => {});
+            } catch (e) { console.warn('login video check failed', e); }
+        }
+        function closeLoginVideoModal() { const p = $('login-video-player'); if (p) { p.pause(); p.removeAttribute('src'); p.load(); } closeModal('m-login-video'); }
+        function toggleLoginVideoMute() { const p = $('login-video-player'); if (p) p.muted = !p.muted; }
+
         // ════════════════════════════════════════════════════════
         // REGISTER
         // ════════════════════════════════════════════════════════
@@ -9058,6 +9147,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const fab = $('ai-chat-fab');
             if (fab) fab.style.display = 'block';
             if (sessionMeta?.suspicious) toast('Suspicious login detected — review Security Center', 'ty', 5000);
+            setTimeout(checkLoginVideoForSession, 600);
         }
 
         async function twofaFetch(path, body) {
@@ -12638,7 +12728,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             p2p: () => loadAdminP2P(),
             broadcast: () => { loadAdminBroadcasts(); loadBroadcastEmailLogs(); loadAdminPushSettings(); },
             targeted: () => loadAdminTargetedAnnouncements(),
-            moving: () => loadAdminMovingAnnouncement(),
+            moving: () => { loadAdminMovingAnnouncement(); loadAdminLoginVideo(); },
             ads: () => loadAds(),
             admins: () => loadAdminsList(),
             promocodes: () => loadAdminPromoCodes(),
