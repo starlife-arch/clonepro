@@ -50,6 +50,8 @@ async function runDailyProfits() {
   let investCount = 0;
   let stakeCount = 0;
   let savingsCount = 0;
+  let savingsPrincipalReleased = 0;
+  let vaultReleased = 0;
   let totalCredited = 0;
   const inc = admin.firestore.FieldValue.increment;
   const serverTimestamp = admin.firestore.FieldValue.serverTimestamp;
@@ -153,14 +155,34 @@ async function runDailyProfits() {
     for (const doc of savSnap.docs) {
       const sav = doc.data() || {};
       try {
-        if (!sav.uid || sav.savLastProfitDate === today) continue;
+        if (!sav.uid) continue;
         const unlockDate = sav.unlockDate ? new Date(sav.unlockDate.seconds * 1000) : null;
-        if (unlockDate && new Date() > unlockDate) {
-          state.batch.update(doc.ref, { status: 'matured' });
-          state.ops++;
+        if (unlockDate && new Date() >= unlockDate) {
+          if (state.ops > 0) state = await flushBatch(db, state);
+          const amount = Number(sav.amount || 0);
+          if (amount > 0) {
+            const released = await db.runTransaction(async tx => {
+              const freshSnap = await tx.get(doc.ref);
+              const fresh = freshSnap.data() || {};
+              if (fresh.status !== 'active') return false;
+              tx.update(db.collection('users').doc(sav.uid), { balance: inc(amount), savingsBalance: inc(-amount) });
+              tx.update(doc.ref, { status: 'completed', completedAt: serverTimestamp() });
+              return true;
+            });
+            if (released) {
+              const msg = `Savings matured — $${fmt(amount)} principal returned to your balance`;
+              state.batch.set(db.collection('activity').doc(), { uid: sav.uid, desc: msg, amt: amount, icon: '🏦', type: 'savings', createdAt: serverTimestamp() });
+              state.ops++;
+              state.batch.set(db.collection('userNotifs').doc(), { uid: sav.uid, msg, read: false, createdAt: serverTimestamp() });
+              state.ops++;
+              savingsPrincipalReleased++;
+              totalCredited += amount;
+            }
+          }
           if (state.ops >= BATCH_FLUSH) state = await flushBatch(db, state);
           continue;
         }
+        if (sav.savLastProfitDate === today) continue;
         const uData = savUserCache[sav.uid];
         if (!uData || uData.isBanned) continue;
         const profit = parseFloat(((sav.amount || 0) * 0.03).toFixed(4));
@@ -185,7 +207,47 @@ async function runDailyProfits() {
     errors.push({ scope: 'savings', error: error.message });
   }
 
-  const result = { success: errors.length === 0, date: today, investCount, stakeCount, savingsCount, totalCredited: parseFloat(totalCredited.toFixed(4)), errors };
+  try {
+    const vaultSnap = await db.collection('savingsVault').where('status', '==', 'locked').get();
+    let state = { batch: db.batch(), ops: 0 };
+    const now = new Date();
+    for (const doc of vaultSnap.docs) {
+      const v = doc.data() || {};
+      try {
+        if (!v.uid || !v.unlocksAt) continue;
+        const unlockDate = new Date(v.unlocksAt.seconds * 1000);
+        if (now < unlockDate) continue;
+        if (state.ops > 0) state = await flushBatch(db, state);
+        const receive = Number(v.receive || 0);
+        const bonus = Number(v.bonus || 0);
+        if (receive <= 0) continue;
+        const released = await db.runTransaction(async tx => {
+          const freshSnap = await tx.get(doc.ref);
+          const fresh = freshSnap.data() || {};
+          if (fresh.status !== 'locked') return false;
+          tx.update(db.collection('users').doc(v.uid), { balance: inc(receive), totalEarned: inc(bonus) });
+          tx.update(doc.ref, { status: 'released', releasedAt: serverTimestamp() });
+          return true;
+        });
+        if (released) {
+          state.batch.set(db.collection('activity').doc(), { uid: v.uid, desc: `Vault released: $${fmt(receive)} (+$${fmt(bonus)} bonus)`, amt: receive, icon: '🔐', type: 'deposit', createdAt: serverTimestamp() });
+          state.ops++;
+          state.batch.set(db.collection('userNotifs').doc(), { uid: v.uid, msg: `🔐 Vault unlocked! $${fmt(receive)} added to your balance (+$${fmt(bonus)} bonus)`, read: false, createdAt: serverTimestamp() });
+          state.ops++;
+          vaultReleased++;
+          totalCredited += receive;
+        }
+        if (state.ops >= BATCH_FLUSH) state = await flushBatch(db, state);
+      } catch (error) {
+        errors.push({ scope: 'vault', id: doc.id, error: error.message });
+      }
+    }
+    if (state.ops > 0) await state.batch.commit();
+  } catch (error) {
+    errors.push({ scope: 'vault', error: error.message });
+  }
+
+  const result = { success: errors.length === 0, date: today, investCount, stakeCount, savingsCount, savingsPrincipalReleased, vaultReleased, totalCredited: parseFloat(totalCredited.toFixed(4)), errors };
   await db.collection('profitRunLogs').add({ runAt: serverTimestamp(), ...result });
   return result;
 }
@@ -196,7 +258,7 @@ export default async () => {
   } catch (error) {
     console.error('[run-daily-profits] failed', error);
     try {
-      await getDb().collection('profitRunLogs').add({ runAt: admin.firestore.FieldValue.serverTimestamp(), investCount: 0, stakeCount: 0, savingsCount: 0, totalCredited: 0, errors: [{ scope: 'fatal', error: error.message || 'Daily profit run failed' }] });
+      await getDb().collection('profitRunLogs').add({ runAt: admin.firestore.FieldValue.serverTimestamp(), investCount: 0, stakeCount: 0, savingsCount: 0, savingsPrincipalReleased: 0, vaultReleased: 0, totalCredited: 0, errors: [{ scope: 'fatal', error: error.message || 'Daily profit run failed' }] });
     } catch (_) {}
     return json({ success: false, error: error.message || 'Daily profit run failed' }, 500);
   }
