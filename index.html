@@ -4615,17 +4615,24 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 <div id="sh-t-withdraw" style="display:none">
                     <div class="card">
                         <div id="sh-wd-block">
-                            <p style="color:var(--t2);font-size:.85rem;margin-bottom:14px">Withdraw your shareholder
-                                earnings. Available after 6 months from first stake.</p>
+                            <p style="color:var(--t2);font-size:.85rem;margin-bottom:14px">Withdraw shareholder
+                                earnings or staked principal after 6 months from first stake.</p>
                             <div
                                 style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.2);border-radius:8px;padding:10px;margin-bottom:12px;font-size:.8rem;color:var(--t2)">
-                                💡 Withdrawing moves earnings from your shareholder wallet to your main balance
+                                💡 Withdrawing moves unlocked shareholder funds to your main balance
                                 instantly.
                             </div>
-                            <div class="fg"><label class="fl">Amount to Withdraw to Main Balance</label><input
-                                    class="fi" id="sh-wd-amt" type="number" min="1" placeholder="Amount in USD"></div>
-                            <button class="btn btn-p btn-full" onclick="doShWithdraw()">💸 Withdraw to Main
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                                <div class="sc"><div class="sl">Earnings</div><div class="sv g" id="sh-wd-earnings">$0.00</div></div>
+                                <div class="sc"><div class="sl">Principal</div><div class="sv gold" id="sh-wd-principal">$0.00</div></div>
+                            </div>
+                            <div class="fg"><label class="fl">Earnings Amount to Withdraw</label><input
+                                    class="fi" id="sh-wd-amt" type="number" min="1" placeholder="Earnings amount in USD"></div>
+                            <button class="btn btn-p btn-full" onclick="doShWithdraw()">💸 Withdraw Earnings to Main
                                 Balance</button>
+                            <div class="fg" style="margin-top:14px"><label class="fl">Principal Amount to Withdraw</label><input
+                                    class="fi" id="sh-wd-principal-amt" type="number" min="1" placeholder="Principal amount in USD"></div>
+                            <button class="btn btn-gh btn-full" onclick="doShWithdrawPrincipal()">🔓 Withdraw Staked Principal</button>
                         </div>
                     </div>
                 </div>
@@ -8197,7 +8204,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 'adminRejectStakeById', 'adminApproveLoanById', 'adminRejectLoanById',
                 'adminMarkLoanRepaidById', 'banUser', 'deleteUser', 'adminResetPin',
                 'openAdjust', 'openInvAdj', 'openEditUser', 'togglePost', 'scratchBox',
-                'doSavDeposit', 'doShWithdraw', 'doStake', 'previewKYC',
+                'doSavDeposit', 'doShWithdraw', 'doShWithdrawPrincipal', 'doStake', 'previewKYC',
                 'previewTicketImg', 'previewReplyImg', 'clearTicketImg', 'clearReplyImg',
                 'toggleFAQ', 'initScratch', 'initScratchCard', 'pinNext', 'setRating',
                 'selTerm', 'selTicketType', 'addSurveyQuestion', 'copyText',
@@ -9767,7 +9774,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             toast('Payment method deleted', 'tg');
         }
 
-        function shTab(el, id) { document.querySelectorAll('#t-shareholder .itab').forEach(t => t.classList.remove('on')); el.classList.add('on');['sh-t-stake', 'sh-t-history', 'sh-t-withdraw'].forEach(i => $(i).style.display = 'none'); $(id).style.display = 'block'; }
+        function shTab(el, id) { document.querySelectorAll('#t-shareholder .itab').forEach(t => t.classList.remove('on')); el.classList.add('on');['sh-t-stake', 'sh-t-history', 'sh-t-withdraw'].forEach(i => $(i).style.display = 'none'); $(id).style.display = 'block'; if (id === 'sh-t-withdraw') refreshShareholderWithdrawUi(); }
         function svTab(el, id) { document.querySelectorAll('#t-surveys .itab').forEach(t => t.classList.remove('on')); el.classList.add('on');['sv-t-avail', 'sv-t-done', 'sv-t-redeem'].forEach(i => { if ($(i)) $(i).style.display = 'none'; }); $(id).style.display = 'block'; if (id === 'sv-t-done') loadDoneSurveys(); if (id === 'sv-t-redeem') loadRedeemTab(); }
         function lnTab(el, id) { document.querySelectorAll('#t-loans .itab').forEach(t => t.classList.remove('on')); el.classList.add('on');['ln-t-req', 'ln-t-my'].forEach(i => $(i).style.display = 'none'); $(id).style.display = 'block'; if (id === 'ln-t-my') loadMyLoans(); }
         function spTab(el, id) { document.querySelectorAll('#t-support .itab').forEach(t => t.classList.remove('on')); el.classList.add('on');['sp-t-new', 'sp-t-my', 'sp-t-faq'].forEach(i => $(i).style.display = 'none'); $(id).style.display = 'block'; }
@@ -10637,17 +10644,24 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }).join('');
         }
 
+        function getShareholderUnlockDate(u) {
+            return u?.firstStakeAt ? new Date((u.firstStakeAt.seconds || 0) * 1000 + 6 * 30 * 24 * 3600 * 1000) : null;
+        }
+
+        function refreshShareholderWithdrawUi() {
+            if ($('sh-wd-earnings')) $('sh-wd-earnings').textContent = '$' + fmt(window.CU?.shareholderEarned || 0);
+            if ($('sh-wd-principal')) $('sh-wd-principal').textContent = '$' + fmt(window.CU?.shareholderStake || 0);
+        }
+
         async function doShWithdraw() {
             const amt = parseFloat($('sh-wd-amt').value);
             const u = window.CU;
             if (!amt || amt < 1) return toast('Enter amount', 'ty');
             if ((u.shareholderEarned || 0) < amt) return toast(`Insufficient shareholder earnings — you have $${fmt(u.shareholderEarned || 0)} available`, 'tr');
             // Check 6 month lock
-            if (u.firstStakeAt) {
-                const unlock = new Date((u.firstStakeAt.seconds || 0) * 1000 + 6 * 30 * 24 * 3600 * 1000);
-                if (new Date() < unlock) {
-                    return toast('Shareholder earnings locked until ' + unlock.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 'ty', 5000);
-                }
+            const unlock = getShareholderUnlockDate(u);
+            if (unlock && new Date() < unlock) {
+                return toast('Shareholder earnings locked until ' + unlock.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 'ty', 5000);
             }
             try {
                 const batch = db.batch();
@@ -10661,8 +10675,40 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 window.CU.balance = (u.balance || 0) + amt;
                 window.CU.shareholderEarned = (u.shareholderEarned || 0) - amt;
                 updateUI();
+                refreshShareholderWithdrawUi();
                 toast(`✅ $${fmt(amt)} moved to main balance!`);
                 $('sh-wd-amt').value = '';
+                loadShHistory();
+            } catch (e) { toast('Error: ' + e.message, 'tr'); }
+        }
+
+        async function doShWithdrawPrincipal() {
+            const amt = parseFloat($('sh-wd-principal-amt')?.value);
+            const u = window.CU;
+            if (!amt || amt < 1) return toast('Enter principal amount', 'ty');
+            if ((u.shareholderStake || 0) < amt) return toast(`Insufficient shareholder principal — you have $${fmt(u.shareholderStake || 0)} staked`, 'tr');
+            const unlock = getShareholderUnlockDate(u);
+            if (unlock && new Date() < unlock) {
+                return toast('Shareholder principal locked until ' + unlock.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 'ty', 5000);
+            }
+            try {
+                const userRef = db.collection('users').doc(u.uid);
+                await db.runTransaction(async tx => {
+                    const snap = await tx.get(userRef);
+                    const fresh = snap.data() || {};
+                    if ((fresh.shareholderStake || 0) < amt) throw new Error('Insufficient shareholder principal');
+                    const freshUnlock = getShareholderUnlockDate(fresh);
+                    if (freshUnlock && new Date() < freshUnlock) throw new Error('Shareholder principal is still locked');
+                    tx.update(userRef, { balance: FS().increment(amt), shareholderStake: FS().increment(-amt) });
+                });
+                await logAct(u.uid, `Shareholder principal withdrawn to main balance $${fmt(amt)}`, amt, '💎', 'withdrawal');
+                await db.collection('userNotifs').add({ uid: u.uid, msg: `$${fmt(amt)} withdrawn from shareholder principal to your main balance!`, read: false, createdAt: FS().serverTimestamp() });
+                window.CU.balance = (u.balance || 0) + amt;
+                window.CU.shareholderStake = (u.shareholderStake || 0) - amt;
+                updateUI();
+                refreshShareholderWithdrawUi();
+                toast(`✅ $${fmt(amt)} principal moved to main balance!`);
+                if ($('sh-wd-principal-amt')) $('sh-wd-principal-amt').value = '';
                 loadShHistory();
             } catch (e) { toast('Error: ' + e.message, 'tr'); }
         }
@@ -12706,7 +12752,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             },
             support: {
                 label: '🎧 Support', color: 'var(--sky)',
-                tabs: ['tickets', 'kyc', 'users', 'activity', 'virtualcards', 'security', 'paiddm']
+                tabs: ['tickets']
             },
             moderator: {
                 label: '🌐 Moderator', color: '#a78bfa',
@@ -12843,6 +12889,17 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             } catch (e) { console.error('Tab load error:', tabId, e); }
         }
 
+        async function syncAdminClaims(uid, adminRole, isAdmin) {
+            const token = await auth.currentUser?.getIdToken(true);
+            const res = await fetch('/.netlify/functions/sync-admin-claims', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ uid, adminRole, isAdmin })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Could not sync admin claims');
+        }
+
         async function addNewAdmin() {
             if (!isSuperAdmin()) return toast('Only Super Admin can add admins', 'tr');
             const query = $('new-admin-search')?.value.trim();
@@ -12865,6 +12922,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!found) return toast('User not found', 'tr');
             if (found.email === ADMIN_EMAIL) return toast('Cannot modify Super Admin', 'ty');
             await db.collection('users').doc(found.id).update({ isAdmin: true, adminRole: role });
+            await syncAdminClaims(found.id, role, true);
             await db.collection('userNotifs').add({ uid: found.id, msg: `✅ You have been granted ${ADMIN_ROLES[role]?.label || role} access on Starlife.`, read: false, createdAt: FS().serverTimestamp() });
             tg(`👥 <b>Admin Added</b>\n${found.name} (${found.email})\nRole: ${ADMIN_ROLES[role]?.label || role}`);
             toast(`✅ ${found.name} added as ${ADMIN_ROLES[role]?.label || role}`);
@@ -12905,6 +12963,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         async function changeAdminRole(uid, newRole) {
             if (!isSuperAdmin()) return toast('Only Super Admin can change roles', 'tr');
             await db.collection('users').doc(uid).update({ adminRole: newRole });
+            await syncAdminClaims(uid, newRole, true);
             toast('Role updated ✓');
             loadAdminsList();
         }
@@ -12913,6 +12972,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!isSuperAdmin()) return toast('Only Super Admin can remove admins', 'tr');
             if (!confirm(`Remove admin access from ${name}?`)) return;
             await db.collection('users').doc(uid).update({ isAdmin: false, adminRole: null });
+            await syncAdminClaims(uid, null, false);
             toast(`${name} removed from admin`);
             loadAdminsList();
         }
@@ -18530,13 +18590,24 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                     if (v.status === 'locked') {
                         const unlockDate = new Date(v.unlocksAt.seconds * 1000);
                         if (now >= unlockDate) {
-                            await db.collection('savingsVault').doc(v.id).update({ status: 'released', releasedAt: FS().serverTimestamp() });
-                            await db.collection('users').doc(u.uid).update({ balance: FS().increment(v.receive), totalEarned: FS().increment(v.bonus) });
-                            await logAct(u.uid, `Vault released: $${fmt(v.receive)} (+$${fmt(v.bonus)} bonus)`, v.receive, '🔐', 'deposit');
-                            await db.collection('userNotifs').add({ uid: u.uid, msg: `🔐 Vault unlocked! $${fmt(v.receive)} added to your balance (+$${fmt(v.bonus)} bonus)`, read: false, createdAt: FS().serverTimestamp() });
-                            v.status = 'released';
-                            window.CU.balance = (window.CU.balance || 0) + v.receive;
-                            updateUI();
+                            let released = false;
+                            const vaultRef = db.collection('savingsVault').doc(v.id);
+                            const userRef = db.collection('users').doc(u.uid);
+                            await db.runTransaction(async tx => {
+                                const freshSnap = await tx.get(vaultRef);
+                                const fresh = freshSnap.data() || {};
+                                if (fresh.status !== 'locked') return;
+                                tx.update(vaultRef, { status: 'released', releasedAt: FS().serverTimestamp() });
+                                tx.update(userRef, { balance: FS().increment(v.receive), totalEarned: FS().increment(v.bonus) });
+                                released = true;
+                            });
+                            if (released) {
+                                await logAct(u.uid, `Vault released: $${fmt(v.receive)} (+$${fmt(v.bonus)} bonus)`, v.receive, '🔐', 'deposit');
+                                await db.collection('userNotifs').add({ uid: u.uid, msg: `🔐 Vault unlocked! $${fmt(v.receive)} added to your balance (+$${fmt(v.bonus)} bonus)`, read: false, createdAt: FS().serverTimestamp() });
+                                v.status = 'released';
+                                window.CU.balance = (window.CU.balance || 0) + v.receive;
+                                updateUI();
+                            }
                         }
                     }
                 }

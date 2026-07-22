@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function role() { return signedIn() ? request.auth.token.adminRole : null; }
+    function hasTab(tab) {
+      return role() == 'superadmin'
+        || (tab in ['deposits','withdrawals','revenue','analytics','activity','virtualcards','users','promocodes','fees','accounts','cancelrequests','tokens','gifts'] && role() == 'finance')
+        || (tab == 'tickets' && role() == 'support')
+        || (tab in ['testi','broadcast','targeted','moving','ads','activity','official'] && role() == 'moderator')
+        || (tab in ['investments','stakes','loans','surveys','redemptions','prizecodes','luckydraw','p2p','activity'] && role() == 'operations');
+    }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function doesNotChangeAdminFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'adminRole']);
+    }
+
+    match /users/{uid} {
+      allow get: if owner(uid) || hasTab('users');
+      allow list: if hasTab('users');
+      allow create: if owner(uid) && !(('isAdmin' in request.resource.data) && request.resource.data.isAdmin == true) && !(('adminRole' in request.resource.data) && request.resource.data.adminRole != null);
+      allow update: if (owner(uid) && doesNotChangeAdminFields()) || role() == 'superadmin';
+      allow delete: if role() == 'superadmin';
+    }
+
+    match /tickets/{id} { allow read: if owner(resource.data.uid) || hasTab('tickets'); allow create: if signedIn(); allow update, delete: if owner(resource.data.uid) || hasTab('tickets'); }
+    match /ticketMessages/{id} { allow read: if owner(resource.data.uid) || hasTab('tickets'); allow create: if signedIn(); allow update, delete: if owner(resource.data.uid) || hasTab('tickets'); }
+    match /supportTickets/{id} { allow read: if owner(resource.data.uid) || hasTab('tickets'); allow create: if signedIn(); allow update, delete: if owner(resource.data.uid) || hasTab('tickets'); }
+
+    match /virtualcards/{id} { allow read: if owner(resource.data.uid) || hasTab('virtualcards'); allow create: if owner(request.resource.data.uid) || hasTab('virtualcards'); allow update, delete: if owner(resource.data.uid) || hasTab('virtualcards'); }
+    match /security/{id} { allow read, write: if hasTab('security'); }
+    match /securityLogs/{id} { allow read, write: if hasTab('security'); }
+
+    match /deposits/{id} { allow read: if owner(resource.data.uid) || hasTab('deposits'); allow create: if signedIn(); allow update, delete: if hasTab('deposits'); }
+    match /withdrawals/{id} { allow read: if owner(resource.data.uid) || hasTab('withdrawals'); allow create: if signedIn(); allow update, delete: if hasTab('withdrawals'); }
+    match /stakes/{id} { allow read: if owner(resource.data.uid) || hasTab('stakes'); allow create: if signedIn(); allow update, delete: if hasTab('stakes'); }
+    match /savings/{id} { allow read: if owner(resource.data.uid) || hasTab('stakes'); allow create: if signedIn(); allow update, delete: if hasTab('stakes'); }
+    match /savingsVault/{id} { allow read: if owner(resource.data.uid) || hasTab('stakes'); allow create: if signedIn(); allow update, delete: if owner(resource.data.uid) || hasTab('stakes'); }
+
+
+    match /investments/{id} { allow read: if owner(resource.data.uid) || hasTab('investments'); allow create: if signedIn(); allow update, delete: if hasTab('investments'); }
+    match /loans/{id} { allow read: if owner(resource.data.uid) || hasTab('loans'); allow create: if signedIn(); allow update, delete: if hasTab('loans'); }
+    match /kyc/{uid} { allow read: if owner(uid) || hasTab('kyc'); allow create, update: if owner(uid) || hasTab('kyc'); allow delete: if hasTab('kyc'); }
+    match /campaigns/{id} { allow read: if signedIn(); allow write: if hasTab('campaigns'); }
+    match /campaignApplications/{id} { allow read: if owner(resource.data.userId) || hasTab('campaigns'); allow create: if signedIn(); allow update, delete: if hasTab('campaigns'); }
+    match /surveys/{id} { allow read: if signedIn(); allow write: if hasTab('surveys'); }
+    match /surveyResponses/{id} { allow read: if owner(resource.data.uid) || hasTab('surveys'); allow create: if signedIn(); allow update, delete: if hasTab('surveys'); }
+    match /platformAccounts/{id} { allow read, write: if hasTab('accounts'); }
+    match /promoCodes/{id} { allow read: if signedIn(); allow write: if hasTab('promocodes'); }
+    match /promoUses/{id} { allow read, write: if signedIn(); }
+
+    match /activity/{id} { allow read: if owner(resource.data.uid) || hasTab('activity'); allow create: if signedIn(); allow update, delete: if hasTab('activity'); }
+    match /userNotifs/{id} { allow read: if owner(resource.data.uid); allow create: if signedIn(); allow update, delete: if owner(resource.data.uid); }
+    match /adminNotifs/{id} { allow read, write: if role() == 'superadmin' || hasTab('activity'); }
+
+    match /{document=**} { allow read, write: if signedIn() && role() == 'superadmin'; }
+  }
+}
