@@ -116,7 +116,7 @@ COMMON USER QUESTIONS (quick answers)
 - "Why is my balance showing less?" → Some funds may be on hold (admin hold) or locked in savings/vault.
 - "Can I cancel a withdrawal?" → Only admin can reject it (refunds balance).
 - "What is shareholder earnings?" → Daily share of $2M annual pool based on your stake.
-- "How do I get verified badge?" → Invest $100+ or refer 50+ members (free) or pay $10/month.
+- "How do I get verified badge?" → Invest $100+ or refer 50+ members (free) or pay $20/month.
 - "What are official roles?" → Admin can assign roles like CEO, Director, Support, Finance, etc. – these appear as badges on profile.
 - "How do I contact support?" → Use the Support tab (create ticket) or email support@starlifeadvert.com.
 - "Why is my investment not earning?" → Either it's still pending admin approval, or admin stopped earnings manually.

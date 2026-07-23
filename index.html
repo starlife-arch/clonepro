@@ -6071,7 +6071,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         style="background:var(--s2);border-radius:10px;padding:10px;max-height:200px;overflow-y:auto;margin-bottom:8px">
                         <div style="font-size:.78rem;color:var(--t3);text-align:center">No messages yet</div>
                     </div>
-                    <div style="display:flex;gap:6px">
+                    <div id="trade-chat-compose" style="display:flex;gap:6px">
                         <input class="fi" id="trade-chat-inp" placeholder="Message…" style="flex:1;font-size:.82rem"
                             onkeydown="if(event.key==='Enter')sendTradeMsg()">
                         <button class="btn btn-p btn-sm" onclick="sendTradeMsg()">➤</button>
@@ -15419,30 +15419,86 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             loadAdminAll();
         }
 
+        const WD_SCHEDULE_TIMEZONES = ['Africa/Nairobi', 'Africa/Lagos', 'Africa/Johannesburg', 'Africa/Accra', 'Africa/Kampala', 'Africa/Dar_es_Salaam', 'Europe/London', 'America/New_York', 'Asia/Dubai', 'Asia/Kolkata'];
+        const WD_SCHEDULE_DAYS = [
+            ['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']
+        ];
+        let _wdScheduleUser = null;
+
+        function ensureWithdrawalScheduleModal() {
+            if ($('m-wd-schedule')) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'mover';
+            wrap.id = 'm-wd-schedule';
+            wrap.innerHTML = `<div class="modal" style="max-width:480px">
+                <div class="modal-title">🕒 Withdrawal Schedule Override</div>
+                <div id="wd-schedule-user" style="font-size:.84rem;color:var(--t2);margin-bottom:10px"></div>
+                <div class="fg"><label class="fl">Allowed Days</label><div id="wd-schedule-days" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px"></div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div class="fg"><label class="fl">Start Time</label><input class="fi" id="wd-schedule-start" type="time" step="3600"></div>
+                    <div class="fg"><label class="fl">End Time</label><input class="fi" id="wd-schedule-end" type="time" step="3600"></div>
+                </div>
+                <div class="fg"><label class="fl">Timezone</label><select class="fi" id="wd-schedule-tz"></select></div>
+                <div class="fg"><label class="fl">Reason (sent to user)</label><input class="fi" id="wd-schedule-reason" placeholder="Withdrawal schedule adjustment"></div>
+                <div class="modal-acts"><button class="btn btn-d" onclick="adminRemoveWithdrawalScheduleOverride()">Remove Override</button><button class="btn btn-p" onclick="adminSaveWithdrawalScheduleOverride()">Save</button><button class="btn btn-gh" onclick="closeModal('m-wd-schedule')">Cancel</button></div>
+            </div>`;
+            document.body.appendChild(wrap);
+        }
+
+        function hourToTime(hour) {
+            const n = Math.max(0, Math.min(24, Number(hour) || 0));
+            return String(n).padStart(2, '0') + ':00';
+        }
+
+        function timeToHour(value) {
+            const [h, m] = String(value || '').split(':').map(Number);
+            if (!Number.isFinite(h) || !Number.isFinite(m) || m !== 0) return NaN;
+            return h;
+        }
+
         async function adminSetWithdrawalScheduleOverride(uid, name, email) {
-            const input = prompt(`Set withdrawal schedule override for ${name}\nFormat: days,start,end,timezone\nExample: mon|wed|fri,8,18,Africa/Nairobi\nType "remove" to clear:`);
-            if (input === null) return;
-            const reason = prompt('Reason (sent to user):') || 'Withdrawal schedule adjustment';
-            let override = null;
-            let action = 'cleared';
-            if (input.trim().toLowerCase() !== 'remove') {
-                const [daysRaw, startRaw, endRaw, tzRaw] = input.split(',').map(x => (x || '').trim());
-                const allowedDays = daysRaw.split('|').map(x => x.trim().toLowerCase()).filter(Boolean);
-                const allowedHourStart = Number(startRaw);
-                const allowedHourEnd = Number(endRaw);
-                const timezone = tzRaw || 'Africa/Nairobi';
-                const validDays = ['mon','tue','wed','thu','fri','sat','sun'];
-                if (!allowedDays.length || allowedDays.some(d => !validDays.includes(d))) return toast('Use valid day codes: mon|tue|wed|thu|fri|sat|sun', 'ty');
-                if (!Number.isFinite(allowedHourStart) || !Number.isFinite(allowedHourEnd) || allowedHourStart < 0 || allowedHourEnd > 24 || allowedHourStart >= allowedHourEnd) return toast('Invalid hour range', 'ty');
-                override = { allowedDays, allowedHourStart, allowedHourEnd, timezone };
-                action = 'updated';
-            }
+            ensureWithdrawalScheduleModal();
+            const user = (window.AU || []).find(x => x.id === uid) || {};
+            const current = user.withdrawalScheduleOverride || null;
+            _wdScheduleUser = { uid, name, email };
+            if ($('wd-schedule-user')) $('wd-schedule-user').textContent = `${name} · ${email || 'No email'}${current ? ' · Current custom override loaded' : ' · No custom override'}`;
+            const selected = new Set(current?.allowedDays || ['mon', 'tue', 'wed', 'thu', 'fri']);
+            if ($('wd-schedule-days')) $('wd-schedule-days').innerHTML = WD_SCHEDULE_DAYS.map(([code, label]) => `<label style="display:flex;gap:6px;align-items:center;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px"><input type="checkbox" class="wd-day" value="${code}" ${selected.has(code) ? 'checked' : ''}> ${label}</label>`).join('');
+            if ($('wd-schedule-start')) $('wd-schedule-start').value = hourToTime(current?.allowedHourStart ?? 8);
+            if ($('wd-schedule-end')) $('wd-schedule-end').value = hourToTime(current?.allowedHourEnd ?? 18);
+            if ($('wd-schedule-tz')) $('wd-schedule-tz').innerHTML = WD_SCHEDULE_TIMEZONES.map(tz => `<option value="${tz}" ${(current?.timezone || 'Africa/Nairobi') === tz ? 'selected' : ''}>${tz}</option>`).join('');
+            if ($('wd-schedule-reason')) $('wd-schedule-reason').value = '';
+            openModal('m-wd-schedule');
+        }
+
+        async function adminSaveWithdrawalScheduleOverride() {
+            if (!_wdScheduleUser) return;
+            const allowedDays = Array.from(document.querySelectorAll('.wd-day:checked')).map(x => x.value);
+            const allowedHourStart = timeToHour($('wd-schedule-start')?.value);
+            const allowedHourEnd = timeToHour($('wd-schedule-end')?.value);
+            const timezone = $('wd-schedule-tz')?.value || 'Africa/Nairobi';
+            const reason = $('wd-schedule-reason')?.value.trim() || 'Withdrawal schedule adjustment';
+            if (!allowedDays.length) return toast('Choose at least one allowed day', 'ty');
+            if (!Number.isFinite(allowedHourStart) || !Number.isFinite(allowedHourEnd) || allowedHourStart < 0 || allowedHourEnd > 24 || allowedHourStart >= allowedHourEnd) return toast('Choose a valid whole-hour time range', 'ty');
+            await adminApplyWithdrawalScheduleOverride({ allowedDays, allowedHourStart, allowedHourEnd, timezone }, 'updated', reason);
+        }
+
+        async function adminRemoveWithdrawalScheduleOverride() {
+            if (!_wdScheduleUser) return;
+            const reason = $('wd-schedule-reason')?.value.trim() || 'Withdrawal schedule adjustment';
+            await adminApplyWithdrawalScheduleOverride(null, 'cleared', reason);
+        }
+
+        async function adminApplyWithdrawalScheduleOverride(override, action, reason) {
+            const { uid, name, email } = _wdScheduleUser;
             await db.collection('users').doc(uid).update({ withdrawalScheduleOverride: override });
             const msg = override ? `Your withdrawal schedule was updated to ${nextWithdrawalWindowMessage(override)} Reason: ${reason}` : `Your custom withdrawal schedule was cleared. Reason: ${reason}`;
             await db.collection('userNotifs').add({ uid, msg, read: false, createdAt: FS().serverTimestamp() });
             sendTransactionalEmail('transaction_notice', email, { name, title: 'Withdrawal schedule updated', amount: 0, transactionId: 'WD-SCHEDULE', status: action, timestamp: new Date().toISOString(), note: msg });
             await logAct(uid, `Admin ${action} withdrawal schedule override — ${reason}`, 0, '🕒', 'withdrawal');
             toast('Withdrawal schedule override ' + action + ' ✓', 'tg');
+            closeModal('m-wd-schedule');
+            _wdScheduleUser = null;
             loadAdminAll();
         }
 
@@ -15904,7 +15960,9 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 }
 
                 t.update(ownerRef, { balance: FS().increment(-amt) });
-                t.update(targetRef, { balance: FS().increment(amt), totalEarned: FS().increment(amt) });
+                const fee = isMemberPayment ? parseFloat((amt * 0.10).toFixed(2)) : 0;
+                const received = isMemberPayment ? parseFloat((amt - fee).toFixed(2)) : amt;
+                t.update(targetRef, { balance: FS().increment(received), totalEarned: FS().increment(received) });
                 t.update(cardRef, {
                     dailyUsed: priorUsed + amt,
                     lastSpendDate: today,
@@ -15918,30 +15976,37 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                     ? `Card ending ${last4} used via shared access — $${fmt(amt)} sent to ${targetName}${txId ? ' · TX ' + txId : ''}`
                     : `Card ending ${last4} used — $${fmt(amt)} sent to ${targetName}${txId ? ' · TX ' + txId : ''}`;
                 const targetDesc = usedTemp
-                    ? `Received $${fmt(amt)} via shared card ending ${last4}`
-                    : `Received $${fmt(amt)} from card ending ${last4}`;
+                    ? `Received $${fmt(received)} via shared card ending ${last4}${fee ? ' after $' + fmt(fee) + ' platform fee' : ''}`
+                    : `Received $${fmt(received)} from card ending ${last4}${fee ? ' after $' + fmt(fee) + ' platform fee' : ''}`;
 
                 t.set(db.collection('activity').doc(), { uid: card.uid, desc: ownerDesc, amt: -amt, icon: '💳', type: 'card_payment', createdAt: FS().serverTimestamp() });
-                t.set(db.collection('activity').doc(), { uid: targetUid, desc: targetDesc, amt, icon: '💳', type: 'card_payment', createdAt: FS().serverTimestamp() });
+                t.set(db.collection('activity').doc(), { uid: targetUid, desc: targetDesc, amt: received, icon: '💳', type: 'card_payment', createdAt: FS().serverTimestamp() });
                 t.set(db.collection('userNotifs').doc(), { uid: card.uid, msg: `💳 ${ownerDesc}`, read: false, createdAt: FS().serverTimestamp() });
                 t.set(db.collection('userNotifs').doc(), { uid: targetUid, msg: `💳 ${targetDesc}`, read: false, createdAt: FS().serverTimestamp() });
-                if (isMemberPayment) t.set(db.collection('transfers').doc(txId), { fromUid: card.uid, fromName: owner.name || 'Member', toUid: targetUid, toName: targetName, amount: amt, fee: 0, received: amt, type: 'cash', method: 'card', status: 'completed', createdAt: FS().serverTimestamp(), reversalStatus: null });
+                if (isMemberPayment) t.set(db.collection('transfers').doc(txId), { fromUid: card.uid, fromName: owner.name || 'Member', toUid: targetUid, toName: targetName, amount: amt, fee, received, type: 'cash', method: 'card', status: 'completed', createdAt: FS().serverTimestamp(), reversalStatus: null });
                 cardTxEmail = {
-                    sender: { email: owner.email || '', name: owner.name || 'Member', merchant: targetUid === payee.uid ? 'Starlife balance top-up' : ('Transfer to ' + targetName), remainingBalance: Math.max(0, Number(owner.balance || 0) - amt) },
-                    receiver: { email: targetData.email || '', name: targetData.name || 'Member', merchant: usedTemp ? `Shared card ending ${last4}` : `Card ending ${last4}`, remainingBalance: Math.max(0, Number(targetData.balance || 0) + amt) },
+                    isMemberPayment,
+                    sender: { email: owner.email || '', name: owner.name || 'Member', recipientName: targetName, merchant: targetUid === payee.uid ? 'Starlife balance top-up' : ('Transfer to ' + targetName), remainingBalance: Math.max(0, Number(owner.balance || 0) - amt) },
+                    receiver: { email: targetData.email || '', name: targetData.name || 'Member', senderName: owner.name || 'Member', merchant: usedTemp ? `Shared card ending ${last4}` : `Card ending ${last4}`, remainingBalance: Math.max(0, Number(targetData.balance || 0) + received) },
+                    fee,
+                    received,
                     last4
                 };
             });
 
-            const cardEmailPayloads = [
-                cardTxEmail?.receiver ? { ...cardTxEmail.receiver, status: 'Funds received' } : null,
-                cardTxEmail?.sender ? { ...cardTxEmail.sender, status: 'Payment sent' } : null
-            ].filter(x => x?.email);
-            for (const payload of cardEmailPayloads) {
+            const nowIso = new Date().toISOString();
+            const cardEmailPayloads = cardTxEmail?.isMemberPayment ? [
+                { type: 'card_payment_sent', payload: { ...cardTxEmail.sender, status: 'Payment sent', amount: amt } },
+                { type: 'card_payment_received', payload: { ...cardTxEmail.receiver, status: 'Funds received', amount: amt, received: cardTxEmail.received, fee: cardTxEmail.fee } }
+            ] : [
+                cardTxEmail?.sender ? { type: 'card_transaction', payload: { ...cardTxEmail.sender, status: 'Completed', amount: amt } } : null
+            ];
+            for (const item of cardEmailPayloads.filter(x => x?.payload?.email)) {
                 try {
-                    await sendTransactionalEmailAsync('card_transaction', payload.email, { name: payload.name, last4: cardTxEmail.last4, transactionId: txId, merchant: payload.merchant, amount: amt, currency: 'USD', remainingBalance: payload.remainingBalance, timestamp: new Date().toISOString(), status: payload.status });
+                    await sendTransactionalEmailAsync(item.type, item.payload.email, { ...item.payload, last4: cardTxEmail.last4, transactionId: txId || genTxId(), currency: 'USD', timestamp: nowIso });
                 } catch (err) { console.error('Card transaction email failed:', err); }
             }
+            if (cardTxEmail?.isMemberPayment && cardTxEmail.fee > 0) creditPlatformAccount('operations', cardTxEmail.fee, `Card payment fee: ${payee.name} → ${cardTxEmail.sender.recipientName} — ${txId}`, txId).catch(e => console.warn('Acct credit fail', e));
 
             const freshPayee = await db.collection('users').doc(payee.uid).get();
             if (freshPayee.exists) { window.CU = { uid: payee.uid, ...freshPayee.data() }; updateUI(); }
@@ -16061,8 +16126,10 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 const ownerSnap = await t.get(ownerRef);
                 if (!ownerSnap.exists) throw new Error('Card owner not found');
                 if (getAvailableBalance(ownerSnap.data() || {}) < amt) throw new Error('Insufficient owner balance');
+                const fee = targetRef ? parseFloat((amt * 0.10).toFixed(2)) : 0;
+                const received = targetRef ? parseFloat((amt - fee).toFixed(2)) : amt;
                 t.update(ownerRef, { balance: FS().increment(-amt) });
-                if (targetRef) t.update(targetRef, { balance: FS().increment(amt), totalEarned: FS().increment(amt) });
+                if (targetRef) t.update(targetRef, { balance: FS().increment(received), totalEarned: FS().increment(received) });
                 t.update(cardDoc.ref, {
                     dailyUsed: priorUsed + amt,
                     lastSpendDate: today,
@@ -16098,7 +16165,7 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 });
                 await sendTransactionalEmailAsync('card_transaction', owner?.email || '', { name: owner?.name || 'Member', last4, transactionId: txId, amount: amt, currency: 'USD', description: targetUid ? 'Card transfer' : 'Virtual card payment', merchant: targetUid ? 'Card transfer' : 'Virtual card payment', remainingBalance: owner?.balance, timestamp: new Date().toISOString(), status: 'Completed' });
             } catch (err) { console.error('Card transaction email failed:', err); }
-            return { success: true, cardOwnerUid: card.uid, last4 };
+            return { success: true, cardOwnerUid: card.uid, last4, fee: targetUid ? parseFloat((amt * 0.10).toFixed(2)) : 0, received: targetUid ? parseFloat((amt - parseFloat((amt * 0.10).toFixed(2))).toFixed(2)) : amt };
         }
 
         async function loadAdminVirtualCards() {
@@ -16293,11 +16360,12 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             try {
                 const txId = 'CP-' + Date.now();
                 const res = await chargeCardForAction(cardDetails, amt, recipient.uid);
-                await db.collection('transfers').doc(txId).set({ fromUid: res.cardOwnerUid || u.uid, fromName: u.name || 'Member', toUid: recipient.uid, toName: recipient.name || 'Member', amount: amt, fee: 0, received: amt, type: 'cash', method: 'card', status: 'completed', createdAt: FS().serverTimestamp(), reversalStatus: null });
+                await db.collection('transfers').doc(txId).set({ fromUid: res.cardOwnerUid || u.uid, fromName: u.name || 'Member', toUid: recipient.uid, toName: recipient.name || 'Member', amount: amt, fee: res.fee || 0, received: res.received || amt, type: 'cash', method: 'card', status: 'completed', createdAt: FS().serverTimestamp(), reversalStatus: null });
+                if ((res.fee || 0) > 0) creditPlatformAccount('operations', res.fee, `Card payment fee: ${u.name} → ${recipient.name} — ${txId}`, txId).catch(e => console.warn('Acct credit fail', e));
                 await logAct(u.uid, `Card transfer to ${recipient.name}: $${fmt(amt)} (card ending ${res.last4}) · TX ${txId}${msg ? ' — "' + msg + '"' : ''}`, 0, '💳', 'transfer');
-                await logAct(recipient.uid, `Received $${fmt(amt)} from ${u.name} via card${msg ? ' — "' + msg + '"' : ''}`, amt, '💳', 'transfer');
-                await db.collection('userNotifs').add({ uid: recipient.uid, msg: `🎁 ${u.name} sent you $${fmt(amt)} via a shared card!${msg ? ' Message: "' + msg + '"' : ''}`, read: false, createdAt: FS().serverTimestamp() });
-                sendTransactionNoticeEmail(recipient.email, { name: recipient.name, direction: 'received', counterparty: maskEmailForNotification(u.email || ''), amount: amt, transactionId: txId, transactionType: 'Card transfer', status: 'Completed' });
+                await logAct(recipient.uid, `Received $${fmt(res.received || amt)} from ${u.name} via card${(res.fee || 0) ? ' after $' + fmt(res.fee) + ' platform fee' : ''}${msg ? ' — "' + msg + '"' : ''}`, res.received || amt, '💳', 'transfer');
+                await db.collection('userNotifs').add({ uid: recipient.uid, msg: `🎁 ${u.name} sent you $${fmt(amt)} via a shared card. You received $${fmt(res.received || amt)}${(res.fee || 0) ? ' after the 10% platform fee' : ''}.${msg ? ' Message: "' + msg + '"' : ''}`, read: false, createdAt: FS().serverTimestamp() });
+                sendTransactionNoticeEmail(recipient.email, { name: recipient.name, direction: 'received', counterparty: maskEmailForNotification(u.email || ''), amount: res.received || amt, amountText: '$' + fmt(res.received || amt), transactionId: txId, transactionType: 'Card transfer', status: 'Completed' });
                 toast(`✅ Sent $${fmt(amt)} to ${recipient.name} via card!`, 'tg', 4000);
                 $('tf-amount').value = ''; $('tf-message').value = ''; $('tf-member-id').value = '';
                 if ($('tf-recipient-info')) $('tf-recipient-info').style.display = 'none';
@@ -17858,6 +17926,22 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             loadTradeChatMsgs(tradeId);
         }
 
+
+        function p2pTerminalAt(trade) {
+            const terminalStatuses = ['completed', 'cancelled', 'expired', 'resolved'];
+            if (!terminalStatuses.includes(String(trade?.status || '').toLowerCase())) return null;
+            const raw = trade.completedAt || trade.releasedAt || trade.cancelledAt || trade.expiredAt || trade.resolvedAt || trade.updatedAt;
+            if (!raw) return null;
+            if (raw.toDate) return raw.toDate();
+            if (raw.seconds) return new Date(raw.seconds * 1000);
+            const dt = new Date(raw);
+            return Number.isNaN(dt.getTime()) ? null : dt;
+        }
+
+        function isP2PChatClosed(trade) {
+            const terminalAt = p2pTerminalAt(trade);
+            return !!(terminalAt && (Date.now() - terminalAt.getTime()) > 24 * 60 * 60 * 1000);
+        }
         function renderTradeRoom(trade) {
             const u = window.CU;
             const isBuyer = trade.buyerUid === u.uid;
@@ -17907,6 +17991,13 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 else if (trade.status === 'cancelled')
                     statusMsg.innerHTML = '<div style="color:var(--t3)">❌ Trade cancelled — payment time expired.</div>';
                 else statusMsg.innerHTML = '';
+            }
+            const compose = $('trade-chat-compose');
+            if (compose) {
+                const closed = isP2PChatClosed(trade);
+                compose.innerHTML = closed
+                    ? '<div style="width:100%;font-size:.78rem;color:var(--t3);text-align:center;padding:9px;background:var(--s2);border-radius:8px">Chat closed — trade completed</div>'
+                    : `<input class="fi" id="trade-chat-inp" placeholder="Message…" style="flex:1;font-size:.82rem" onkeydown="if(event.key==='Enter')sendTradeMsg()"><button class="btn btn-p btn-sm" onclick="sendTradeMsg()">➤</button>`;
             }
             // Action buttons
             const actEl = $('trade-actions');
@@ -18194,6 +18285,11 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             const snap = await db.collection('p2pTrades').doc(_activeTradeId).get();
             if (!snap.exists) return;
             const trade = snap.data();
+            if (![trade.buyerUid, trade.sellerUid].includes(u.uid)) return toast('Only the buyer or seller can message in this trade', 'tr');
+            if (isP2PChatClosed(trade)) {
+                renderTradeRoom({ id: _activeTradeId, ...trade });
+                return toast('This trade is closed. Chat is no longer available.', 'ty', 5000);
+            }
             const otherUid = trade.buyerUid === u.uid ? trade.sellerUid : trade.buyerUid;
             try {
                 await db.collection('p2pTrades').doc(_activeTradeId).collection('chat').add({ uid: u.uid, senderName: u.name, text, createdAt: FS().serverTimestamp() });
@@ -18292,19 +18388,19 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 const renewal = new Date(u.verifiedNextRenewal.seconds * 1000);
                 if (today >= renewal) {
                     const avail = getAvailableBalance(u);
-                    if (avail >= 10) {
+                    if (avail >= 20) {
                         // Deduct and renew
                         await doc.ref.update({
                             balance: FS().increment(-20),
                             verifiedNextRenewal: firebase.firestore.Timestamp.fromDate(new Date(today.getTime() + 30 * 24 * 3600000))
                         });
-                        await logAct(doc.id, 'Verified badge renewal — $20/month', -10, '✅', 'deposit');
+                        await logAct(doc.id, 'Verified badge renewal — $20/month', -20, '✅', 'deposit');
                         sendTransactionalEmail('blue_badge_subscribed', u.email, { name: u.name, plan: 'Monthly renewal', amount: 20, transactionId: genTxId(), status: 'Active', timestamp: new Date().toISOString() });
-                        await db.collection('userNotifs').add({ uid: doc.id, msg: '✅ Verified badge renewed — $10 deducted from balance.', read: false, createdAt: FS().serverTimestamp() });
+                        await db.collection('userNotifs').add({ uid: doc.id, msg: '✅ Verified badge renewed — $20 deducted from balance.', read: false, createdAt: FS().serverTimestamp() });
                     } else {
                         // Not enough balance — remove badge
                         await doc.ref.update({ isVerified: false, verifiedType: null, verifiedNextRenewal: null });
-                        await db.collection('userNotifs').add({ uid: doc.id, msg: '❌ Verified badge removed — insufficient balance for $10 monthly renewal.', read: false, createdAt: FS().serverTimestamp() });
+                        await db.collection('userNotifs').add({ uid: doc.id, msg: '❌ Verified badge removed — insufficient balance for $20 monthly renewal.', read: false, createdAt: FS().serverTimestamp() });
                     }
                 }
             }
