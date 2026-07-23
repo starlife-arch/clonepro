@@ -10,6 +10,8 @@ const REQUIRED_FROM_BY_TYPE = {
   balance_adjustment: 'noreply@starlifeadvert.com',
   virtual_card_ready: 'cards@starlifeadvert.com',
   card_transaction: 'cards@starlifeadvert.com',
+  card_payment_sent: 'cards@starlifeadvert.com',
+  card_payment_received: 'cards@starlifeadvert.com',
   investment_confirmed: 'investments@starlifeadvert.com',
   stake_confirmed: 'stakes@starlifeadvert.com',
   account_suspended: 'security@starlifeadvert.com',
@@ -27,6 +29,8 @@ const REQUIRED_FROM_NAME_BY_TYPE = {
   balance_adjustment: 'Starlife Advert',
   virtual_card_ready: 'Starlife Advert Cards',
   card_transaction: 'Starlife Advert Cards',
+  card_payment_sent: 'Starlife Advert Cards',
+  card_payment_received: 'Starlife Advert Cards',
   investment_confirmed: 'Starlife Advert Investments',
   stake_confirmed: 'Starlife Shareholder Program',
   account_suspended: 'Starlife Advert Security',
@@ -83,7 +87,9 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   card_blocked: 'cards',
   card_unblocked: 'cards',
   card_transaction: 'cards',
-  blue_badge_subscribed: 'cards',
+  card_payment_sent: 'cards',
+  card_payment_received: 'cards',
+  blue_badge_subscribed: 'noreply',
   campaign_selected: 'noreply',
   campaign_rejected: 'noreply',
   balance_adjustment: 'broadcast',
@@ -809,6 +815,38 @@ export default async (req, context) => {
           ['Time', fmtDateParts(data.timestamp).time],
           ['Remaining Card Balance', data.remainingBalance != null ? money(data.remainingBalance, data.currency || 'USD') : 'See dashboard'],
           ['Status', data.status || 'Completed'],
+        ])}
+      `);
+      break;
+    case 'card_payment_sent':
+      subject = 'Card Payment Sent';
+      html = layout('Card payment sent', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You paid <strong>${money(data.amount, data.currency || 'USD')}</strong> to <strong>${esc(data.recipientName || 'Member')}</strong> using your virtual card ending in <strong>${esc(data.last4 || '----')}</strong>.</p>
+        ${rows([
+          ['Transaction ID', data.transactionId || '—'],
+          ['Amount Sent', money(data.amount, data.currency || 'USD')],
+          ['Date', fmtDateParts(data.timestamp).date],
+          ['Time', fmtDateParts(data.timestamp).time],
+          ['Remaining Card Balance', data.remainingBalance != null ? money(data.remainingBalance, data.currency || 'USD') : 'See dashboard'],
+          ['Status', data.status || 'Payment sent'],
+        ])}
+      `);
+      break;
+    case 'card_payment_received':
+      subject = 'Card Payment Received';
+      html = layout('Card payment received', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You received <strong>${money(data.received, data.currency || 'USD')}</strong> from <strong>${esc(data.senderName || 'Member')}</strong> via Starlife Card Payment.</p>
+        ${rows([
+          ['Transaction ID', data.transactionId || '—'],
+          ['Amount Sent', money(data.amount, data.currency || 'USD')],
+          ['Amount Received', money(data.received, data.currency || 'USD')],
+          ['Platform Fee', `10% platform fee applied (${money(data.fee, data.currency || 'USD')})`],
+          ['Date', fmtDateParts(data.timestamp).date],
+          ['Time', fmtDateParts(data.timestamp).time],
+          ['New Balance', data.remainingBalance != null ? money(data.remainingBalance, data.currency || 'USD') : 'See dashboard'],
+          ['Status', data.status || 'Funds received'],
         ])}
       `);
       break;
