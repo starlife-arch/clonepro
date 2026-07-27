@@ -21233,7 +21233,67 @@ async function refreshSavings() {
             }catch(e){ console.error(e); body.innerHTML='<div class="es">Unable to open campaign.</div>'; }
         }
         function updateCampaignCounter(){ const n=($('ca-text')?.value||'').trim().length; $('ca-count').textContent=n+' / 50 minimum'; $('ca-submit').disabled=n<50; }
-        async function uploadCampaignImages(files){ const out=$('ca-upload-progress'); _campaignUploadUrls=[]; const arr=[...files].slice(0,5); for(const f of arr){ if(!f.type.startsWith('image/')){ out.innerHTML+='Wrong type: '+escapeHtml(f.name)+'<br>'; continue;} if(f.size>5*1024*1024){ out.innerHTML+='Too large: '+escapeHtml(f.name)+'<br>'; continue;} const path=`campaignApplications/${_activeCampaign.id}/${window.CU.uid}/${Date.now()}_${f.name}`; const task=storage.ref(path).put(f); await new Promise((res,rej)=>task.on('state_changed',s=>{out.textContent=`Uploading ${f.name}: ${Math.round(s.bytesTransferred/s.totalBytes*100)}%`;},rej,res)); _campaignUploadUrls.push(await task.snapshot.ref.getDownloadURL()); } out.textContent=_campaignUploadUrls.length+' image(s) uploaded'; }
+        async function uploadCampaignImages(files) {
+            const out = $('ca-upload-progress');
+            const submitBtn = $('ca-submit');
+            _campaignUploadUrls = [];
+
+            const arr = [...files].slice(0, 5);
+            if (!arr.length) return;
+
+            // Disable submit while uploading
+            if (submitBtn) submitBtn.disabled = true;
+            out.textContent = 'Preparing uploads...';
+
+            for (let i = 0; i < arr.length; i++) {
+                const f = arr[i];
+
+                // Validate type
+                if (!f.type.startsWith('image/')) {
+                    out.innerHTML += `<div style="color:var(--red)">Skipped ${escapeHtml(f.name)} — not an image</div>`;
+                    continue;
+                }
+
+                // Validate size (5MB max)
+                if (f.size > 5 * 1024 * 1024) {
+                    out.innerHTML += `<div style="color:var(--red)">Skipped ${escapeHtml(f.name)} — too large (max 5MB)</div>`;
+                    continue;
+                }
+
+                out.textContent = `Uploading image ${i + 1} of ${arr.length}...`;
+
+                try {
+                    // Convert file to base64 — same pattern used by KYC and other uploads
+                    const base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Failed to read file'));
+                        reader.readAsDataURL(f);
+                    });
+
+                    // Upload via existing Cloudinary function — same as rest of platform
+                    const url = await uploadImageToCloudinary(base64);
+
+                    if (url) {
+                        _campaignUploadUrls.push(url);
+                        out.textContent = `${_campaignUploadUrls.length} image(s) uploaded successfully`;
+                    } else {
+                        out.innerHTML += `<div style="color:var(--red)">Failed to upload ${escapeHtml(f.name)}</div>`;
+                    }
+                } catch (e) {
+                    console.error('Campaign image upload error:', e);
+                    out.innerHTML += `<div style="color:var(--red)">Error uploading ${escapeHtml(f.name)}: ${e.message}</div>`;
+                }
+            }
+
+            // Re-enable submit after uploads complete
+            // (submit button enabled/disabled is controlled by text length check — re-trigger it)
+            updateCampaignCounter();
+
+            if (_campaignUploadUrls.length > 0) {
+                out.innerHTML = `<div style="color:var(--g)">✅ ${_campaignUploadUrls.length} image(s) ready</div>`;
+            }
+        }
         async function submitCampaignApplication(){ const c=_activeCampaign, text=($('ca-text').value||'').trim(); if(text.length<50) return toast('Enter at least 50 characters','ty'); const videos=[...document.querySelectorAll('.ca-video')].map(i=>i.value.trim()).filter(Boolean).slice(0,3); const appId=c.id+'_'+window.CU.uid; try{ await db.runTransaction(async tr=>{ const cr=db.collection('campaigns').doc(c.id), ar=db.collection('campaignApplications').doc(appId); const cs=await tr.get(cr); const as=await tr.get(ar); if(as.exists) throw new Error('You have already applied'); const cd=cs.data(); if(cd.maxApplications && (cd.applicationCount||0)>=cd.maxApplications) throw new Error('Applications are full'); tr.set(ar,{campaignId:c.id,userId:window.CU.uid,userName:window.CU.name||'',memberId:window.CU.memberId||'',submissionText:text,videoLinks:videos,imageUrls:_campaignUploadUrls,status:'pending',adminNote:'',submittedAt:FS().serverTimestamp()}); tr.update(cr,{applicationCount:FS().increment(1)}); }); toast('Application submitted ✓'); openCampaignApplication(c.id); }catch(e){ toast(e.message||'Submit failed','tr'); }}
         async function loadAdminCampaigns(){ const el=$('admin-campaign-list'); if(!el) return; el.innerHTML='<div class="es">Loading campaigns…</div>'; const snap=await db.collection('campaigns').get(); _campaigns=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)); el.innerHTML=_campaigns.length?_campaigns.map(c=>`<div class="arow"><div><b>${escapeHtml(c.title)}</b><br><span style="font-size:.75rem;color:var(--t3)">${escapeHtml(campaignType(c))} · ${campaignStatusBadge(c.status)} · Deadline ${campaignDeadline(c)} · Apps ${c.applicationCount||0} · Created ${fmtD(c.createdAt)}</span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-gh btn-sm" onclick="adminEditCampaign('${c.id}')">Edit</button><select class="fi" style="width:auto" onchange="adminChangeCampaignStatus('${c.id}',this.value)"><option ${c.status==='draft'?'selected':''} value="draft">Draft</option><option ${c.status==='active'?'selected':''} value="active">Active</option><option ${c.status==='closed'?'selected':''} value="closed">Closed</option></select><button class="btn btn-p btn-sm" onclick="adminViewCampaignApps('${c.id}')">View Applications</button><button class="btn btn-d btn-sm" onclick="adminDeleteCampaign('${c.id}',${c.applicationCount||0})">Delete</button></div></div>`).join(''):'<div class="es">No campaigns yet.</div>'; }
         function adminShowCampaignForm(){ $('admin-campaign-form').style.display='block'; } function adminResetCampaignForm(){ ['camp-id','camp-title','camp-desc','camp-custom','camp-deadline','camp-max','camp-notes','camp-reward-cash','camp-reward-items','camp-reward-notes'].forEach(id=>$(id).value=''); $('camp-type').value='Basic Needs Support'; $('camp-custom-wrap').style.display='none'; $('camp-reward-delivery').value='To Be Confirmed'; $('camp-status').value='draft'; $('camp-video').value='true'; $('camp-images').value='true'; $('admin-campaign-form').style.display='none'; }
@@ -21242,7 +21302,7 @@ async function refreshSavings() {
         async function adminChangeCampaignStatus(id,status){ await db.collection('campaigns').doc(id).update({status,updatedAt:FS().serverTimestamp()}); toast('Status updated'); loadAdminCampaigns(); }
         async function adminDeleteCampaign(id,count){ if(count>0) return toast('Only campaigns with zero applications can be deleted','tr'); if(confirm('Delete campaign?')){ await db.collection('campaigns').doc(id).delete(); loadAdminCampaigns(); }}
         async function adminViewCampaignApps(id){ const c=_campaigns.find(x=>x.id===id); const el=$('admin-campaign-apps'); el.style.display='block'; el.innerHTML='<div class="es">Loading applications…</div>'; const snap=await db.collection('campaignApplications').where('campaignId','==',id).get(); _campaignApps=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0)); el.innerHTML=`<div style="font-weight:700;margin-bottom:8px">Applications — ${escapeHtml(c?.title||'Campaign')}</div>`+(_campaignApps.length?_campaignApps.map(a=>`<div class="arow" onclick="adminOpenCampaignApp('${a.id}','${id}')" style="cursor:pointer"><b>${escapeHtml(a.userName||'Applicant')}</b><br><span style="font-size:.75rem;color:var(--t3)">${escapeHtml(a.memberId||'—')} · ${fmtDT(a.submittedAt)} · ${campaignStatusBadge(a.status)}</span></div>`).join(''):'<div class="es">No applications yet.</div>'); }
-        function adminOpenCampaignApp(appId,cid){ const a=_campaignApps.find(x=>x.id===appId), c=_campaigns.find(x=>x.id===cid); if(!a)return; const el=$('admin-campaign-apps'); el.innerHTML=`<button class="btn btn-gh btn-sm" onclick="adminViewCampaignApps('${cid}')">← Back</button><div class="card" style="margin-top:10px"><div style="font-weight:800">${escapeHtml(a.userName)} (${escapeHtml(a.memberId||'—')})</div><div style="margin:8px 0">Status: ${campaignStatusBadge(a.status)} · Submitted ${fmtDT(a.submittedAt)}</div><div style="white-space:pre-wrap;line-height:1.5">${escapeHtml(a.submissionText)}</div>${(a.videoLinks||[]).map(v=>`<div><a href="${escapeAttr(v)}" target="_blank">${escapeHtml(v)}</a></div>`).join('')}${(a.imageUrls||[]).map(u=>`<a href="${escapeAttr(u)}" target="_blank"><img src="${escapeAttr(u)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;margin:6px"></a>`).join('')}<div class="fg"><label class="fl">Internal Note</label><textarea class="fi" id="admin-app-note" rows="3">${escapeHtml(a.adminNote||'')}</textarea></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','selected')">Select</button><button class="btn btn-d btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','rejected')">Reject</button><button class="btn btn-gh btn-sm" onclick="adminSaveCampaignAppNote('${appId}','${cid}')">Save Note</button></div></div>`; }
+        function adminOpenCampaignApp(appId,cid){ const a=_campaignApps.find(x=>x.id===appId), c=_campaigns.find(x=>x.id===cid); if(!a)return; const el=$('admin-campaign-apps'); el.innerHTML=`<button class="btn btn-gh btn-sm" onclick="adminViewCampaignApps('${cid}')">← Back</button><div class="card" style="margin-top:10px"><div style="font-weight:800">${escapeHtml(a.userName)} (${escapeHtml(a.memberId||'—')})</div><div style="margin:8px 0">Status: ${campaignStatusBadge(a.status)} · Submitted ${fmtDT(a.submittedAt)}</div><div style="white-space:pre-wrap;line-height:1.5">${escapeHtml(a.submissionText)}</div>${(a.videoLinks||[]).map(v=>`<div><a href="${escapeAttr(v)}" target="_blank">${escapeHtml(v)}</a></div>`).join('')}${(a.imageUrls||[]).length > 0 ? (a.imageUrls||[]).map(u=>`<a href="${escapeAttr(u)}" target="_blank"><img src="${escapeAttr(u)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;margin:6px"></a>`).join('') : '<div style="font-size:.78rem;color:var(--t3);margin:6px 0">No images submitted</div>'}<div class="fg"><label class="fl">Internal Note</label><textarea class="fi" id="admin-app-note" rows="3">${escapeHtml(a.adminNote||'')}</textarea></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','selected')">Select</button><button class="btn btn-d btn-sm" onclick="adminSetCampaignAppStatus('${appId}','${cid}','rejected')">Reject</button><button class="btn btn-gh btn-sm" onclick="adminSaveCampaignAppNote('${appId}','${cid}')">Save Note</button></div></div>`; }
         async function adminSaveCampaignAppNote(appId,cid){ await db.collection('campaignApplications').doc(appId).update({adminNote:$('admin-app-note').value}); toast('Note saved'); adminViewCampaignApps(cid); }
         async function adminSetCampaignAppStatus(appId,cid,status){ const a=_campaignApps.find(x=>x.id===appId), c=_campaigns.find(x=>x.id===cid); const selected=status==='selected'; await db.collection('campaignApplications').doc(appId).update({status,adminNote:$('admin-app-note')?.value||'',reviewedAt:FS().serverTimestamp(),reviewedBy:window.CU?.uid||'admin'}); const rewardParts=[]; if(c.rewardCash) rewardParts.push('$'+Number(c.rewardCash).toFixed(2)); if(c.rewardItems) rewardParts.push(c.rewardItems); const rewardSummary=rewardParts.length?rewardParts.join(' + '):'To be confirmed'; const deliveryStr=(c.rewardDelivery && c.rewardDelivery !== 'To Be Confirmed')?c.rewardDelivery:'To be confirmed'; const rewardNotesStr=c.rewardNotes||''; const selectedMsg=`Congratulations! You have been selected for ${c.title}.
 
