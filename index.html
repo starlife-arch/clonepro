@@ -11875,7 +11875,35 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     el.innerHTML = '<div style="font-size:.72rem;color:var(--t3);line-height:1.4;padding:8px 8px 14px;text-align:center">⚠️ Be aware of scammers. Any transaction or discussion in this chat is between users only. Starlife is not part of private deals made in messages. Do not share your personal details, password, OTP, or payment credentials.</div><div style="text-align:center;padding:20px 30px;color:var(--t3);font-size:.82rem">No messages yet. Say hello! 👋</div>';
                     return;
                 }
-                el.innerHTML = msgs.map(m => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dateChipFor = (day) => {
+                    const dayStart = new Date(day);
+                    dayStart.setHours(0, 0, 0, 0);
+                    const diffDays = Math.round((today - dayStart) / 86400000);
+                    let label;
+                    if (diffDays === 0) label = 'Today';
+                    else if (diffDays === 1) label = 'Yesterday';
+                    else if (diffDays > 1 && diffDays < 7) label = day.toLocaleDateString('en-US', { weekday: 'long' });
+                    else label = day.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+                    return `<div style="margin: 10px 0; text-align: center;">
+                            <div style="display:inline-block; background:rgba(255,213,79,0.1); border:1px solid rgba(255,213,79,0.3); border-radius:8px; padding:8px 12px; font-size:0.75rem; color:var(--gold); max-width:85%; line-height:1.4;">
+                                ${label}
+                            </div>
+                        </div>`;
+                };
+                const groups = [];
+                msgs.forEach(m => {
+                    const d = new Date((m.createdAt?.seconds || 0) * 1000);
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                    let group = groups[groups.length - 1];
+                    if (!group || group.key !== key) {
+                        group = { key, day: d, messages: [] };
+                        groups.push(group);
+                    }
+                    group.messages.push(m);
+                });
+                el.innerHTML = groups.map(group => dateChipFor(group.day) + group.messages.map(m => {
                     if (m.system || m.from === 'system') {
                         return `<div style="margin: 10px 0; text-align: center;">
                             <div style="display:inline-block; background:rgba(255,213,79,0.1); border:1px solid rgba(255,213,79,0.3); border-radius:8px; padding:8px 12px; font-size:0.75rem; color:var(--gold); max-width:85%; line-height:1.4;">
@@ -11917,7 +11945,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         ${m.type === 'official_reply' ? `<div style="font-size:.64rem;color:var(--t3);margin-top:1px">${mine ? 'Official reply sent' : 'Member reply'}${modeNote}</div>` : ''}
         <div style="font-size:.65rem;color:var(--t3);margin:0 6px">${time}${mine && m.read ? ' · ✓✓' : ''}</div>
       </div>`;
-                }).join('');
+                }).join('')).join('');
                 el.scrollTop = el.scrollHeight;
             } catch (e) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red)">Error loading</div>'; }
         }
