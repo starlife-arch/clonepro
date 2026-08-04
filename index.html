@@ -16336,7 +16336,7 @@ Triggers: ${severityInfo.matched.join(', ')}`);
         // TRANSFER / GIFT
         // ════════════════════════════════════════════════════════
         let _tfType = 'cash';
-        let _tfRecipient = null; // {uid, name, memberId}
+        let _tfRecipient = null; // {uid, name, email, phone, memberId}
 
         function selectTransferType(type) {
             _tfType = type;
@@ -16387,7 +16387,7 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                     toast('This account is not available', 'ty');
                     return;
                 }
-                _tfRecipient = { uid: match.id, name: data.name || 'Member', email: data.email || '', memberId };
+                _tfRecipient = { uid: match.id, name: data.name || 'Member', email: data.email || '', phone: data.phone || '', memberId };
                 // Show recipient info
                 const nameEl = $('tf-recipient-name'), idEl = $('tf-recipient-id'), avEl = $('tf-avatar');
                 if (nameEl) nameEl.textContent = data.name || 'Member';
