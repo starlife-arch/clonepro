@@ -7533,6 +7533,28 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 </div>
             </div>
 
+
+
+            <div class="card" style="margin-top:14px">
+                <h3 style="margin-bottom:12px">📱 SMS Dashboard</h3>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <button class="btn btn-gh btn-sm" onclick="checkNenaBalance()">Check Balance</button>
+                    <button class="btn btn-gh btn-sm" onclick="loadNenaSmsLogs()">View Recent Logs</button>
+                    <button class="btn btn-gh btn-sm" onclick="loadSmsBroadcastHistory()">Refresh Broadcast History</button>
+                </div>
+                <div id="sms-balance-result" class="es" style="margin-bottom:10px">Nena wallet balance not loaded. Cost per SMS: KSh 0.40.</div>
+                <div id="sms-logs-result" class="es" style="margin-bottom:10px">Recent SMS logs not loaded.</div>
+                <div class="fg"><label class="fl">BROADCAST CHANNELS</label>
+                    <label style="display:block;margin:4px 0"><input type="checkbox" checked disabled> Email (existing email panel above)</label>
+                    <label style="display:block;margin:4px 0"><input type="checkbox" id="sms-bc-enabled" checked> SMS — sends to all users with a phone number on file</label>
+                    <label style="display:block;margin:4px 0"><input type="checkbox" checked disabled> Push Notification (existing push panel below)</label>
+                </div>
+                <div class="fg"><label class="fl">SMS Message (max 100 chars)</label><textarea class="fi" id="sms-bc-message" maxlength="100" rows="3" oninput="updateSmsCharCount()" placeholder="Admin promo/broadcast message"></textarea><div class="ar-sub">Characters: <span id="sms-char-count">0</span>/100</div></div>
+                <button class="btn btn-p btn-full" onclick="sendSmsBroadcast(this)">Send SMS Broadcast</button>
+                <div id="sms-bc-result" style="margin-top:12px;font-size:.85rem"></div>
+                <div style="margin-top:16px"><h3 style="font-size:.9rem;margin-bottom:10px">Broadcast History</h3><div id="sms-bc-history"><div class="es">No SMS broadcast history loaded</div></div></div>
+            </div>
+
             <div class="card" style="margin-top:14px">
                 <h3 style="margin-bottom:12px">🔔 Push Notifications</h3>
                 <div id="push-settings-panel"></div>
@@ -9057,7 +9079,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!/[a-z]/.test(pw)) return toast('Password needs at least one lowercase letter', 'ty');
             if (!/[0-9]/.test(pw)) return toast('Password needs at least one number', 'ty');
             if (pw !== pw2) { $('rpw2-err').classList.add('show'); return toast('Passwords do not match', 'ty'); }
-            const otpOk = await requireEmailOtp('account_registration', 'Account Registration', email, name);
+            const otpOk = await requireEmailOtp('account_registration', 'Account Registration', email, name, phone);
             if (!otpOk) return toast('Email verification is required to create your account', 'ty', 5000);
             // Show loading after email OTP verification
             const btn = $('reg-btn');
@@ -10376,6 +10398,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await logAct(u.uid, `Withdrawal request (card) $${fmt(amt)} via ${method} (${txId})`, 0, '💳', 'withdrawal');
             await db.collection('adminNotifs').add({ type: 'withdrawal', msg: `Manual withdrawal (card funded) $${fmt(amt)} by ${u.name} — ${method} — ${txId}`, uid: u.uid, txId, read: false, createdAt: FS().serverTimestamp() });
             sendTransactionalEmail('withdrawal_pending', u.email, { name: u.name, amount: amt, net, method, transactionId: txId, detailsMasked: maskDestinationDetails(details), status: 'Pending', ...transactionTimestampParts() });
+            if (u.phone) sendSMS(u.phone, `Starlife: Withdrawal of $${fmt(amt)} via ${method} submitted. Ref: ${txId}. Processing within 24hrs.`);
             toast('Withdrawal submitted for manual settlement ✓');
             clearWithdrawalForm();
             loadWithdrawals();
@@ -10457,6 +10480,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             window.CU.balance = (window.CU.balance || 0) - amt;
             updateUI();
             sendTransactionalEmail('withdrawal_pending', u.email, { name: u.name, amount: amt, net, method: method, transactionId: txId, detailsMasked: maskDestinationDetails(details), status: 'Pending', ...transactionTimestampParts() });
+            if (u.phone) sendSMS(u.phone, `Starlife: Withdrawal of $${fmt(amt)} via ${method} submitted. Ref: ${txId}. Processing within 24hrs.`);
             toast('Withdrawal submitted ✓ Balance updated');
             clearWithdrawalForm();
             loadWithdrawals();
@@ -11256,6 +11280,21 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await db.collection('settings').doc('pushNotifications').set({ enabled: !!$('push-enabled')?.checked, types, updatedAt: FS().serverTimestamp() }, { merge: true });
             toast('Push settings saved', 'tg');
         }
+
+        function updateSmsCharCount(){ if($('sms-char-count')) $('sms-char-count').textContent = ($('sms-bc-message')?.value || '').length; }
+        async function sendSmsBroadcast(btn){
+            if(!$('sms-bc-enabled')?.checked) return toast('SMS channel is not checked','ty');
+            const message = $('sms-bc-message')?.value.trim(); if(!message) return toast('Enter SMS message','ty');
+            const original = btn?.textContent || ''; if(btn){ btn.disabled=true; btn.textContent='Sending SMS...'; }
+            try{ const res=await fetch('/.netlify/functions/broadcast-sms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,adminId:window.CU?.uid||null})}); const data=await res.json().catch(()=>({})); if(!res.ok||data.error) throw new Error(data.error||'SMS broadcast failed');
+                $('sms-bc-result').innerHTML = `<div style="background:rgba(0,230,118,.1);border:1px solid var(--g);border-radius:8px;padding:10px"><strong>SMS Broadcast Complete</strong><br>Sent to: ${Number(data.totalSent||0).toLocaleString()} users<br>Failed/skipped: ${Number(data.totalFailed||0).toLocaleString()} numbers<br>Batches processed: ${Number(data.batches||0).toLocaleString()}</div>`;
+                toast('SMS broadcast complete','tg'); loadSmsBroadcastHistory();
+            }catch(e){ $('sms-bc-result').innerHTML=`<div style="color:var(--red)">❌ ${escapeHtml(e.message||'SMS broadcast failed')}</div>`; toast(e.message||'SMS broadcast failed','tr'); } finally { if(btn){ btn.disabled=false; btn.textContent=original; } }
+        }
+        async function checkNenaBalance(){ try{ const r=await fetch('/.netlify/functions/sms-dashboard?action=balance'); const d=await r.json().catch(()=>({})); const bal=d.data?.credits ?? d.data?.balance ?? d.data?.wallet_balance ?? '—'; $('sms-balance-result').innerHTML=`<div>Credits remaining: <b>${escapeHtml(String(bal))}</b> · Cost per SMS: <b>KSh 0.40</b> · Estimated messages remaining: <b>${Number(bal)?Math.floor(Number(bal)/0.40).toLocaleString():'—'}</b></div>`; }catch(e){ $('sms-balance-result').textContent='Unable to load Nena balance.'; } }
+        async function loadNenaSmsLogs(){ try{ const r=await fetch('/.netlify/functions/sms-dashboard?action=logs'); const d=await r.json().catch(()=>({})); const rows=(d.data?.data||d.data?.logs||d.data||[]).slice?.(0,10)||[]; $('sms-logs-result').innerHTML=rows.length?rows.map(x=>`<div class="ar-sub">${escapeHtml(JSON.stringify(x).slice(0,180))}</div>`).join(''):'<div class="es">No recent SMS logs returned.</div>'; }catch(e){ $('sms-logs-result').textContent='Unable to load SMS logs.'; } }
+        async function loadSmsBroadcastHistory(){ const el=$('sms-bc-history'); if(!el)return; try{ const r=await fetch('/.netlify/functions/sms-dashboard?action=history'); const d=await r.json().catch(()=>({})); const list=d.history||[]; el.innerHTML=list.length?list.map(h=>`<div class="arow"><div><div class="ar-name">${escapeHtml((h.message||'').slice(0,80))}</div><div class="ar-sub">Sent to ${h.totalUsers||0} · Success ${h.totalSent||0} · Failed ${h.totalFailed||0} · ${fmtDT(h.sentAt)} · Sent by ${escapeHtml(h.sentBy||'admin')}</div></div></div>`).join(''):'<div class="es">No SMS broadcasts yet</div>'; }catch(e){ el.innerHTML='<div class="es">Unable to load SMS broadcast history</div>'; } }
+
         async function sendPushBroadcast(btn) {
             const title = $('push-bc-title')?.value.trim(), body = $('push-bc-body')?.value.trim(), url = $('push-bc-url')?.value.trim();
             if (!title || !body) return toast('Push title and message required', 'ty');
@@ -12268,6 +12307,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     const exp = msgAlertDate(alerts?.expiresAt);
                     if (alerts?.active && exp && exp > new Date() && recipient.email) {
                         sendTransactionalEmail('msg_alert_new_dm', recipient.email, { name: recipient.name || recipient.username || 'Member', senderName: u.name || u.username || 'Member', sentTime: new Date().toLocaleTimeString(), sentDate: new Date().toLocaleDateString() }, 'noreply');
+                        if (recipient.phone) sendSMS(recipient.phone, `Starlife: New message from ${u.name || u.username || 'Member'}. Open the app to read and reply.`);
                     }
                 } catch (_) { }
             } catch (e) { toast('Error: ' + e.message, 'tr'); inp.value = text; }
@@ -12814,7 +12854,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             prizecodes: () => loadAdminPrizeCodes(),
             luckydraw: () => loadAdminDraw(),
             p2p: () => loadAdminP2P(),
-            broadcast: () => { loadAdminBroadcasts(); loadBroadcastEmailLogs(); loadAdminPushSettings(); },
+            broadcast: () => { loadAdminBroadcasts(); loadBroadcastEmailLogs(); loadAdminPushSettings(); loadSmsBroadcastHistory(); },
             targeted: () => loadAdminTargetedAnnouncements(),
             moving: () => { loadAdminMovingAnnouncement(); loadAdminLoginVideo(); },
             ads: () => loadAds(),
@@ -13218,6 +13258,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const wdAp = wdApSnap.data() || {};
             sendTransactionalEmail('withdrawal_approved', wdAp.userEmail || '', { name: wdAp.userName || '', amount: amount, method: wdAp.method || '', transactionId: wdAp.txId || id, detailsMasked: maskDestinationDetails(wdAp.details || ''), status: 'Paid', ...transactionTimestampParts() });
             await db.collection('userNotifs').add({ uid, msg: `Your withdrawal of $${fmt(amount)} has been processed manually. Settlement is T+48 hours excluding Saturday, Sunday and Holidays. Bank charges may apply.`, read: false, createdAt: FS().serverTimestamp() });
+            if (wdAp.userPhone) sendSMS(wdAp.userPhone, `Starlife: Your withdrawal of $${fmt(amount)} is approved. Ref: ${wdAp.txId || id}. Funds are on the way.`);
             sendPush(uid, '✅ Withdrawal Approved', `Your withdrawal of $${fmt(amount)} has been approved and is being processed`, location.origin + '/#', 'withdrawal_update');
             logAct(uid, `Withdrawal marked manually paid $${fmt(amount)}`, 0, '💳', 'withdrawal');
             toast('Withdrawal marked as manually paid ✓'); loadAdminAll(); loadAdminWd('pending');
@@ -13233,6 +13274,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const wdRj = wdRjSnap.data() || {};
             sendTransactionalEmail('withdrawal_rejected', wdRj.userEmail || '', { name: wdRj.userName || '', amount: amount, method: wdRj.method || '', transactionId: wdRj.txId || id, detailsMasked: maskDestinationDetails(wdRj.details || ''), status: 'Rejected', ...transactionTimestampParts() });
             await db.collection('userNotifs').add({ uid, msg: `Your withdrawal of $${fmt(amount)} was rejected and refunded to your balance.`, read: false, createdAt: FS().serverTimestamp() });
+            if (wdRj.userPhone) sendSMS(wdRj.userPhone, `Starlife: Your $${fmt(amount)} withdrawal was not approved. Ref: ${wdRj.txId || id}. Contact support for details.`);
             sendPush(uid, '❌ Withdrawal Update', 'Your withdrawal request was not approved. Contact support for details', location.origin + '/#', 'withdrawal_update');
             logAct(uid, `Withdrawal rejected — $${fmt(amount)} refunded`, amount, '💳', 'withdrawal');
             toast('Withdrawal rejected & balance refunded'); loadAdminAll(); loadAdminWd();
@@ -13299,7 +13341,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const active = users.filter(u => msgAlertStatus(u).key === 'active').length;
             const totalPaid = users.reduce((sum, u) => sum + Number(u.msgEmailAlerts?.totalPaid || 0), 0);
             const el = $('at-users-list'); if (!el) return;
-            el.innerHTML = `<div class="card" style="margin-bottom:10px"><strong>📧 Msg Alert Subscribers</strong><div class="ar-sub">Total active subscribers: ${active} · Monthly recurring revenue: $${fmt(active * 10)} · Total earned: $${fmt(totalPaid)}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${['all','active','paused','cancelled','admin'].map(f => `<button class="btn btn-gh btn-sm" onclick="renderMsgAlertSubscribers('${f}')">${f === 'admin' ? 'Admin granted only' : f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}</div></div>` + (list.length ? list.map(u => `<div class="arow"><div><div class="ar-name">${escapeHtml(u.name || 'Member')} · ${memberIdFromUid(u.id)}</div><div class="ar-sub">${msgAlertStatus(u).label} · Subscribed: ${fmtD(u.msgEmailAlerts?.subscribedAt)} · Expiry: ${fmtD(u.msgEmailAlerts?.expiresAt)} · Last renewed: ${fmtD(u.msgEmailAlerts?.lastRenewedAt)} · Total paid: $${fmt(u.msgEmailAlerts?.totalPaid || 0)} · Admin granted: ${u.msgEmailAlerts?.adminGranted ? 'Yes' : 'No'}</div></div><div class="ar-acts"><button class="btn btn-p btn-sm" onclick="adminViewMsgAlerts('${u.id}')">Overrides</button></div><div id="uma-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div></div>`).join('') : '<div class="es">No subscribers for this filter.</div>');
+            el.innerHTML = `<div class="card" style="margin-bottom:10px"><strong>📧 Msg Alert Subscribers</strong><div class="ar-sub">Total active subscribers: ${active} · Monthly recurring revenue: $${fmt(active * 20)} · Total earned: $${fmt(totalPaid)}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${['all','active','paused','cancelled','admin'].map(f => `<button class="btn btn-gh btn-sm" onclick="renderMsgAlertSubscribers('${f}')">${f === 'admin' ? 'Admin granted only' : f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}</div></div>` + (list.length ? list.map(u => `<div class="arow"><div><div class="ar-name">${escapeHtml(u.name || 'Member')} · ${memberIdFromUid(u.id)}</div><div class="ar-sub">${msgAlertStatus(u).label} · Subscribed: ${fmtD(u.msgEmailAlerts?.subscribedAt)} · Expiry: ${fmtD(u.msgEmailAlerts?.expiresAt)} · Last renewed: ${fmtD(u.msgEmailAlerts?.lastRenewedAt)} · Total paid: $${fmt(u.msgEmailAlerts?.totalPaid || 0)} · Admin granted: ${u.msgEmailAlerts?.adminGranted ? 'Yes' : 'No'}</div></div><div class="ar-acts"><button class="btn btn-p btn-sm" onclick="adminViewMsgAlerts('${u.id}')">Overrides</button></div><div id="uma-${u.id}" style="display:none;margin-top:8px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:.78rem;color:var(--t2)"></div></div>`).join('') : '<div class="es">No subscribers for this filter.</div>');
         }
         function adminViewMsgAlerts(uid) {
             const box = $('uma-' + uid); const u = (window.AU || []).find(x => x.id === uid); if (!box || !u) return;
@@ -14874,7 +14916,7 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             } catch(e) { toast('Error: ' + e.message, 'tr'); console.error(e); }
         }
 
-        const MSG_EMAIL_ALERT_PRICE = 10;
+        const MSG_EMAIL_ALERT_PRICE = 20;
         const MSG_EMAIL_ALERT_MS = 30 * 24 * 60 * 60 * 1000;
         function msgAlertDate(value) {
             if (!value) return null;
@@ -14898,15 +14940,15 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             const bal = Number(u.balance || 0);
             const exp = msgAlertDate(alerts?.expiresAt);
             const disabled = bal < MSG_EMAIL_ALERT_PRICE ? 'disabled' : '';
-            const insufficient = bal < MSG_EMAIL_ALERT_PRICE ? '<div style="color:var(--gold);font-size:.78rem;margin:8px 0">Insufficient balance. You need at least $10.00 in your main wallet to subscribe.</div>' : '';
+            const insufficient = bal < MSG_EMAIL_ALERT_PRICE ? '<div style="color:var(--gold);font-size:.78rem;margin:8px 0">Insufficient balance. You need at least $20.00 in your main wallet to subscribe.</div>' : '';
             if (status.key === 'active') {
-                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bg">✅ ACTIVE</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">You receive email notifications for every new DM sent to you.</p><div class="ar-sub">Next renewal: ${fmtD(alerts.expiresAt)} · $10.00/month</div><div class="ar-sub">Emails sent to: ${escapeHtml(u.email || '—')}</div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="cancelMsgEmailAlerts()">Cancel Subscription</button>`;
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bg">✅ ACTIVE</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">You receive email AND SMS notifications for every new DM sent to you.</p><div class="ar-sub">Next renewal: ${fmtD(alerts.expiresAt)} · $20.00/month</div><div class="ar-sub">Emails sent to: ${escapeHtml(u.email || '—')}</div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="cancelMsgEmailAlerts()">Cancel Subscription</button>`;
             } else if (status.key === 'paused') {
-                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bgold">⏸ PAUSED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription paused because your wallet had insufficient funds at renewal.<br>Top up your wallet with at least $10 to resume.</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resume Subscription — $10</button>`;
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge bgold">⏸ PAUSED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription paused because your wallet had insufficient funds at renewal.<br>Top up your wallet with at least $20 to resume.</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resume Subscription — $20</button>`;
             } else if (status.key === 'cancelled') {
-                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge br">❌ CANCELLED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription is cancelled.<br>Active until: ${exp ? exp.toLocaleDateString() : '—'}</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resubscribe — $10/month</button>`;
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:800">💬 Message Email Alerts</div><span class="badge br">❌ CANCELLED</span></div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Your subscription is cancelled.<br>Active until: ${exp ? exp.toLocaleDateString() : '—'}</p><div class="ar-sub">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(true)">Resubscribe — $20/month</button>`;
             } else {
-                el.innerHTML = `<div style="font-weight:800">💬 Message Email Alerts</div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Never miss a message — get an email notification every time someone sends you a DM on Starlife.</p><div class="ar-sub">Price: $10.00 / month</div><div class="ar-sub">Billed from your main wallet. Cancel anytime.</div><div style="margin-top:8px;font-weight:700">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(false)">Subscribe — $10/month</button>`;
+                el.innerHTML = `<div style="font-weight:800">💬 Message Email Alerts</div><p style="font-size:.82rem;color:var(--t2);line-height:1.5">Never miss a message — get an email AND SMS notification every time someone sends you a DM on Starlife.</p><div class="ar-sub">Price: $20.00 / month</div><div class="ar-sub">Billed from your main wallet. Cancel anytime.</div><div style="margin-top:8px;font-weight:700">Your wallet: $${fmt(bal)}</div>${insufficient}<button class="btn btn-p btn-sm" ${disabled} onclick="subscribeMsgEmailAlerts(false)">Subscribe — $20/month</button>`;
             }
         }
         async function refreshCurrentUserForMsgAlerts() {
@@ -14917,17 +14959,17 @@ Triggers: ${severityInfo.matched.join(', ')}`);
         }
         async function subscribeMsgEmailAlerts(isResume = false) {
             const u = window.CU; if (!u) return;
-            if ((u.balance || 0) < MSG_EMAIL_ALERT_PRICE) return toast('Insufficient balance. You need at least $10.00 to subscribe.', 'ty');
-            if (!confirm(`${isResume ? 'Resume' : 'Subscribe to'} Message Email Alerts for $10.00/month? This will be deducted from your main wallet.`)) return;
+            if ((u.balance || 0) < MSG_EMAIL_ALERT_PRICE) return toast('Insufficient balance. You need at least $20.00 to subscribe.', 'ty');
+            if (!confirm(`${isResume ? 'Resume' : 'Subscribe to'} Message Email Alerts for $20.00/month? This will be deducted from your main wallet.`)) return;
             const now = new Date(); const expiry = new Date(now.getTime() + MSG_EMAIL_ALERT_MS);
             try {
                 await db.runTransaction(async tr => {
                     const ref = db.collection('users').doc(u.uid); const snap = await tr.get(ref);
                     if (!snap.exists) throw new Error('User not found');
                     const fresh = snap.data() || {}; if (Number(fresh.balance || 0) < MSG_EMAIL_ALERT_PRICE) throw new Error('Insufficient balance');
-                    tr.update(ref, { balance: FS().increment(-MSG_EMAIL_ALERT_PRICE), 'msgEmailAlerts.active': true, 'msgEmailAlerts.subscribedAt': FS().serverTimestamp(), 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(expiry), 'msgEmailAlerts.cancelledAt': null, 'msgEmailAlerts.lastRenewedAt': FS().serverTimestamp(), 'msgEmailAlerts.lastFailedAt': null, 'msgEmailAlerts.adminGranted': false, 'msgEmailAlerts.totalPaid': FS().increment(MSG_EMAIL_ALERT_PRICE) });
-                    tr.set(db.collection('activity').doc(), { uid: u.uid, desc: `Message Email Alerts ${isResume ? 'resume' : 'subscription'} — $10.00`, amt: -MSG_EMAIL_ALERT_PRICE, icon: '💬', type: 'subscription', createdAt: FS().serverTimestamp() });
-                    tr.set(db.collection('userNotifs').doc(), { uid: u.uid, msg: `✅ Message Email Alerts activated! You'll receive email notifications for every new DM.`, read: false, createdAt: FS().serverTimestamp() });
+                    tr.update(ref, { balance: FS().increment(-MSG_EMAIL_ALERT_PRICE), 'msgEmailAlerts.active': true, 'msgEmailAlerts.subscribedAt': FS().serverTimestamp(), 'msgEmailAlerts.expiresAt': firebase.firestore.Timestamp.fromDate(expiry), 'msgEmailAlerts.cancelledAt': null, 'msgEmailAlerts.lastRenewedAt': FS().serverTimestamp(), 'msgEmailAlerts.lastFailedAt': null, 'msgEmailAlerts.adminGranted': false, 'msgEmailAlerts.totalPaid': FS().increment(MSG_EMAIL_ALERT_PRICE), 'msgEmailAlerts.monthlyPrice': MSG_EMAIL_ALERT_PRICE });
+                    tr.set(db.collection('activity').doc(), { uid: u.uid, desc: `Message Email Alerts ${isResume ? 'resume' : 'subscription'} — $20.00`, amt: -MSG_EMAIL_ALERT_PRICE, icon: '💬', type: 'subscription', createdAt: FS().serverTimestamp() });
+                    tr.set(db.collection('userNotifs').doc(), { uid: u.uid, msg: `✅ Message Email Alerts activated! You'll receive email and SMS notifications for every new DM.`, read: false, createdAt: FS().serverTimestamp() });
                 });
                 sendTransactionalEmail('msg_alerts_subscribed', u.email || '', { name: u.name || u.username || 'Member', expiryDate: expiry.toLocaleDateString() }, 'noreply');
                 await refreshCurrentUserForMsgAlerts(); toast('✅ Message Email Alerts activated!', 'tg');
@@ -14949,6 +14991,19 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 console.error('Transactional email failed:', type, err);
                 return null;
             });
+        }
+
+        async function sendSMS(phone, message) {
+            if (!phone || !message) return;
+            try {
+                await fetch('/.netlify/functions/send-sms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to: phone, message })
+                });
+            } catch (e) {
+                console.warn('SMS send failed (non-blocking):', e);
+            }
         }
 
         async function sendTransactionalEmailAsync(type, to, data, fromKey = null) {
@@ -15091,13 +15146,15 @@ Triggers: ${severityInfo.matched.join(', ')}`);
             rate.lastSentAt = now;
             writeOtpRate(st.email, st.action, rate);
             await sendTransactionalEmailAsync('otp', st.email, { name: st.name || 'Member', code: st.code, actionLabel: st.actionLabel });
+            const otpPhone = st.phone || window.CU?.phone || $('rp')?.value || '';
+            if (otpPhone) sendSMS(otpPhone, `Starlife: Your verification code is ${st.code}. Valid 10 mins. Do not share this code with anyone.`);
             if ($('email-otp-status')) $('email-otp-status').textContent = `Code sent to ${st.email}. It expires in 3 minutes. Resends used: ${Math.max(0, rate.sends - 1)}/3.`;
             return true;
         }
-        async function requireEmailOtp(action, actionLabel, email, name) {
+        async function requireEmailOtp(action, actionLabel, email, name, phone = '') {
             if (!email) { toast('Email address is required for OTP verification', 'tr'); return false; }
             return new Promise(async (resolve) => {
-                window._emailOtpState = { action, actionLabel, email: String(email).toLowerCase(), name, resolve, code: '', expiresAt: 0, used: false };
+                window._emailOtpState = { action, actionLabel, email: String(email).toLowerCase(), name, phone, resolve, code: '', expiresAt: 0, used: false };
                 if ($('email-otp-title')) $('email-otp-title').textContent = actionLabel + ' OTP';
                 if ($('email-otp-sub')) $('email-otp-sub').textContent = `Enter the 6-digit code sent to ${email}. It expires in 3 minutes.`;
                 clearOtpInputs();
@@ -16015,7 +16072,7 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 cardTxEmail = {
                     isMemberPayment,
                     sender: { email: owner.email || '', name: owner.name || 'Member', recipientName: targetName, merchant: targetUid === payee.uid ? 'Starlife balance top-up' : ('Transfer to ' + targetName), remainingBalance: Math.max(0, Number(owner.balance || 0) - amt) },
-                    receiver: { email: targetData.email || '', name: targetData.name || 'Member', senderName: owner.name || 'Member', merchant: usedTemp ? `Shared card ending ${last4}` : `Card ending ${last4}`, remainingBalance: Math.max(0, Number(targetData.balance || 0) + received) },
+                    receiver: { email: targetData.email || '', phone: targetData.phone || '', name: targetData.name || 'Member', senderName: owner.name || 'Member', merchant: usedTemp ? `Shared card ending ${last4}` : `Card ending ${last4}`, remainingBalance: Math.max(0, Number(targetData.balance || 0) + received) },
                     fee,
                     received,
                     last4
@@ -16033,6 +16090,10 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 try {
                     await sendTransactionalEmailAsync(item.type, item.payload.email, { ...item.payload, last4: cardTxEmail.last4, transactionId: txId || genTxId(), currency: 'USD', timestamp: nowIso });
                 } catch (err) { console.error('Card transaction email failed:', err); }
+            }
+            if (cardTxEmail?.isMemberPayment) {
+                if (payee.phone) sendSMS(payee.phone, `Starlife: Card payment of $${fmt(amt)} to ${cardTxEmail.sender.recipientName} done. Ref: ${txId}. Not you? Contact support.`);
+                if (cardTxEmail.receiver.phone) sendSMS(cardTxEmail.receiver.phone, `Starlife: You received $${fmt(amt)} via card payment from ${payee.name || 'Member'}. Ref: ${txId}.`);
             }
             if (cardTxEmail?.isMemberPayment && cardTxEmail.fee > 0) creditPlatformAccount('operations', cardTxEmail.fee, `Card payment fee: ${payee.name} → ${cardTxEmail.sender.recipientName} — ${txId}`, txId).catch(e => console.warn('Acct credit fail', e));
 
@@ -16394,6 +16455,8 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 await logAct(recipient.uid, `Received $${fmt(res.received || amt)} from ${u.name} via card${(res.fee || 0) ? ' after $' + fmt(res.fee) + ' platform fee' : ''}${msg ? ' — "' + msg + '"' : ''}`, res.received || amt, '💳', 'transfer');
                 await db.collection('userNotifs').add({ uid: recipient.uid, msg: `🎁 ${u.name} sent you $${fmt(amt)} via a shared card. You received $${fmt(res.received || amt)}${(res.fee || 0) ? ' after the 10% platform fee' : ''}.${msg ? ' Message: "' + msg + '"' : ''}`, read: false, createdAt: FS().serverTimestamp() });
                 sendTransactionNoticeEmail(recipient.email, { name: recipient.name, direction: 'received', counterparty: maskEmailForNotification(u.email || ''), amount: res.received || amt, amountText: '$' + fmt(res.received || amt), transactionId: txId, transactionType: 'Card transfer', status: 'Completed' });
+                if (u.phone) sendSMS(u.phone, `Starlife: Card payment of $${fmt(amt)} to ${recipient.name || 'Member'} done. Ref: ${txId}. Not you? Contact support.`);
+                if (recipient.phone) sendSMS(recipient.phone, `Starlife: You received $${fmt(amt)} via card payment from ${u.name || 'Member'}. Ref: ${txId}.`);
                 toast(`✅ Sent $${fmt(amt)} to ${recipient.name} via card!`, 'tg', 4000);
                 $('tf-amount').value = ''; $('tf-message').value = ''; $('tf-member-id').value = '';
                 if ($('tf-recipient-info')) $('tf-recipient-info').style.display = 'none';
@@ -16455,6 +16518,8 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 await db.collection('userNotifs').add({ uid: toUid, msg: `🎁 ${u.name} sent you ${typeLabel}!${msg ? ' Message: "' + msg + '"' : ''}`, read: false, createdAt: FS().serverTimestamp() });
                 sendTransactionNoticeEmail(u.email, { name: u.name, direction: 'sent', counterparty: maskEmailForNotification(_tfRecipient.email || ''), amount: amt, amountText: isCash ? '$' + fmt(amt) : amt + ' points', transactionId: txId, transactionType: isCash ? 'Internal transfer' : 'Points transfer', status: 'Completed' });
                 sendTransactionNoticeEmail(_tfRecipient.email, { name: toName, direction: 'received', counterparty: maskEmailForNotification(u.email || ''), amount: received, amountText: isCash ? '$' + fmt(received) : received + ' points', transactionId: txId, transactionType: isCash ? 'Internal transfer' : 'Points transfer', status: 'Completed' });
+                if (isCash && u.phone) sendSMS(u.phone, `Starlife: You sent $${fmt(amt)} to ${toName}. Ref: ${txId}. Not you? Contact support now.`);
+                if (isCash && _tfRecipient?.phone) sendSMS(_tfRecipient.phone, `Starlife: You received $${fmt(received)} from ${u.name}. Ref: ${txId}. Check your wallet.`);
                 if (isCash) { window.CU.balance = (u.balance || 0) - amt; }
                 else { window.CU.surveyPoints = (u.surveyPoints || 0) - amt; }
                 updateUI();
@@ -16555,6 +16620,8 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 });
                 sendTransactionNoticeEmail(requester.email, { name: requester.name || 'Member', title: `Transfer Reversal Approved — $${fmt(amount)} Returned`, message: `Your manual reversal has been approved. $${fmt(amount)} has been returned to your wallet from ${recipient.name || 'recipient'}.`, transactionId: txId, amount, amountText: '$' + fmt(amount), status: 'Refunded to wallet' });
                 sendTransactionNoticeEmail(recipient.email, { name: recipient.name || 'Member', title: `Transfer Reversal Approved — $${fmt(amount)} Deducted`, message: `A manual transfer reversal has been approved. $${fmt(amount)} has been deducted from your wallet and returned to ${requester.name || 'requester'}.`, transactionId: txId, amount, amountText: '$' + fmt(amount), status: 'Deducted from wallet' });
+                if (requester.phone) sendSMS(requester.phone, `Starlife: Reversal approved. $${fmt(amount)} has been returned to your wallet. Ref: ${txId}.`);
+                if (recipient.phone) sendSMS(recipient.phone, `Starlife: Reversal approved. $${fmt(amount)} deducted from your wallet and returned to ${requester.name || 'requester'}. Ref: ${txId}.`);
                 toast(`Manual reversal processed. $${fmt(amount)} moved from ${recipient.name || 'recipient'} to ${requester.name || 'requester'}.`, 'tg');
             } catch (e) { toast(e.message || 'Manual reversal failed', 'tr'); }
         }
@@ -20331,6 +20398,9 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                 const depSnap = await db.collection('deposits').doc(id).get();
                 const dep = depSnap.data() || {};
                 sendTransactionalEmail('deposit_approved', dep.userEmail || '', { name: dep.userName || '', amount: amount, method: dep.method || '', transactionId: dep.ref || id, userReference: dep.ref || '', status: 'Approved', ...transactionTimestampParts() });
+                const depUserSnapForSms = await db.collection('users').doc(uid).get().catch(() => null);
+                const depPhone = dep.userPhone || depUserSnapForSms?.data?.()?.phone || '';
+                if (depPhone) sendSMS(depPhone, `Starlife: Deposit of $${fmt(amount)} confirmed. Your wallet has been credited. Enjoy!`);
                 let bonusMsg = '';
                 if (dep.promoCode && !dep.promoBonusApplied) {
                     try {
