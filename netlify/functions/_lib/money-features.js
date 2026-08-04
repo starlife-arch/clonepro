@@ -6,6 +6,18 @@ const cents = (n) => Math.round(Number(n || 0) * 100) / 100;
 const siteUrl = () => process.env.URL || process.env.SITE_URL || 'https://starlifeadvert.netlify.app';
 const money = (n) => `$${cents(n).toFixed(2)}`;
 
+
+async function sendSMSFromServer(phone, message) {
+  if (!phone || !message) return;
+  try {
+    await fetch(`${siteUrl()}/.netlify/functions/send-sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, message })
+    });
+  } catch (e) { console.warn('SMS send failed:', e); }
+}
+
 async function sendEmail(type, to, data, fromKey = 'transfers') {
   if (!to) return;
   await fetch(`${siteUrl()}/.netlify/functions/send-email`, {
@@ -49,18 +61,22 @@ async function notifyReversal(db, transfer, stage, decision = '') {
   if (stage === 'requested') {
     await sendEmail('reversal_requested_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.amount, amountText: amount, counterparty: recipientName });
     await sendEmail('reversal_requested_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName, actionUrl: siteUrl() });
+    if (to.phone) await sendSMSFromServer(to.phone, `Starlife: ${requesterName} requested a reversal of ${received} on transfer ${txId}. Login to approve or reject.`);
     await sendTelegramMessage(`↩️ <b>Transfer reversal requested</b>\nTX: ${txId}\nAmount: ${received}\nRequester: ${requesterName}\nRecipient: ${recipientName}`).catch(()=>{});
   } else {
     const approved = decision === 'approved';
     if (approved) {
       await sendEmail('reversal_approved_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.amount, amountText: amount, counterparty: recipientName });
       await sendEmail('reversal_approved_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName });
+      if (from.phone) await sendSMSFromServer(from.phone, `Starlife: Reversal approved. ${amount} has been returned to your wallet. Ref: ${txId}.`);
+      if (to.phone) await sendSMSFromServer(to.phone, `Starlife: Reversal approved. ${received} deducted from your wallet and returned to ${requesterName}. Ref: ${txId}.`);
     } else {
       await sendEmail('reversal_rejected_sender', from.email, { name: requesterName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: recipientName });
       await sendEmail('reversal_rejected_receiver', to.email, { name: recipientName, transactionId: txId, amount: transfer.received, amountText: received, counterparty: requesterName });
+      if (from.phone) await sendSMSFromServer(from.phone, `Starlife: Your reversal request for ${txId} was declined. Contact support if needed.`);
     }
     await sendTelegramMessage(`↩️ <b>Transfer reversal ${decision}</b>\nTX: ${txId}\nAmount: ${received}\nRequester: ${requesterName}\nRecipient: ${recipientName}`).catch(()=>{});
   }
 }
 
-export { getDb, admin, json, cents, money, publicMember, creditPlatform, notifyReversal };
+export { getDb, admin, json, cents, money, publicMember, creditPlatform, notifyReversal, sendSMSFromServer };

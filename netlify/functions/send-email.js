@@ -105,6 +105,7 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   msg_alerts_renewed: 'noreply',
   msg_alerts_cancelled: 'noreply',
   msg_alerts_paused: 'noreply',
+  msg_alerts_upgrade_notice: 'noreply',
   prediction_bet_placed: 'games',
   prediction_result_won: 'games',
   prediction_result_lost: 'games',
@@ -237,7 +238,7 @@ export default async (req, context) => {
       subject = '✅ Message Email Alerts Activated';
       html = layout('✅ Message Email Alerts Activated', `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You're now subscribed to Message Email Alerts. $10.00 has been deducted from your main wallet.</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">You're now subscribed to Message Email Alerts. $20.00 has been deducted from your main wallet.</p>
         ${rows([['Next renewal', data.expiryDate]])}
         <p style="margin:0 0 16px;font-size:15px;line-height:1.6">You'll receive an email every time someone sends you a DM.</p>
         <p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>
@@ -246,12 +247,12 @@ export default async (req, context) => {
     }
     case 'msg_alerts_renewed': {
       subject = '✅ Message Email Alerts Renewed';
-      html = layout('✅ Subscription Renewed', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been renewed. $10.00 has been deducted from your main wallet.</p>${rows([['Next renewal', data.newExpiryDate]])}<p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
+      html = layout('✅ Subscription Renewed', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been renewed. $20.00 has been deducted from your main wallet.</p>${rows([['Next renewal', data.newExpiryDate]])}<p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open Starlife →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
       break;
     }
     case 'msg_alerts_paused': {
       subject = '⚠️ Message Email Alerts Paused';
-      html = layout('⚠️ Subscription Paused', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been paused because your wallet had insufficient funds for renewal.</p><p style="margin:0 0 16px;font-size:15px;line-height:1.6">To resume, top up your wallet with at least $10.00 then go to Profile → Settings → Message Email Alerts.</p><p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Top Up Wallet →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
+      html = layout('⚠️ Subscription Paused', `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Email Alerts subscription has been paused because your wallet had insufficient funds for renewal.</p><p style="margin:0 0 16px;font-size:15px;line-height:1.6">To resume, top up your wallet with at least $20.00 then go to Profile → Settings → Message Email Alerts.</p><p><a href="${esc(brand.url)}" style="display:inline-block;background:#0bbf58;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Top Up Wallet →</a> <a href="mailto:${esc(brand.supportEmail)}" style="display:inline-block;margin-left:8px;color:#087d3a;text-decoration:none;font-weight:700">Support</a></p>`);
       break;
     }
     case 'msg_alerts_cancelled': {
@@ -777,6 +778,17 @@ export default async (req, context) => {
           ['Time', fmtDateParts(data.timestamp).time],
         ])}
         <p style="margin:0;font-size:14px;line-height:1.6;color:#6a5b00">Withdrawals remain restricted until this loan is repaid. Repeated late payments may restrict future loan access.</p>
+      `);
+      break;
+    }
+    case 'msg_alerts_upgrade_notice': {
+      subject = 'Your Message Alerts Subscription is Getting Better';
+      html = layout('📱 Your Subscription is Getting Better', `
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(greetingName)},</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Your Message Alerts subscription is being upgraded.</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6">From your next renewal on <strong>${esc(data.renewalDate || 'your renewal date')}</strong>, you will receive both <strong>EMAIL and SMS</strong> notifications for every new message — at the new price of <strong>$20.00/month</strong>.</p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.6">No action needed. Your subscription continues automatically.</p>
+        <p style="margin:0"><a href="${esc(brand.siteUrl || '#')}" style="display:inline-block;background:#00e676;color:#07140c;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:8px">Manage Subscription →</a></p>
       `);
       break;
     }
