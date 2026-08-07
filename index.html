@@ -20128,7 +20128,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                     }
                 };
 
-                // Call Netlify function to initiate Pesapal payment
+                // Call API function to initiate Pesapal payment
                 const res = await fetch("/api/pesapal-initiate-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -20154,7 +20154,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
             const notificationType = urlParams.get("OrderNotificationType");
 
             if (orderTrackingId && merchantReference) {
-                // Call Netlify function to verify payment status
+                // Call API function to verify payment status
                 const res = await fetch("/api/pesapal-verify-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "name": "starlife-netlify-functions",
+  "name": "starlife-functions",
   "private": true,
   "version": "1.0.0",
   "dependencies": {

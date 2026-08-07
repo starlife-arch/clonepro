@@ -1,4 +1,4 @@
-// netlify/functions/broadcast-email-proxy.js
+// API broadcast-email-proxy handler
 // Called by the admin broadcast UI — injects the token server-side.
 
 async function netlifyHandler(req, context) {

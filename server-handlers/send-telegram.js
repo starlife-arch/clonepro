@@ -1,4 +1,4 @@
-// netlify/functions/send-telegram.js
+// API send-telegram handler
 // Sends a message to the admin Telegram chat
 
 async function netlifyHandler(req, context) {

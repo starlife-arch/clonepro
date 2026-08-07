@@ -1,4 +1,4 @@
-// netlify/functions/send-email-proxy.js
+// API send-email-proxy handler
 // Called by the frontend for transactional emails (welcome, deposit, withdrawal, etc.)
 // The frontend sends NO token — this function injects it server-side from the env var.
 
