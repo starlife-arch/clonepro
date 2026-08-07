@@ -1,0 +1,9 @@
+import { getDb, admin, json, battlePointsForFinish } from './_lib/battle-royale.js';
+async function legacyHandler(req) { try { const { userId, sessionId } = await req.json(); if(!userId||!sessionId) return json({success:false,error:'Missing fields'},400); const db=getDb(); let cashAwarded=0, pointsAwarded=20, desc='Battle Royale — Champion finish'; await db.runTransaction(async t=>{ const sr=db.collection('battleSessions').doc(sessionId), ur=db.collection('users').doc(userId), pr=db.collection('gamePools').doc('battleFreePool'); const [ss,us,ps]=await Promise.all([t.get(sr),t.get(ur),t.get(pr)]); const s=ss.data()||{}; if(!ss.exists||s.userId!==userId||s.mode!=='free'||!s.userSurvived) throw new Error('Prize not available'); if(s.prizeClaimed) throw new Error('Prize already claimed'); const pool=ps.data()||{}; if(Number(pool.balance||0)>=1 && Math.random()<.05) cashAwarded=1; const info=battlePointsForFinish(s); pointsAwarded=info.points; desc=info.desc; t.update(ur,{points:admin.firestore.FieldValue.increment(pointsAwarded),'gameWallet.balance':admin.firestore.FieldValue.increment(cashAwarded),gameWalletBalance:admin.firestore.FieldValue.increment(cashAwarded)}); t.set(ur.collection('pointsHistory').doc(),{points:pointsAwarded,desc,createdAt:admin.firestore.FieldValue.serverTimestamp()}); if(cashAwarded) t.set(pr,{balance:admin.firestore.FieldValue.increment(-1),totalPayoutsAllTime:admin.firestore.FieldValue.increment(1)},{merge:true}); t.update(sr,{prizeClaimed:true,pointsAwarded,cashAwarded,claimedAt:admin.firestore.FieldValue.serverTimestamp()}); }); return json({success:true,pointsAwarded,cashAwarded,desc}); } catch(e){ return json({success:false,error:e.message||'Claim failed'},500); } };
+
+
+import { runVercelHandler } from './_lib/vercel-adapter.js';
+
+export default async function handler(req, res) {
+  return runVercelHandler(req, res, legacyHandler);
+}
