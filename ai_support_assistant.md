@@ -1,7 +1,7 @@
 # Starlife AI Support Assistant (Emy)
 
 ## Endpoint
-- Netlify Function: `/.netlify/functions/ai-support-assistant`
+- API Function: `/api/ai-support-assistant`
 - Method: `POST`
 - Body:
 
@@ -72,7 +72,7 @@
 
 ### 1) FAQ test
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/ai-support-assistant \
+curl -X POST http://localhost:3000/api/ai-support-assistant \
   -H 'Content-Type: application/json' \
   -d '{"userId":"u1","memberId":"SL-1","message":"How do I deposit on Starlife?"}'
 ```
@@ -80,7 +80,7 @@ Expected: direct answer, category `deposit`, low severity, no Telegram alert.
 
 ### 2) Complaint (non-high-risk) test
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/ai-support-assistant \
+curl -X POST http://localhost:3000/api/ai-support-assistant \
   -H 'Content-Type: application/json' \
   -d '{"userId":"u2","memberId":"SL-2","message":"My KYC status has been pending for days. Please help."}'
 ```
@@ -88,7 +88,7 @@ Expected: careful support response, ticket likely created, usually medium severi
 
 ### 3) High-risk alert test
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/ai-support-assistant \
+curl -X POST http://localhost:3000/api/ai-support-assistant \
   -H 'Content-Type: application/json' \
   -d '{"userId":"u3","memberId":"SL-3","message":"I have a failed withdrawal and missing balance. I think my account was hacked."}'
 ```
@@ -96,7 +96,7 @@ Expected: careful response, support ticket created, high/critical severity, Tele
 
 ### 4) Out-of-scope test
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/ai-support-assistant \
+curl -X POST http://localhost:3000/api/ai-support-assistant \
   -H 'Content-Type: application/json' \
   -d '{"userId":"u4","memberId":"SL-4","message":"Who won last night\'s football game?"}'
 ```

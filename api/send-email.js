@@ -1,4 +1,4 @@
-// netlify/functions/send-email.js
+// API send-email handler
 // Uses Nodemailer + Brevo SMTP (transactional emails)
 
 import nodemailer from 'nodemailer';

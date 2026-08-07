@@ -1,5 +1,4 @@
 const STORAGE_KEY = "starlife-assets-v1";
-const { getAccessToken, registerIpnUrl } = require("./netlify/functions/_lib/pesapal");
 
 const PRICE_LIMITS = {
   min: 10,
@@ -1074,7 +1073,7 @@ async function handleAssetImageSelection(files) {
     }
     const formData = new FormData();
     formData.append("image", file);
-    const res = await fetch("/.netlify/functions/upload-image", {
+    const res = await fetch("/api/upload-image", {
         method: "POST",
         body: JSON.stringify({ image: await toBase64(file) })
     });
