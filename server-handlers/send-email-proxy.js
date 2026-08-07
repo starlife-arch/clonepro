@@ -1,6 +1,18 @@
 // API send-email-proxy handler
 // Called by the frontend for transactional emails (welcome, deposit, withdrawal, etc.)
-// The frontend sends NO token — this function injects it server-side from the env var.
+// The frontend sends NO token — this function injects it server-side without a fragile self-fetch.
+
+import { netlifyHandler as sendEmail } from './send-email.js';
+import { runNetlifyHandler } from './_lib/vercel-adapter.js';
+
+function tokenRequest(req, body) {
+  return {
+    ...req,
+    method: 'POST',
+    headers: { get: name => String(name).toLowerCase() === 'x-api-token' ? (process.env.EMAIL_API_TOKEN || '') : req.headers.get(name) },
+    json: async () => body,
+  };
+}
 
 async function netlifyHandler(req, context) {
   if (req.method !== 'POST') {
@@ -9,31 +21,12 @@ async function netlifyHandler(req, context) {
 
   try {
     const body = await req.json().catch(() => ({}));
-
-    const siteUrl = process.env.URL || 'http://localhost:8888';
-
-    const response = await fetch(
-      `${siteUrl}/api/send-email`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-token': process.env.EMAIL_API_TOKEN || ''
-        },
-        body: JSON.stringify(body)
-      }
-    );
-
-    const text = await response.text();
-    return new Response(text, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+    return sendEmail(tokenRequest(req, body), context);
   } catch (err) {
     console.error('send-email-proxy error:', err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
-};
-
-
-import { runNetlifyHandler } from './_lib/vercel-adapter.js';
+}
 
 export default async function handler(req, res) {
   return runNetlifyHandler(req, res, netlifyHandler);
