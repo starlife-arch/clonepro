@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { admin, initFirebase, json, resolveRecipients } from './_lib/broadcast-email.js';
 
-async function netlifyHandler(req, context) {
+export async function netlifyHandler(req, context) {
   try {
     if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
 

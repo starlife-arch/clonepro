@@ -104,10 +104,30 @@ const handlers = {
   "verify-2fa": handler50,
 };
 
+function cleanRouteName(value) {
+  return String(value || '')
+    .replace(/^\/+/, '')
+    .replace(/^api\//, '')
+    .replace(/\/+$/, '');
+}
+
 function routeName(req) {
-  const path = req.query?.path;
-  if (Array.isArray(path)) return path.join('/');
-  if (typeof path === 'string') return path;
+  const queryPath = req.query?.path || req.query?.['...path'];
+  if (Array.isArray(queryPath)) return cleanRouteName(queryPath.join('/'));
+  if (typeof queryPath === 'string' && queryPath) return cleanRouteName(queryPath);
+
+  const rawUrl = req.url || req.originalUrl || '';
+  if (rawUrl) {
+    try {
+      const parsed = new URL(rawUrl, 'https://starlifeadvert.com');
+      const pathname = cleanRouteName(parsed.pathname);
+      if (pathname) return pathname;
+    } catch (_) {
+      const pathname = cleanRouteName(rawUrl.split('?')[0]);
+      if (pathname) return pathname;
+    }
+  }
+
   return '';
 }
 
@@ -117,7 +137,7 @@ export default async function handler(req, res) {
   if (!routeHandler) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token');
     if (req.method === 'OPTIONS') return res.status(200).end();
     return res.status(404).json({ error: 'API route not found' });
   }

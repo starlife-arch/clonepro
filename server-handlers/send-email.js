@@ -117,7 +117,7 @@ const DEFAULT_FROM_KEY_FOR_TYPE = {
   battle_royale_result: 'games',
 };
 
-async function netlifyHandler(req, context) {
+export async function netlifyHandler(req, context) {
   // 1. Security – verify the token sent by the proxy
   const token = req.headers.get('x-api-token');
   if (token !== process.env.EMAIL_API_TOKEN) {

@@ -1,7 +1,7 @@
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-token',
 };
 
 function normalizeHeaderValue(value) {
@@ -14,8 +14,19 @@ function createHeaders(headers = {}) {
   return { get(name) { return normalized.get(String(name).toLowerCase()) || null; } };
 }
 
+function requestUrl(req) {
+  const rawUrl = req.url || req.originalUrl || '/';
+  try { return new URL(rawUrl).toString(); }
+  catch (_) {
+    const host = req.headers?.host || process.env.SITE_URL || process.env.URL || process.env.VERCEL_URL || 'localhost';
+    const protocol = String(host).startsWith('localhost') ? 'http' : 'https';
+    const base = String(host).startsWith('http') ? String(host) : `${protocol}://${host}`;
+    return new URL(rawUrl, base).toString();
+  }
+}
+
 function createRequest(req) {
-  return { ...req, method: req.method, headers: createHeaders(req.headers), json: async () => (req.body ?? {}) };
+  return { ...req, url: requestUrl(req), method: req.method, headers: createHeaders(req.headers), json: async () => (req.body ?? {}) };
 }
 
 async function sendResponse(res, response) {
