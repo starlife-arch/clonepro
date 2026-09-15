@@ -122,5 +122,13 @@ function firstFinite(values) {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, async () => runHeldBalanceCheck());
+  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
+  if (secret !== process.env.CRON_SECRET) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  return runNetlifyHandler(req, res, async () => {
+    await runHeldBalanceCheck();
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
 }
