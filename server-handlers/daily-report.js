@@ -7,11 +7,7 @@ import { sendTelegramMessage } from './_lib/telegram.js';
  * - READ: deposits, withdrawals, risk_alerts, users
  * - WRITE: none (Telegram only)
  */
-async function netlifyHandler(req, context) {
-  if (!['GET', 'POST'].includes(req.method)) {
-    return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
-  }
-
+export async function runDailyReport() {
   try {
     const db = getDb();
     const now = new Date();
@@ -154,5 +150,5 @@ function countActiveInvestors(userDocs) {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  return runNetlifyHandler(req, res, async () => runDailyReport());
 }

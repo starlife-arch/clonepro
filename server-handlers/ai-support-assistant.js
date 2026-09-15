@@ -1,8 +1,10 @@
 import { getDb, admin } from './_lib/firebase.js';
 import { sendTelegramMessage } from './_lib/telegram.js';
 
+if (!process.env.GROQ_API_KEY) console.warn('[ai-support-assistant] WARNING: GROQ_API_KEY is not set');
+
 // ========== CONVERSATION MEMORY FUNCTIONS ==========
-async function getConversationHistory(userId, limit = 5) {
+async function getConversationHistory(userId, limit = 3) {
   if (!userId || userId === 'anonymous') return [];
   try {
     const db = getDb();
@@ -228,7 +230,7 @@ async function netlifyHandler(req, context) {
   // ========== LOAD CONVERSATION HISTORY ==========
   let conversationHistory = [];
   if (userId !== 'anonymous') {
-    conversationHistory = await getConversationHistory(userId, 5);
+    conversationHistory = await getConversationHistory(userId, 3);
     console.log(`[memory] loaded ${conversationHistory.length} previous turns for ${userId}`);
   }
 
@@ -239,8 +241,8 @@ async function netlifyHandler(req, context) {
     aiResult = await generateSupportReply({ userMessage, conversationHistory });
   } catch (error) {
     console.error('[ai-support-assistant] provider failure', error);
-    providerUsed = 'rule_based_fallback';
-    aiResult = getFallbackReply(userMessage);
+    providerUsed = 'groq_unavailable_fallback';
+    aiResult = { reply: "I'm having trouble connecting right now. Please open a support ticket and our team will assist you shortly.", category: 'support' };
   }
 
   const safeReply = aiResult.reply;
@@ -381,7 +383,7 @@ Now respond naturally, helpfully, and warmly.`;
           { role: 'user', content: userMessage }
         ],
         temperature: 0.8,
-        max_tokens: 500
+        max_tokens: 600
       })
     });
   } finally {
@@ -390,6 +392,7 @@ Now respond naturally, helpfully, and warmly.`;
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    console.error('[ai-support-assistant] Groq error response body:', JSON.stringify(data));
     throw new Error(data.error?.message || `Groq API error: ${response.status}`);
   }
 

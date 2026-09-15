@@ -19,7 +19,7 @@ async function sendLoanEmail(type, to, data) {
   if (!response.ok) throw new Error(`send-email failed with ${response.status}`);
 }
 
-async function netlifyHandler(req, context) {
+export async function runLoanPenalties() {
   const db = getDb();
   const now = new Date();
   const snap = await db.collection('loans').where('status', '==', 'active').get();
@@ -93,5 +93,5 @@ async function netlifyHandler(req, context) {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  return runNetlifyHandler(req, res, async () => runLoanPenalties());
 }
