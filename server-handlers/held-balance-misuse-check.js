@@ -7,11 +7,7 @@ import { createAlertIfNotExists, timestampToDate } from './_lib/alerts.js';
  * - READ: investments, users
  * - WRITE: risk_alerts
  */
-async function netlifyHandler(req, context) {
-  if (!['GET', 'POST'].includes(req.method)) {
-    return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
-  }
-
+export async function runHeldBalanceCheck() {
   const lookbackHours = Number(process.env.HELD_BALANCE_LOOKBACK_HOURS || 24);
 
   try {
@@ -126,5 +122,10 @@ function firstFinite(values) {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  return runNetlifyHandler(req, res, async () => {
+    await runHeldBalanceCheck();
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
 }

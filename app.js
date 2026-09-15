@@ -1,3 +1,5 @@
+const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
+
 const STORAGE_KEY = "starlife-assets-v1";
 
 const PRICE_LIMITS = {
@@ -1073,7 +1075,7 @@ async function handleAssetImageSelection(files) {
     }
     const formData = new FormData();
     formData.append("image", file);
-    const res = await fetch("/api/upload-image", {
+    const res = await fetch(API_BASE + "/api/upload-image", {
         method: "POST",
         body: JSON.stringify({ image: await toBase64(file) })
     });

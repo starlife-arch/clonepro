@@ -19,7 +19,7 @@ async function sendLoanEmail(type, to, data) {
   if (!response.ok) throw new Error(`send-email failed with ${response.status}`);
 }
 
-async function netlifyHandler(req, context) {
+export async function runLoanPenalties() {
   const db = getDb();
   const now = new Date();
   const snap = await db.collection('loans').where('status', '==', 'active').get();
@@ -93,5 +93,10 @@ async function netlifyHandler(req, context) {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  return runNetlifyHandler(req, res, async () => {
+    await runLoanPenalties();
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
 }

@@ -43,7 +43,7 @@ async function loadUsersByIds(db, uids) {
   return userCache;
 }
 
-async function runDailyProfits() {
+export async function runDailyProfits() {
   const db = getDb();
   const today = new Date().toDateString();
   const errors = [];
@@ -269,5 +269,10 @@ async function netlifyHandler() {
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  return runNetlifyHandler(req, res, async () => {
+    await runDailyProfits();
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
 }
