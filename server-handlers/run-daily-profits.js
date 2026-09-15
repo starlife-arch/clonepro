@@ -43,7 +43,7 @@ async function loadUsersByIds(db, uids) {
   return userCache;
 }
 
-async function runDailyProfits() {
+export async function runDailyProfits() {
   const db = getDb();
   const today = new Date().toDateString();
   const errors = [];

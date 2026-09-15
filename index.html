@@ -4451,6 +4451,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             <div id="t-deposit" class="itc" style="display:none">
                 <div class="ptitle">Deposit Funds</div>
                 <div class="psub">Choose a payment method and send your funds</div>
+                <div class="card" style="margin-bottom:14px">
+                    <div style="font-weight:700;color:var(--g);margin-bottom:8px">💚 M-Pesa STK Push (Recommended)</div>
+                    <div style="font-size:.82rem;color:var(--t2);margin-bottom:12px">Enter your amount and phone number. You will receive an M-Pesa prompt on your phone instantly.</div>
+                    <div class="fg"><label class="fl">Amount (USD)</label><input class="fi" id="pp-amount" type="number" min="10" placeholder="Min $10"></div>
+                    <div class="fg"><label class="fl">M-Pesa Phone Number</label><input class="fi" id="pp-phone" type="tel" placeholder="07XXXXXXXX or 254XXXXXXXX"></div>
+                    <button class="btn btn-p" onclick="initiatePrintPay()">💚 Pay with M-Pesa</button>
+                    <div id="pp-status" style="margin-top:10px;font-size:.85rem;display:none"></div>
+                </div>
                 <!-- Promo Code -->
                 <div style="display:flex;gap:8px;margin-bottom:14px">
                     <input class="fi" id="promo-inp" placeholder="🎁 Have a promo code? Enter here"
@@ -4468,7 +4476,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     </div>
                 </div>
                 <div class="card" style="margin-bottom:12px">
-                    <div style="font-weight:700;color:var(--g);margin-bottom:8px">💳 Pay with Pesapal (Card, M-Pesa, etc.)</div>
+                    <div style="font-weight:700;color:var(--g);margin-bottom:8px">💳 Alternative Payment (Card / Other)</div>
+                    <div style="font-size:.82rem;color:var(--t2);margin-bottom:12px">Backup option — use M-Pesa above for faster processing</div>
                     <div class="fg"><label class="fl">Amount (USD)</label><input class="fi" id="dep-pesapal-amount" type="number" min="10" placeholder="Enter amount (min $10)"></div>
                     <button class="btn btn-p btn-full" onclick="initiatePesapalDeposit()">Pay with Pesapal</button>
                 </div>
@@ -14555,9 +14564,9 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 let snap;
                 // Fetch latest 200 entries — prevents quota drain
                 if (filter === 'all') {
-                    snap = await db.collection('activity').limit(200).get();
+                    snap = await db.collection('activity').orderBy('createdAt', 'desc').limit(200).get();
                 } else {
-                    snap = await db.collection('activity').where('type', '==', filter).limit(200).get();
+                    snap = await db.collection('activity').where('type', '==', filter).orderBy('createdAt', 'desc').limit(200).get();
                 }
                 const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                 if (!list.length) { el.innerHTML = '<div class="es"><div class="ei">📋</div>No activity</div>'; return; }
@@ -14567,12 +14576,14 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                 if (window.AU && window.AU.length) {
                     uids.forEach(uid => { const u = window.AU.find(u => u.id === uid); nameMap[uid] = u ? u.name : uid.substring(0, 8); });
                 } else {
-                    // Fetch user names directly
-                    for (const uid of uids) {
+                    // Fetch user names in Firestore "in" batches to avoid one read per user.
+                    for (let i = 0; i < uids.length; i += 10) {
+                        const chunk = uids.slice(i, i + 10);
                         try {
-                            const uSnap = await db.collection('users').doc(uid).get();
-                            nameMap[uid] = uSnap.exists ? (uSnap.data().name || uid.substring(0, 8)) : uid.substring(0, 8);
-                        } catch (e) { nameMap[uid] = uid.substring(0, 8); }
+                            const snap = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
+                            snap.forEach(d => { nameMap[d.id] = d.data()?.name || d.id.substring(0, 8); });
+                            chunk.forEach(uid => { if (!nameMap[uid]) nameMap[uid] = uid.substring(0, 8); });
+                        } catch (e) { chunk.forEach(uid => { nameMap[uid] = uid.substring(0, 8); }); }
                     }
                 }
                 el.innerHTML = list.map(a => {
@@ -20103,6 +20114,31 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
             const el2 = $(id); if (el2) el2.style.display = 'block';
             if (id === 'sav-history') loadSavHistory();
             if (id === 'sav-withdraw') loadSavWithdraw();
+        }
+
+        async function initiatePrintPay() {
+            const amount = parseFloat($('pp-amount')?.value);
+            const phone = ($('pp-phone')?.value || '').trim();
+            const statusEl = $('pp-status');
+            if (!amount || amount < 10) return toast('Minimum deposit is $10', 'ty');
+            if (!phone) return toast('Enter your M-Pesa phone number', 'ty');
+            if (!window.CU) return toast('Please log in first', 'ty');
+            statusEl.style.display = 'block'; statusEl.innerHTML = '⏳ Sending M-Pesa prompt to your phone...';
+            try {
+                const res = await fetch('/api/printpay-stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone_number: phone, amountUSD: amount, uid: window.CU.uid, userName: window.CU.name || '', userEmail: window.CU.email || '' }) });
+                const data = await res.json(); if (!data.success) throw new Error(data.error || 'Failed to initiate payment');
+                statusEl.innerHTML = '📱 STK Push sent! Enter your M-Pesa PIN on your phone. Checking status...'; pollPrintPayStatus(data.checkoutId, statusEl);
+            } catch (e) { statusEl.innerHTML = '❌ ' + (e.message || 'Something went wrong. Please try again.'); }
+        }
+
+        async function pollPrintPayStatus(checkoutId, statusEl) {
+            let polls = 0; const maxPolls = 24;
+            const interval = setInterval(async () => { polls++; try {
+                const res = await fetch('/api/printpay-check-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checkoutId }) }); const data = await res.json();
+                if (data.status === 'SUCCESS') { clearInterval(interval); statusEl.innerHTML = '✅ Payment received! Awaiting admin confirmation. Funds will be credited after approval.'; toast('M-Pesa payment received ✓'); }
+                else if (data.status === 'FAILED') { clearInterval(interval); statusEl.innerHTML = '❌ Payment failed or was cancelled. Please try again.'; }
+                else if (polls >= maxPolls) { clearInterval(interval); statusEl.innerHTML = '⏰ Timed out waiting for payment. If you completed the payment, contact support with your M-Pesa receipt.'; }
+            } catch (e) { console.error('Poll error', e); } }, 5000);
         }
 
         async function initiatePesapalDeposit() {
