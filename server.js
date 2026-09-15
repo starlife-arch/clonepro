@@ -1,5 +1,9 @@
 import express from 'express';
 import cron from 'node-cron';
+import { runDailyProfits } from './server-handlers/run-daily-profits.js';
+import { runLoanPenalties } from './server-handlers/apply-loan-penalties.js';
+import { runDailyReport } from './server-handlers/daily-report.js';
+import { runHeldBalanceCheck } from './server-handlers/held-balance-misuse-check.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -133,21 +137,28 @@ app.get('/pesapal-callback', (req, res) => res.sendFile(join(rootDir, 'index.htm
 app.get('*', (req, res) => res.sendFile(join(rootDir, 'index.html')));
 
 cron.schedule('0 1 * * *', async () => {
-  console.log('[cron] running daily profits');
-  try { const { runDailyProfits } = await import('./server-handlers/run-daily-profits.js'); const result = await runDailyProfits(); console.log('[cron] daily profits result:', result); } catch (e) { console.error('[cron] daily profits failed', e); }
-}, { timezone: 'UTC' });
+  console.log('[cron] running daily profits...');
+  try { await runDailyProfits(); console.log('[cron] daily profits done'); }
+  catch (e) { console.error('[cron] daily profits failed', e); }
+});
+
 cron.schedule('0 2 * * *', async () => {
-  console.log('[cron] running loan penalties');
-  try { const { runLoanPenalties } = await import('./server-handlers/apply-loan-penalties.js'); await runLoanPenalties(); } catch (e) { console.error('[cron] loan penalties failed', e); }
-}, { timezone: 'UTC' });
+  console.log('[cron] running loan penalties...');
+  try { await runLoanPenalties(); console.log('[cron] loan penalties done'); }
+  catch (e) { console.error('[cron] loan penalties failed', e); }
+});
+
 cron.schedule('0 6 * * *', async () => {
-  console.log('[cron] running daily report');
-  try { const { runDailyReport } = await import('./server-handlers/daily-report.js'); await runDailyReport(); } catch (e) { console.error('[cron] daily report failed', e); }
-}, { timezone: 'UTC' });
+  console.log('[cron] running daily report...');
+  try { await runDailyReport(); console.log('[cron] daily report done'); }
+  catch (e) { console.error('[cron] daily report failed', e); }
+});
+
 cron.schedule('0 3 * * *', async () => {
-  console.log('[cron] running held balance check');
-  try { const { runHeldBalanceCheck } = await import('./server-handlers/held-balance-misuse-check.js'); await runHeldBalanceCheck(); } catch (e) { console.error('[cron] held balance check failed', e); }
-}, { timezone: 'UTC' });
+  console.log('[cron] running held balance check...');
+  try { await runHeldBalanceCheck(); console.log('[cron] held balance check done'); }
+  catch (e) { console.error('[cron] held balance check failed', e); }
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server listening on port ${port}`));

@@ -252,22 +252,18 @@ export async function runDailyProfits() {
   return result;
 }
 
-async function netlifyHandler() {
-  try {
-    return json(await runDailyProfits());
-  } catch (error) {
-    console.error('[run-daily-profits] failed', error);
-    try {
-      await getDb().collection('profitRunLogs').add({ runAt: admin.firestore.FieldValue.serverTimestamp(), investCount: 0, stakeCount: 0, savingsCount: 0, savingsPrincipalReleased: 0, vaultReleased: 0, totalCredited: 0, errors: [{ scope: 'fatal', error: error.message || 'Daily profit run failed' }] });
-    } catch (_) {}
-    return json({ success: false, error: error.message || 'Daily profit run failed' }, 500);
-  }
-};
-
 
 
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 export default async function handler(req, res) {
-  return runNetlifyHandler(req, res, netlifyHandler);
+  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
+  if (secret !== process.env.CRON_SECRET) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  return runNetlifyHandler(req, res, async () => {
+    await runDailyProfits();
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
 }

@@ -1,3 +1,4 @@
+const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
 const STORAGE_KEY = "starlife-assets-v1";
 
 const PRICE_LIMITS = {
