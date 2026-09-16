@@ -8895,6 +8895,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // pgFetch(path, { method, body }) calls.  Authentication must use Firebase's
         // active user before window.CU is populated during sign-in.
         async function pgFetch(path, uidOrOptions, admin = false) {
+            // Firebase mode must not treat an empty or stale PostgreSQL response as current data.
+            // Returning null makes legacy read callers use their Firestore implementation.
+            if (!USE_POSTGRES_DATA && typeof uidOrOptions !== 'object') return null;
             const requestOptions = uidOrOptions && typeof uidOrOptions === 'object' ? uidOrOptions : {};
             const requestedUid = typeof uidOrOptions === 'string' ? uidOrOptions : (window.CU?.uid || firebase.auth().currentUser?.uid);
             const currentUid = firebase.auth().currentUser?.uid;
