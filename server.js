@@ -71,6 +71,7 @@ import pgLoans from './server-handlers/pg-loans.js';
 import pgActivity from './server-handlers/pg-activity.js';
 import pgNotifications from './server-handlers/pg-notifications.js';
 import pgAdminUsers from './server-handlers/pg-admin-users.js';
+import pgAdminSetRole from './server-handlers/pg-admin-set-role.js';
 import pgAdminBalance from './server-handlers/pg-admin-balance.js';
 import pgAdminActivity from './server-handlers/pg-admin-activity.js';
 
@@ -150,6 +151,7 @@ app.get('/api/pg/loans/:uid', pgLoans);
 app.get('/api/pg/activity/:uid', pgActivity);
 app.get('/api/pg/notifications/:uid', pgNotifications);
 app.get('/api/pg/admin/users', pgAdminUsers);
+app.post('/api/pg/admin/set-role', pgAdminSetRole);
 app.post('/api/pg/admin/balance', pgAdminBalance);
 app.get('/api/pg/admin/activity', pgAdminActivity);
 

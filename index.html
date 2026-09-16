@@ -20084,7 +20084,14 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                         + '<div class="ni-txt">' + n.msg + '</div>'
                         + '<div class="ni-time">' + fmtDT(n.createdAt) + '</div></div>';
                 }).join('');
-            }, (err) => console.error('Notifs listener error:', err));
+            }, (err) => {
+                console.error('Notifs listener error:', err);
+                if (isFirestoreQuotaError(err)) {
+                    const el = $('notif-list');
+                    if (el) el.innerHTML = '<div class="es" style="padding:20px">Service temporarily unavailable — please try again later</div>';
+                    showFirestoreQuotaMessage();
+                }
+            });
         }
 
         function loadNotifs() {
@@ -20108,13 +20115,18 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
         }
 
         async function markAllRead() {
-            const u = window.CU;
-            const snap = await db.collection('userNotifs').where('uid', '==', u.uid).where('read', '==', false).get();
-            const batch = db.batch();
-            snap.docs.forEach(d => batch.update(d.ref, { read: true }));
-            await batch.commit();
-            $('bell-cnt').style.display = 'none';
-            loadNotifs();
+            try {
+                const u = window.CU;
+                const snap = await db.collection('userNotifs').where('uid', '==', u.uid).where('read', '==', false).get();
+                const batch = db.batch();
+                snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+                await batch.commit();
+                $('bell-cnt').style.display = 'none';
+                loadNotifs();
+            } catch (error) {
+                if (isFirestoreQuotaError(error)) showFirestoreQuotaMessage();
+                else console.error('Mark notifications read failed:', error);
+            }
         }
         document.addEventListener('click', function (e) {
             if (!e.target.closest('#notif-panel') && !e.target.closest('.bell-wrap')) {
@@ -21558,13 +21570,15 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
 
 
 
+        function isFirestoreQuotaError(error){ const value=String(error?.code||'')+' '+String(error?.message||''); return /resource-exhausted|quota/i.test(value); }
+        function showFirestoreQuotaMessage(){ toast('Service temporarily unavailable — please try again later', 'ty', 5000); }
         function gameWalletBalance(){ return Number(window.CU?.gameWallet?.balance ?? window.CU?.gameWalletBalance ?? 0); }
-        async function refreshCurrentUserForGames(){ if(!window.CU?.uid)return; const us=await db.collection('users').doc(window.CU.uid).get(); if(us.exists) window.CU={uid:us.id,...us.data()}; if($('points-balance'))$('points-balance').textContent=Number(window.CU.points||0).toLocaleString(); refreshGameWallet(); refreshCrashWallet(); refreshSnakeWallet(); loadBattlePointsHistory(); if(typeof updateUI==='function') updateUI(); }
-        async function loadGamesTab(){ refreshGameWallet(); if($('points-balance'))$('points-balance').textContent=Number(window.CU?.points||0).toLocaleString(); loadBattlePointsHistory(); loadCrashPoolStatus(); loadSnakePoolStatus(); loadBattleTournaments(); }
+        async function refreshCurrentUserForGames(){ try { if(!window.CU?.uid)return; const us=await db.collection('users').doc(window.CU.uid).get(); if(us.exists) window.CU={uid:us.id,...us.data()}; if($('points-balance'))$('points-balance').textContent=Number(window.CU.points||0).toLocaleString(); refreshGameWallet(); refreshCrashWallet(); refreshSnakeWallet(); loadBattlePointsHistory(); if(typeof updateUI==='function') updateUI(); } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); else console.error('Game user refresh failed:', error); } }
+        async function loadGamesTab(){ try { refreshGameWallet(); if($('points-balance'))$('points-balance').textContent=Number(window.CU?.points||0).toLocaleString(); await Promise.all([loadBattlePointsHistory(), loadCrashPoolStatus(), loadSnakePoolStatus(), loadBattleTournaments()]); } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); else console.error('Games load failed:', error); } }
         function openGameWalletIn(){ const main=Number(window.CU?.balance||0), max=500; $('gw-in-info').textContent=`Current main wallet balance: $${fmt(main)} · Min $1 · Max $${fmt(max)}`; $('gw-in-amount').value=''; openModal('m-game-wallet-in'); }
         function openGameWalletOut(){ const bal=gameWalletBalance(); $('gw-out-info').textContent=`Current Game Wallet balance: $${fmt(bal)}`; $('gw-out-amount').value=''; $('gw-out-amount').max=bal; openModal('m-game-wallet-out'); }
         async function sendGameWalletEmail(type, amount, extra={}){ if(!window.CU?.email)return; sendTransactionalEmail(type, window.CU.email, { name: window.CU.name || 'Member', amount, timestamp: new Date().toISOString(), ...extra }, 'games'); }
-        async function getGamePool(poolName){ const now=Date.now(), cached=_gamePoolCache[poolName]; if(cached&&(now-cached.time)<POOL_CACHE_MS)return cached.data; const snap=await db.collection('gamePools').doc(poolName).get(); const data=snap.data()||{}; _gamePoolCache[poolName]={data,time:now}; return data; }
+        async function getGamePool(poolName){ try { const now=Date.now(), cached=_gamePoolCache[poolName]; if(cached&&(now-cached.time)<POOL_CACHE_MS)return cached.data; const snap=await db.collection('gamePools').doc(poolName).get(); const data=snap.data()||{}; _gamePoolCache[poolName]={data,time:now}; return data; } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); throw error; } }
         function clearGamePoolCache(poolName){ delete _gamePoolCache[poolName]; }
         async function getWalletSettings(){ const d=await getGamePool('walletSettings'); return {minTransfer:1,maxTransferIn:500,maxTransferOut:500,dailyLimitIn:1000,dailyLimitOut:1000,...d}; }
         function gameWalletDayKey(){ return new Date().toISOString().slice(0,10); }
@@ -22131,7 +22145,7 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
                     result.textContent = 'Already scratched today — come back tomorrow!';
                 } else {
                     result.style.color = 'var(--red)';
-                    result.textContent = 'Something went wrong. Please refresh.';
+                    result.textContent = isFirestoreQuotaError(err) ? 'Service temporarily unavailable — please try again later' : 'Something went wrong. Please refresh.';
                     console.error('Scratch error:', err);
                     // Only unlock on genuine error so user can retry
                     _scratchDone    = false;

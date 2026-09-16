@@ -1,5 +1,6 @@
 import { getDb } from './_lib/firebase.js';
 import { query } from './_lib/postgres.js';
+import { migrateAdminRoles } from '../scripts/migrate-admin-roles.js';
 
 const BATCH_SIZE = 500;
 const BATCH_DELAY_MS = 2000;
@@ -100,12 +101,13 @@ const collectionMigrations = new Map([
   ['activity', migrateActivity],
   ['notifications', (_report, db) => migrateNotifications(db)],
   ['supportTickets', (_report, db) => migrateSupportTickets(db)],
-  ['settings', (_report, db) => migrateSettings(db)]
+  ['settings', (_report, db) => migrateSettings(db)],
+  ['roles', async (report) => { report.roles = await migrateAdminRoles(); }]
 ]);
-const migrationOrder = ['users', 'deposits', 'withdrawals', 'investments', 'loans', 'activity', 'notifications', 'supportTickets', 'stakes', 'savings', 'gameSessions', 'gamePools', 'settings'];
+const migrationOrder = ['users', 'deposits', 'withdrawals', 'investments', 'loans', 'activity', 'notifications', 'supportTickets', 'stakes', 'savings', 'gameSessions', 'gamePools', 'settings', 'roles'];
 
 async function runMigration(requestedCollection) {
-  const report = { users: 0, walletTotals: { balance: '0', gameBalance: '0', heldBalance: '0' }, deposits: 0, withdrawals: 0, investments: 0, loans: 0, activity: 0 };
+  const report = { users: 0, walletTotals: { balance: '0', gameBalance: '0', heldBalance: '0' }, deposits: 0, withdrawals: 0, investments: 0, loans: 0, activity: 0, roles: 0 };
   const collections = requestedCollection ? [requestedCollection] : migrationOrder;
   const db = getDb();
 
