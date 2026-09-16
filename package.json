@@ -17,7 +17,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "migrate:admin-roles": "node scripts/migrate-admin-roles.js"
   },
   "engines": {
     "node": "20.x"
