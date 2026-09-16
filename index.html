@@ -10481,6 +10481,30 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             loadWithdrawals();
         }
 
+        // Deposits have no dedicated history renderer in the current UI. Keep this loader
+        // available for the deposits tab and any future history surface.
+        async function loadDeposits() {
+            const u = window.CU;
+            if (!u?.uid) return [];
+            let list = await pgFetch(`/api/pg/deposits/${u.uid}`, u.uid);
+
+            if (list) {
+                list = list.map(d => ({
+                    ...d,
+                    createdAt: d.created_at,
+                    txId: d.id,
+                    amount: Number(d.amount || 0),
+                    amountKES: Number(d.amount_kes || 0)
+                }));
+            } else {
+                const snap = await db.collection('deposits').where('uid', '==', u.uid).get();
+                list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            }
+
+            return list;
+        }
+
         async function loadWithdrawals() {
             const u = window.CU;
             let list = await pgFetch(`/api/pg/withdrawals/${u.uid}`, u.uid);
