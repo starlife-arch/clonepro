@@ -63,8 +63,8 @@ const keyedMigrations = [
   ['withdrawals', 'withdrawals', ['user_id', 'amount', 'method', 'account', 'status', 'approved_by', 'created_at', 'updated_at'], (r) => [value(r, 'userId'), value(r, 'amount') || 0, value(r, 'method'), value(r, 'account', 'phone'), value(r, 'status') || 'pending', value(r, 'approvedBy'), timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
   ['investments', 'investments', ['user_id', 'plan', 'amount', 'daily_rate', 'status', 'total_earned', 'maturity_date', 'created_at', 'updated_at'], (r) => [value(r, 'userId'), value(r, 'plan', 'planName'), value(r, 'amount') || 0, value(r, 'dailyRate') || 0, value(r, 'status') || 'active', value(r, 'totalEarned') || 0, timestamp(value(r, 'maturityDate')), timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
   ['loans', 'loans', ['user_id', 'amount', 'interest_rate', 'status', 'due_date', 'paid_amount', 'penalty', 'created_at', 'updated_at'], (r) => [value(r, 'userId'), value(r, 'amount') || 0, value(r, 'interestRate') || 0, value(r, 'status') || 'pending', timestamp(value(r, 'dueDate')), value(r, 'paidAmount') || 0, value(r, 'penalty') || 0, timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
-  ['stakes', 'stakes', ['user_id', 'plan', 'amount', 'status', 'total_earned', 'created_at', 'updated_at'], (r) => [value(r, 'userId'), value(r, 'plan'), value(r, 'amount') || 0, value(r, 'status') || 'active', value(r, 'totalEarned') || 0, timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
-  ['savings', 'savings', ['user_id', 'amount', 'status', 'created_at', 'updated_at'], (r) => [value(r, 'userId'), value(r, 'amount') || 0, value(r, 'status') || 'active', timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
+  ['stakes', 'stakes', ['user_id', 'plan', 'amount', 'status', 'total_earned', 'created_at', 'updated_at'], (r) => [value(r, 'userId', 'uid'), value(r, 'plan'), value(r, 'amount') || 0, value(r, 'status') || 'active', value(r, 'totalEarned') || 0, timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
+  ['savings', 'savings', ['user_id', 'amount', 'status', 'created_at', 'updated_at'], (r) => [value(r, 'userId', 'uid'), value(r, 'amount') || 0, value(r, 'status') || 'active', timestamp(value(r, 'createdAt')), timestamp(value(r, 'updatedAt'))]],
   ['gameSessions', 'game_sessions', ['type', 'user_id', 'bet', 'payout', 'result', 'status', 'created_at'], (r) => [value(r, 'type', 'gameType'), value(r, 'userId'), value(r, 'bet', 'amount') || 0, value(r, 'payout') || 0, json(value(r, 'result')), value(r, 'status') || 'active', timestamp(value(r, 'createdAt'))]],
   ['gamePools', 'game_pools', ['type', 'total', 'updated_at'], (r) => [value(r, 'type', 'gameType'), value(r, 'total') || 0, timestamp(value(r, 'updatedAt'))]]
 ];
@@ -91,6 +91,22 @@ async function migrateSupportTickets(db) {
   });
 }
 
+
+async function migrateMessages(report, db) {
+  report.messages = await processBatches(db.collection('messages'), 'messages', (record) => insert('messages', ['id', 'sender_id', 'receiver_id', 'content', 'type', 'read', 'created_at'], [record.id, value(record, 'senderId', 'from'), value(record, 'receiverId', 'to'), value(record, 'content', 'text'), value(record, 'type') || 'text', value(record, 'read') || false, timestamp(value(record, 'createdAt'))]));
+}
+
+async function migrateGifts(report, db) {
+  report.gifts = await processBatches(db.collection('gifts'), 'gifts', (record) => insert('gifts', ['id', 'sender_id', 'receiver_id', 'gift_type', 'amount', 'message', 'status', 'created_at'], [record.id, value(record, 'senderId', 'fromUid'), value(record, 'receiverId', 'toUid'), value(record, 'giftType', 'type'), value(record, 'amount', 'coins') || 0, value(record, 'message'), value(record, 'status') || 'pending', timestamp(value(record, 'createdAt'))]));
+}
+
+async function migrateAnnouncements(report, db) {
+  const records = [];
+  await processBatches(db.collection('announcements'), 'announcements', (record) => { records.push(record); });
+  await query(`INSERT INTO admin_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`, ['announcements', json(records)]);
+  report.announcements = records.length;
+}
+
 async function migrateSettings(db) {
   await processBatches(db.collection('settings'), 'settings', (record) => insert('admin_settings', ['key', 'value', 'updated_at'], [record.id, json(record), timestamp(value(record, 'updatedAt'))]));
 }
@@ -102,12 +118,15 @@ const collectionMigrations = new Map([
   ['notifications', (_report, db) => migrateNotifications(db)],
   ['supportTickets', (_report, db) => migrateSupportTickets(db)],
   ['settings', (_report, db) => migrateSettings(db)],
+  ['messages', migrateMessages],
+  ['gifts', migrateGifts],
+  ['announcements', migrateAnnouncements],
   ['roles', async (report) => { report.roles = await migrateAdminRoles(); }]
 ]);
-const migrationOrder = ['users', 'deposits', 'withdrawals', 'investments', 'loans', 'activity', 'notifications', 'supportTickets', 'stakes', 'savings', 'gameSessions', 'gamePools', 'settings', 'roles'];
+const migrationOrder = ['users', 'deposits', 'withdrawals', 'investments', 'loans', 'activity', 'notifications', 'supportTickets', 'stakes', 'savings', 'gameSessions', 'gamePools', 'settings', 'messages', 'gifts', 'announcements', 'roles'];
 
 async function runMigration(requestedCollection) {
-  const report = { users: 0, walletTotals: { balance: '0', gameBalance: '0', heldBalance: '0' }, deposits: 0, withdrawals: 0, investments: 0, loans: 0, activity: 0, roles: 0 };
+  const report = { users: 0, walletTotals: { balance: '0', gameBalance: '0', heldBalance: '0' }, deposits: 0, withdrawals: 0, investments: 0, loans: 0, activity: 0, messages: 0, gifts: 0, announcements: 0, roles: 0 };
   const collections = requestedCollection ? [requestedCollection] : migrationOrder;
   const db = getDb();
 
