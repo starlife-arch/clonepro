@@ -9147,6 +9147,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     }
                 }
                 await db.collection('users').doc(uid).set({ name, email, phone, phoneNormalized, country, balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: rc, referredBy, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
+                await fetch(`${API_BASE}/api/pg/user/create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid, name, email, phone, referredBy, role: 'user', status: 'active' }) });
                 sendTransactionalEmail('welcome', email, { name: name });
                 toast('Account created! Welcome bonus added 🎉');
                 tg(`🆕 <b>New Member</b>\nName: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\nCountry: ${country || '—'}\nRef: ${ref || 'none'}`);
@@ -10718,6 +10719,15 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         }
 
         // ════════════════════════════════════════════════════════
+        async function pgFetch(path, options = {}) {
+            const headers = { ...(options.headers || {}), 'x-user-uid': window.CU?.uid || '' };
+            if (options.body) headers['Content-Type'] = 'application/json';
+            const response = await fetch(API_BASE + path, { ...options, headers });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'PostgreSQL service unavailable');
+            return data;
+        }
+
         // SHAREHOLDER
         // ════════════════════════════════════════════════════════
         async function doStake() {
@@ -10732,6 +10742,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (spendable < amt) return toast(`Insufficient available balance. Available: $${fmt(spendable)}${(u.heldAmount || 0) > 0 ? ' ($' + fmt(u.heldAmount) + ' held by Starlife)' : ''}`, 'tr');
             }
             try {
+                try {
+                    const response = await pgFetch('/api/pg/stakes/create', { method: 'POST', body: JSON.stringify({ uid: u.uid, plan: 'Shareholder Stake', amount: amt, status: 'active' }) });
+                    const stake = response.stake;
+                    window.CU.shareholderStake = (u.shareholderStake || 0) + amt;
+                    if (!useCard) window.CU.balance = (u.balance || 0) - amt;
+                    updateUI(); $('sh-amt').value = ''; toast('Stake active! ✓ Earning from shareholder pool daily'); loadShHistory();
+                    return stake;
+                } catch (_) { }
                 const batch = db.batch();
                 const stakeRef = db.collection('stakes').doc();
                 let update = { shareholderStake: FS().increment(amt) };
@@ -10763,8 +10781,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         async function loadShHistory() {
             const u = window.CU;
-            const snap = await db.collection('stakes').where('uid', '==', u.uid).get();
-            const list = snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            let list;
+            try {
+                const rows = await pgFetch('/api/pg/stakes/' + u.uid);
+                list = rows.map(s => ({ ...s, createdAt: s.created_at, method: s.plan || 'Stake' }));
+            } catch (_) {
+                const snap = await db.collection('stakes').where('uid', '==', u.uid).get();
+                list = snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            }
             const el = $('sh-history-list');
             if (!list.length) { el.innerHTML = '<div class="es"><div class="ei">💎</div>No stake history</div>'; return; }
             el.innerHTML = list.map(s => {
@@ -12019,8 +12043,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3);font-size:.82rem">Loading…</div>';
             const u = window.CU;
             try {
-                const snap = await db.collection('dms').doc(_activeDMId).collection('msgs').get();
-                const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+                let msgs;
+                try {
+                    const rows = await pgFetch('/api/pg/messages/' + u.uid);
+                    msgs = rows.filter(m => (m.sender_id === u.uid && m.receiver_id === _activeDMUser.id) || (m.sender_id === _activeDMUser.id && m.receiver_id === u.uid)).map(m => ({ id: m.id, from: m.sender_id, to: m.receiver_id, text: m.content, type: m.type, read: m.read, createdAt: { seconds: Math.floor(new Date(m.created_at).getTime() / 1000) } }));
+                } catch (_) {
+                    const snap = await db.collection('dms').doc(_activeDMId).collection('msgs').get();
+                    msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+                }
                 if (!msgs.length) {
                     el.innerHTML = '<div style="font-size:.72rem;color:var(--t3);line-height:1.4;padding:8px 8px 14px;text-align:center">⚠️ Be aware of scammers. Any transaction or discussion in this chat is between users only. Starlife is not part of private deals made in messages. Do not share your personal details, password, OTP, or payment credentials.</div><div style="text-align:center;padding:20px 30px;color:var(--t3);font-size:.82rem">No messages yet. Say hello! 👋</div>';
                     return;
@@ -12365,6 +12395,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (!imageUrl) { inp.value = text; return; }
             }
             try {
+                try {
+                    await pgFetch('/api/pg/messages/send', { method: 'POST', body: JSON.stringify({ senderUid: u.uid, receiverUid: _activeDMUser.id, content: text || imageUrl || 'Image', type: imageUrl ? 'image' : 'text' }) });
+                    await loadDMMessages();
+                    clearDMImg();
+                    return;
+                } catch (_) { }
                 const msgRef = db.collection('dms').doc(_activeDMId).collection('msgs').doc();
                 await msgRef.set({ from: u.uid, to: _activeDMUser.id, text, image: imageUrl || null, read: false, createdAt: FS().serverTimestamp() });
 
@@ -20084,7 +20120,14 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                         + '<div class="ni-txt">' + n.msg + '</div>'
                         + '<div class="ni-time">' + fmtDT(n.createdAt) + '</div></div>';
                 }).join('');
-            }, (err) => console.error('Notifs listener error:', err));
+            }, (err) => {
+                console.error('Notifs listener error:', err);
+                if (isFirestoreQuotaError(err)) {
+                    const el = $('notif-list');
+                    if (el) el.innerHTML = '<div class="es" style="padding:20px">Service temporarily unavailable — please try again later</div>';
+                    showFirestoreQuotaMessage();
+                }
+            });
         }
 
         function loadNotifs() {
@@ -20101,20 +20144,26 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
         async function readNotif(el, id) {
             if (!id) id = el.dataset && el.dataset.nid;
             el.classList.remove('unread');
-            await db.collection('userNotifs').doc(id).update({ read: true });
+            try { await pgFetch('/api/pg/notifications/mark-read', { method: 'POST', body: JSON.stringify({ uid: window.CU?.uid, notificationId: id }) }); }
+            catch (_) { await db.collection('userNotifs').doc(id).update({ read: true }); }
             const bell = $('bell-cnt');
             const cur = parseInt(bell.textContent) || 0;
             if (cur > 1) { bell.textContent = cur - 1; } else { bell.style.display = 'none'; }
         }
 
         async function markAllRead() {
-            const u = window.CU;
-            const snap = await db.collection('userNotifs').where('uid', '==', u.uid).where('read', '==', false).get();
-            const batch = db.batch();
-            snap.docs.forEach(d => batch.update(d.ref, { read: true }));
-            await batch.commit();
-            $('bell-cnt').style.display = 'none';
-            loadNotifs();
+            try {
+                const u = window.CU;
+                const snap = await db.collection('userNotifs').where('uid', '==', u.uid).where('read', '==', false).get();
+                const batch = db.batch();
+                snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+                await batch.commit();
+                $('bell-cnt').style.display = 'none';
+                loadNotifs();
+            } catch (error) {
+                if (isFirestoreQuotaError(error)) showFirestoreQuotaMessage();
+                else console.error('Mark notifications read failed:', error);
+            }
         }
         document.addEventListener('click', function (e) {
             if (!e.target.closest('#notif-panel') && !e.target.closest('.bell-wrap')) {
@@ -20297,6 +20346,13 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                 } catch (e) { return toast('Card payment failed: ' + e.message, 'tr'); }
             }
             const unlockDate = new Date(Date.now() + 30 * 86400000);
+            try {
+                const response = await pgFetch('/api/pg/savings/create', { method: 'POST', body: JSON.stringify({ uid: u.uid, amount: amt, status: (method === 'From Main Balance' || useCard) ? 'active' : 'pending' }) });
+                if (!useCard && method === 'From Main Balance') window.CU.balance = (u.balance || 0) - amt;
+                window.CU.savingsBalance = (window.CU.savingsBalance || 0) + amt;
+                updateUI(); toast('Savings deposit created ✓'); $('sav-amt').value = ''; refreshSavings(); loadSavHistory();
+                return response.saving;
+            } catch (_) { }
             await db.collection('savings').add({ uid: u.uid, userName: u.name, amount: amt, method: useCard ? 'Virtual Card' : method, txid: useCard ? ('CRD-' + genTxId()) : txid, status: (method === 'From Main Balance' || useCard) ? 'active' : 'pending', dailyProfit: amt * 0.03, totalPaid: 0, unlockDate: firebase.firestore.Timestamp.fromDate(unlockDate), createdAt: FS().serverTimestamp() });
             if (!useCard && method === 'From Main Balance') {
                 await db.collection('users').doc(u.uid).update({ balance: FS().increment(-amt), savingsBalance: FS().increment(amt) });
@@ -20792,12 +20848,16 @@ ${points}pts → $${fmt(usd)}`);
                 { name: 'Hank C.', amount: 6 }, { name: 'Iris D.', amount: 6 },
             ]
         };
-async function refreshSavings() {
+async function getSavingsRecords(uid) {
+            try { return await pgFetch('/api/pg/savings/' + uid); }
+            catch (_) { const snap = await db.collection('savings').where('uid', '==', uid).get(); return snap.docs.map(d => ({ id: d.id, ...d.data() })); }
+        }
+        async function refreshSavings() {
             const u = window.CU;
-            const snap = await db.collection('savings').where('uid', '==', u.uid).where('status', '==', 'active').get();
-            const total = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
-            const earned = snap.docs.reduce((s, d) => s + (d.data().totalPaid || 0), 0);
-            const daily = snap.docs.reduce((s, d) => s + (d.data().dailyProfit || 0), 0);
+            const records = (await getSavingsRecords(u.uid)).filter(s => s.status === 'active');
+            const total = records.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+            const earned = records.reduce((sum, s) => sum + Number(s.totalPaid || s.total_earned || 0), 0);
+            const daily = records.reduce((sum, s) => sum + Number(s.dailyProfit || 0), 0);
             const sb = $('sv-bal'); const se = $('sv-earned'); const sd = $('sv-daily');
             if (sb) sb.textContent = fmt(total);
             if (se) se.textContent = '$' + fmt(u.savingsEarned || earned);
@@ -20883,8 +20943,7 @@ async function refreshSavings() {
 
         async function loadSavHistory() {
             const u = window.CU;
-            const snap = await db.collection('savings').where('uid', '==', u.uid).get();
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            const list = await getSavingsRecords(u.uid);
             const el = $('sav-hist-list');
             if (!list.length) { el.innerHTML = '<div class="es"><div class="ei">🏦</div>No savings yet</div>'; return; }
             el.innerHTML = list.map(function (s) {
@@ -21558,13 +21617,15 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
 
 
 
+        function isFirestoreQuotaError(error){ const value=String(error?.code||'')+' '+String(error?.message||''); return /resource-exhausted|quota/i.test(value); }
+        function showFirestoreQuotaMessage(){ toast('Service temporarily unavailable — please try again later', 'ty', 5000); }
         function gameWalletBalance(){ return Number(window.CU?.gameWallet?.balance ?? window.CU?.gameWalletBalance ?? 0); }
-        async function refreshCurrentUserForGames(){ if(!window.CU?.uid)return; const us=await db.collection('users').doc(window.CU.uid).get(); if(us.exists) window.CU={uid:us.id,...us.data()}; if($('points-balance'))$('points-balance').textContent=Number(window.CU.points||0).toLocaleString(); refreshGameWallet(); refreshCrashWallet(); refreshSnakeWallet(); loadBattlePointsHistory(); if(typeof updateUI==='function') updateUI(); }
-        async function loadGamesTab(){ refreshGameWallet(); if($('points-balance'))$('points-balance').textContent=Number(window.CU?.points||0).toLocaleString(); loadBattlePointsHistory(); loadCrashPoolStatus(); loadSnakePoolStatus(); loadBattleTournaments(); }
+        async function refreshCurrentUserForGames(){ try { if(!window.CU?.uid)return; const us=await db.collection('users').doc(window.CU.uid).get(); if(us.exists) window.CU={uid:us.id,...us.data()}; if($('points-balance'))$('points-balance').textContent=Number(window.CU.points||0).toLocaleString(); refreshGameWallet(); refreshCrashWallet(); refreshSnakeWallet(); loadBattlePointsHistory(); if(typeof updateUI==='function') updateUI(); } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); else console.error('Game user refresh failed:', error); } }
+        async function loadGamesTab(){ try { refreshGameWallet(); if($('points-balance'))$('points-balance').textContent=Number(window.CU?.points||0).toLocaleString(); await Promise.all([loadBattlePointsHistory(), loadCrashPoolStatus(), loadSnakePoolStatus(), loadBattleTournaments()]); } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); else console.error('Games load failed:', error); } }
         function openGameWalletIn(){ const main=Number(window.CU?.balance||0), max=500; $('gw-in-info').textContent=`Current main wallet balance: $${fmt(main)} · Min $1 · Max $${fmt(max)}`; $('gw-in-amount').value=''; openModal('m-game-wallet-in'); }
         function openGameWalletOut(){ const bal=gameWalletBalance(); $('gw-out-info').textContent=`Current Game Wallet balance: $${fmt(bal)}`; $('gw-out-amount').value=''; $('gw-out-amount').max=bal; openModal('m-game-wallet-out'); }
         async function sendGameWalletEmail(type, amount, extra={}){ if(!window.CU?.email)return; sendTransactionalEmail(type, window.CU.email, { name: window.CU.name || 'Member', amount, timestamp: new Date().toISOString(), ...extra }, 'games'); }
-        async function getGamePool(poolName){ const now=Date.now(), cached=_gamePoolCache[poolName]; if(cached&&(now-cached.time)<POOL_CACHE_MS)return cached.data; const snap=await db.collection('gamePools').doc(poolName).get(); const data=snap.data()||{}; _gamePoolCache[poolName]={data,time:now}; return data; }
+        async function getGamePool(poolName){ try { const now=Date.now(), cached=_gamePoolCache[poolName]; if(cached&&(now-cached.time)<POOL_CACHE_MS)return cached.data; const snap=await db.collection('gamePools').doc(poolName).get(); const data=snap.data()||{}; _gamePoolCache[poolName]={data,time:now}; return data; } catch(error) { if(isFirestoreQuotaError(error)) showFirestoreQuotaMessage(); throw error; } }
         function clearGamePoolCache(poolName){ delete _gamePoolCache[poolName]; }
         async function getWalletSettings(){ const d=await getGamePool('walletSettings'); return {minTransfer:1,maxTransferIn:500,maxTransferOut:500,dailyLimitIn:1000,dailyLimitOut:1000,...d}; }
         function gameWalletDayKey(){ return new Date().toISOString().slice(0,10); }
@@ -22131,7 +22192,7 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
                     result.textContent = 'Already scratched today — come back tomorrow!';
                 } else {
                     result.style.color = 'var(--red)';
-                    result.textContent = 'Something went wrong. Please refresh.';
+                    result.textContent = isFirestoreQuotaError(err) ? 'Service temporarily unavailable — please try again later' : 'Something went wrong. Please refresh.';
                     console.error('Scratch error:', err);
                     // Only unlock on genuine error so user can retry
                     _scratchDone    = false;
@@ -22766,6 +22827,13 @@ Prize: $${fmt(pool)}`);
             const listEl = $('ann-list');
             try {
                 listEl.innerHTML = '<div class="es">Loading announcements...</div>';
+                try {
+                    const announcements = await pgFetch('/api/pg/announcements');
+                    if (announcements.length) {
+                        listEl.innerHTML = announcements.map(b => `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:10px"><div style="font-weight:600;font-size:.9rem;color:var(--t1)">${b.title || 'Announcement'}</div><div style="font-size:.85rem;color:var(--t2);line-height:1.4">${b.message || b.body || ''}</div></div>`).join('');
+                        return;
+                    }
+                } catch (_) { }
                 const snap = await db.collection('broadcasts')
                     .orderBy('createdAt', 'desc')
                     .limit(50)

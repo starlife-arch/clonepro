@@ -1,0 +1,4 @@
+import { query } from './_lib/postgres.js';
+import { requireUser } from './_lib/pg-auth.js';
+const allowed={name:'name',phone:'phone',country:'country',status:'status',kycStatus:'kyc_status',kyc_status:'kyc_status'};
+export default async function updateUser(req,res){const {uid,fields}=req.body||{};try{if(!await requireUser(req,res,uid))return;const entries=Object.entries(fields||{}).filter(([key])=>allowed[key]);if(!entries.length)return res.status(400).json({error:'No supported fields'});const sets=entries.map(([key],i)=>`${allowed[key]} = $${i+2}`).join(', ');await query(`UPDATE users SET ${sets}, updated_at = NOW() WHERE id = $1`,[uid,...entries.map(([,value])=>value)]);return res.json({success:true});}catch(error){console.error('[pg] user update failed',error);return res.status(500).json({error:'Server error'});}}
