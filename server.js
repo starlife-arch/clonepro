@@ -6,6 +6,8 @@ import { runDailyReport } from './server-handlers/daily-report.js';
 import { runHeldBalanceCheck } from './server-handlers/held-balance-misuse-check.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { runMigrations } from './server-handlers/_lib/migrate.js';
+import migrateHandler from './server-handlers/migrate-from-firestore.js';
 
 import handler0 from './server-handlers/admin-delete-login-video.js';
 import handler1 from './server-handlers/admin-sign-login-video-upload.js';
@@ -61,6 +63,16 @@ import handler50 from './server-handlers/verify-2fa.js';
 import printpayStkPush from './server-handlers/printpay-stk-push.js';
 import printpayCheckStatus from './server-handlers/printpay-check-status.js';
 import printpayWebhook from './server-handlers/printpay-webhook.js';
+import pgUser from './server-handlers/pg-user.js';
+import pgDeposits from './server-handlers/pg-deposits.js';
+import pgWithdrawals from './server-handlers/pg-withdrawals.js';
+import pgInvestments from './server-handlers/pg-investments.js';
+import pgLoans from './server-handlers/pg-loans.js';
+import pgActivity from './server-handlers/pg-activity.js';
+import pgNotifications from './server-handlers/pg-notifications.js';
+import pgAdminUsers from './server-handlers/pg-admin-users.js';
+import pgAdminBalance from './server-handlers/pg-admin-balance.js';
+import pgAdminActivity from './server-handlers/pg-admin-activity.js';
 
 const app = express();
 const rootDir = dirname(fileURLToPath(import.meta.url));
@@ -68,7 +80,7 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-migration-secret, x-user-uid, x-admin-uid');
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
@@ -129,6 +141,17 @@ app.all('/api/verify-2fa', handler50);
 app.all('/api/printpay-stk-push', printpayStkPush);
 app.all('/api/printpay-check-status', printpayCheckStatus);
 app.all('/api/printpay-webhook', printpayWebhook);
+app.post('/api/migrate-from-firestore', migrateHandler);
+app.get('/api/pg/user/:uid', pgUser);
+app.get('/api/pg/deposits/:uid', pgDeposits);
+app.get('/api/pg/withdrawals/:uid', pgWithdrawals);
+app.get('/api/pg/investments/:uid', pgInvestments);
+app.get('/api/pg/loans/:uid', pgLoans);
+app.get('/api/pg/activity/:uid', pgActivity);
+app.get('/api/pg/notifications/:uid', pgNotifications);
+app.get('/api/pg/admin/users', pgAdminUsers);
+app.post('/api/pg/admin/balance', pgAdminBalance);
+app.get('/api/pg/admin/activity', pgAdminActivity);
 
 for (const asset of ['index.html', 'styles.css', 'app.js', 'firebase-messaging-sw.js']) {
   app.get(`/${asset}`, (req, res) => res.sendFile(join(rootDir, asset)));
@@ -159,6 +182,9 @@ cron.schedule('0 3 * * *', async () => {
   try { await runHeldBalanceCheck(); console.log('[cron] held balance check done'); }
   catch (e) { console.error('[cron] held balance check failed', e); }
 });
+
+await runMigrations();
+console.log('[db] migrations complete');
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server listening on port ${port}`));
