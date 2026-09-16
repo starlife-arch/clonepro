@@ -1,0 +1,1 @@
+import{query}from './_lib/postgres.js';export default async function broadcasts(req,res){try{res.json((await query('SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 50')).rows)}catch(e){res.status(500).json({error:'Server error'})}}
