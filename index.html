@@ -8886,6 +8886,30 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }
         })();
 
+        async function pgFetch(path, uid, admin = false) {
+            try {
+                const currentUid = firebase.auth().currentUser?.uid;
+                if (!currentUid || currentUid !== uid) return null;
+                const res = await fetch(`${API_BASE}${path}`, { headers: admin ? { 'x-admin-uid': currentUid } : { 'x-user-uid': currentUid } });
+                return res.ok ? await res.json() : null;
+            } catch (e) {
+                console.debug('[pg] fetch failed; using Firestore fallback', e);
+                return null;
+            }
+        }
+
+        async function loadUserFromPG(uid) {
+            const data = await pgFetch(`/api/pg/user/${uid}`, uid);
+            if (!data) return null;
+            return {
+                ...data,
+                balance: Number(data.balance || 0), gameBalance: Number(data.game_balance || 0),
+                heldAmount: Number(data.held_balance || 0), totalDeposited: Number(data.total_deposited || 0),
+                totalWithdrawn: Number(data.total_withdrawn || 0), totalEarned: Number(data.total_earned || 0),
+                kycStatus: data.kyc_status || 'none'
+            };
+        }
+
         // ════════════════════════════════════════════════════════
         // AUTH STATE
         // ════════════════════════════════════════════════════════
@@ -8915,17 +8939,18 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 logAct(user.uid, 'Welcome bonus', .1, '💎', 'deposit');
             }
             const d = snap.data();
-            window.CU = { uid: user.uid, ...d };
+            const pgUser = await loadUserFromPG(user.uid);
+            window.CU = { uid: user.uid, ...d, ...(pgUser || {}) };
             initializeFCM();
-            if (_userDocUnsub) { _userDocUnsub(); _userDocUnsub = null; }
-            _userDocUnsub = db.collection('users').doc(user.uid).onSnapshot((userSnap) => {
-                if (!userSnap.exists) return;
-                const newData = userSnap.data() || {};
-                window.CU = { ...window.CU, ...newData, uid: user.uid };
+            if (window._pgUserPoll) clearInterval(window._pgUserPoll);
+            window._pgUserPoll = setInterval(async () => {
+                const refreshed = await loadUserFromPG(user.uid);
+                if (!refreshed || firebase.auth().currentUser?.uid !== user.uid) return;
+                window.CU = { ...window.CU, ...refreshed, uid: user.uid };
                 if (typeof updateKYCUI === 'function') updateKYCUI(window.CU.kycStatus || 'none');
                 if (typeof updateProfileBadges === 'function') updateProfileBadges(window.CU);
                 if (typeof updateUI === 'function') updateUI();
-            });
+            }, 30000);
             await loadPlatformSettings(true);
             initMovingAnnouncementListener();
             initTargetedAnnouncementListener();
@@ -10169,9 +10194,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         async function loadInvestments() {
             const u = window.CU;
-            const snap = await db.collection('investments').where('uid', '==', u.uid).get();
-            // Sort client-side to avoid composite index requirement
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            let list = await pgFetch(`/api/pg/investments/${u.uid}`, u.uid);
+            if (list) list = list.map(i => ({ ...i, createdAt: i.created_at, dailyProfit: Number(i.amount || 0) * Number(i.daily_rate || .02), totalPaid: i.total_earned, method: i.plan }));
+            else {
+                const snap = await db.collection('investments').where('uid', '==', u.uid).get();
+                list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            }
             const el = $('inv-list');
             if (!list.length) { el.innerHTML = '<div class="es"><div class="ei">📈</div>No investments yet</div>'; return; }
             el.innerHTML = list.map(i => {
@@ -10455,8 +10483,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         async function loadWithdrawals() {
             const u = window.CU;
-            const snap = await db.collection('withdrawals').where('uid', '==', u.uid).get();
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            let list = await pgFetch(`/api/pg/withdrawals/${u.uid}`, u.uid);
+            if (list) list = list.map(w => ({ ...w, createdAt: w.created_at, txId: w.id, net: w.amount }));
+            else {
+                const snap = await db.collection('withdrawals').where('uid', '==', u.uid).get();
+                list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            }
             const el = $('wd-history');
             if (!list.length) { el.innerHTML = '<div class="es"><div class="ei">💳</div>No withdrawals yet</div>'; return; }
             el.innerHTML = list.map(w => {
@@ -10902,9 +10934,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!amt || amt <= 0) return toast('Enter loan amount', 'ty');
             if (amt > maxLoan) return toast(`Loan limit is $${fmt(maxLoan)}`, 'tr');
             if (maxLoan <= 0) return toast('You need active investments or stakes to request a loan', 'tr');
-            // Check active loan
-            const actSnap = await db.collection('loans').where('uid', '==', u.uid).where('status', '==', 'active').get();
-            if (!actSnap.empty) return toast('Repay your current loan first', 'tr');
+            // Check active loan from PostgreSQL; retain Firestore only when the API is unavailable.
+            const pgLoans = await pgFetch(`/api/pg/loans/${u.uid}`, u.uid);
+            if (pgLoans ? pgLoans.some(loan => loan.status === 'active') : !(await db.collection('loans').where('uid', '==', u.uid).where('status', '==', 'active').get()).empty) return toast('Repay your current loan first', 'tr');
             // Check defaults
             if ((u.loanDefaultCount || 0) >= 3) return toast('Loan access restricted due to previous defaults', 'tr');
             const interest = amt * rate;
@@ -10923,7 +10955,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const el = $('ln-my-list');
             if (!u?.uid || !el) return;
             if (_myLoansUnsub) { _myLoansUnsub(); _myLoansUnsub = null; }
-            _myLoansUnsub = db.collection('loans').where('uid', '==', u.uid).onSnapshot((snap) => {
+            const pgLoans = await pgFetch(`/api/pg/loans/${u.uid}`, u.uid);
+            const renderLoans = (snap) => {
                 const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                 const activeLn = list.filter(l => l.status === 'active');
                 window._loanOwed = activeLn.reduce((sum, l) => sum + (Number(l.amount) || 0) + (Number(l.penalty) || 0), 0);
@@ -10948,10 +10981,15 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     if ($('ln-alert')) $('ln-alert').style.display = 'flex';
                     if ($('ln-alert-txt')) $('ln-alert-txt').textContent = `You have ${overdueLns.length} overdue loan(s). Withdrawal is restricted until repaid. 5% late fee applies every 7 days overdue.`;
                 } else if ($('ln-alert')) { $('ln-alert').style.display = 'none'; }
-            }, (err) => {
-                console.error('Loan listener failed:', err);
-                el.innerHTML = '<div class="es">Error loading loans</div>';
-            });
+            };
+            if (pgLoans) {
+                renderLoans({ docs: pgLoans.map(loan => ({ id: loan.id, data: () => ({ ...loan, createdAt: loan.created_at, dueDate: loan.due_date ? { seconds: Math.floor(new Date(loan.due_date).getTime() / 1000) } : null, interest: loan.interest_rate, receive: Number(loan.amount || 0) - (Number(loan.amount || 0) * Number(loan.interest_rate || 0)) }) })) });
+            } else {
+                _myLoansUnsub = db.collection('loans').where('uid', '==', u.uid).onSnapshot(renderLoans, (err) => {
+                    console.error('Loan listener failed:', err);
+                    el.innerHTML = '<div class="es">Error loading loans</div>';
+                });
+            }
         }
 
         async function repayLoan(loanId, total) {
@@ -13097,8 +13135,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         async function loadAdminAll() {
             // Re-render tabs in case role changed
             if ($('admin-tabs-wrap') && !$('admin-tabs-wrap').children.length) renderAdminTabs();
+            const pgAdminUsers = await pgFetch('/api/pg/admin/users', window.CU.uid, true);
             const [us, ai, pi, pw, ps, pt] = await Promise.all([
-                db.collection('users').get(),
+                pgAdminUsers ? Promise.resolve({ size: pgAdminUsers.length, docs: pgAdminUsers.map(user => ({ id: user.id, data: () => user })) }) : db.collection('users').get(),
                 db.collection('investments').where('status', '==', 'active').get(),
                 db.collection('investments').where('status', '==', 'pending').get(),
                 db.collection('withdrawals').where('status', '==', 'pending').get(),
@@ -13525,17 +13564,16 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             try {
                 let adjustedUser = null;
                 let newBalance = 0;
-                // Use transaction to safely update balance
-                await db.runTransaction(async (tr) => {
-                    const ref = db.collection('users').doc(t.id);
-                    const snap = await tr.get(ref);
-                    if (!snap.exists) throw new Error('User not found');
-                    adjustedUser = { uid: snap.id, ...snap.data() };
-                    const currentBal = adjustedUser.balance || 0;
-                    newBalance = parseFloat((currentBal + delta).toFixed(4));
-                    if (newBalance < 0) throw new Error(`Cannot deduct $${fmt(Math.abs(delta))} — balance would go negative (current: $${fmt(currentBal)})`);
-                    tr.update(ref, { balance: FS().increment(delta), totalEarned: delta > 0 ? FS().increment(delta) : firebase.firestore.FieldValue.increment(0) });
+                const adminUid = firebase.auth().currentUser.uid;
+                const response = await fetch(`${API_BASE}/api/pg/admin/balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-admin-uid': adminUid },
+                    body: JSON.stringify({ adminUid, targetUid: t.id, amount: Math.abs(delta), action: delta > 0 ? 'add' : 'deduct', reason })
                 });
+                const result = await response.json().catch(() => null);
+                if (!response.ok) throw new Error(result?.error || 'Balance adjustment failed');
+                adjustedUser = { name: t.name };
+                newBalance = Number(result.balance || 0);
                 await logAct(t.id, `Starlife adjustment: ${reason}`, delta, '💰', 'deposit');
                 await db.collection('userNotifs').add({ uid: t.id, msg: `${delta > 0 ? '💰 Starlife added' : '💸 Starlife deducted'} $${fmt(Math.abs(delta))} to your balance. Reason: ${reason}`, read: false, createdAt: FS().serverTimestamp() });
                 sendTransactionalEmail('balance_adjustment', adjustedUser?.email || '', { name: adjustedUser?.name || t.name || 'Member', direction: delta > 0 ? 'add' : 'deduct', amount: Math.abs(delta), newBalance, reason, timestamp: new Date().toISOString() });
