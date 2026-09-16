@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY, user_id TEXT REFERENCES users(id), title TEXT, body TEXT, type TEXT, read BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW()
+);
