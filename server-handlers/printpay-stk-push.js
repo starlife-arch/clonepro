@@ -1,4 +1,4 @@
-import { getDb, admin } from './_lib/firebase.js';
+import { query } from './_lib/postgres.js';
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 function normalizePhone(value) {
@@ -31,18 +31,21 @@ async function netlifyHandler(req) {
       throw new Error(data.error || data.message || 'PrintPay could not initiate the STK push');
     }
 
-    await getDb().collection('deposits').add({
-      uid, userName, userEmail,
-      method: 'M-Pesa (PrintPay)',
-      amountUSD: usd,
-      amountKES,
-      checkoutId: data.checkout_id,
-      status: 'pending',
-      phone,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const depositId = `printpay_${Date.now()}_${uid.substring(0, 6)}`;
+    await query(
+      `INSERT INTO deposits (id, user_id, amount, amount_kes, method, status, checkout_id, phone, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [depositId, uid, usd, amountKES, 'M-Pesa (PrintPay)', 'pending', data.checkout_id, phone]
+    );
     return new Response(JSON.stringify({ success: true, checkoutId: data.checkout_id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
+    console.error('[printpay-stk-push] failed', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      response: error.response?.data
+    });
     const status = error.message === 'Method not allowed' ? 405 : 500;
     return new Response(JSON.stringify({ success: false, error: error.message }), { status, headers: { 'Content-Type': 'application/json' } });
   }
