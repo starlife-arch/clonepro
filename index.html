@@ -8886,6 +8886,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }
         })();
 
+        // Temporary rollout switch: keep the established Firebase data paths active until
+        // all PostgreSQL migrations and transactional endpoints have been verified.
+        // Set this to true only after the PostgreSQL cutover checklist is complete.
+        const USE_POSTGRES_DATA = false;
+
         // Supports both legacy pgFetch(path, uid, isAdmin) calls and request-style
         // pgFetch(path, { method, body }) calls.  Authentication must use Firebase's
         // active user before window.CU is populated during sign-in.
@@ -8945,16 +8950,42 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 go(window._maintenanceState?.active ? 'pg-maint' : 'pg-land');
                 return;
             }
-            const ref = pgCollection('users').doc(user.uid);
-            let snap = await ref.get();
-            if (!snap.exists) {
-                await ref.set({ name: user.displayName || 'User', email: user.email, phone: '', phoneNormalized: '', country: '', balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: genRef(), referredBy: null, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
-                snap = await ref.get();
-                logAct(user.uid, 'Welcome bonus', .1, '💎', 'deposit');
+            let d, pgUser;
+            if (USE_POSTGRES_DATA) {
+                // Users signed in through Firebase Auth can pre-date the PostgreSQL rollout.
+                // Provision their PostgreSQL profile before reading application data during cutover.
+                pgUser = await loadUserFromPG(user.uid);
+                if (!pgUser) {
+                    try {
+                        await pgFetch('/api/pg/user/create', {
+                            method: 'POST',
+                            body: JSON.stringify({ uid: user.uid, name: user.displayName || 'User', email: user.email, phone: '', role: 'user', status: 'active' })
+                        });
+                        pgUser = await loadUserFromPG(user.uid);
+                    } catch (error) {
+                        console.error('[pg] unable to provision signed-in user', error);
+                    }
+                }
+                if (!pgUser) {
+                    toast('Your account could not be loaded from the Starlife service. Please try again.', 'tr', 5000);
+                    await auth.signOut();
+                    return;
+                }
+                d = { ...pgUser, isAdmin: pgUser.role === 'admin' };
+                window.CU = { uid: user.uid, ...pgUser };
+            } else {
+                // Keep the established Firebase profile flow active while the PostgreSQL migration is incomplete.
+                const ref = pgCollection('users').doc(user.uid);
+                let snap = await ref.get();
+                if (!snap.exists) {
+                    await ref.set({ name: user.displayName || 'User', email: user.email, phone: '', phoneNormalized: '', country: '', balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: genRef(), referredBy: null, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
+                    snap = await ref.get();
+                    logAct(user.uid, 'Welcome bonus', .1, '💎', 'deposit');
+                }
+                d = snap.data();
+                pgUser = await loadUserFromPG(user.uid);
+                window.CU = { uid: user.uid, ...d, ...(pgUser || {}) };
             }
-            const d = snap.data();
-            const pgUser = await loadUserFromPG(user.uid);
-            window.CU = { uid: user.uid, ...d, ...(pgUser || {}) };
             initializeFCM();
             if (window._pgUserPoll) clearInterval(window._pgUserPoll);
             window._pgUserPoll = setInterval(async () => {
@@ -8981,7 +9012,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await applyMaintenanceModeToUI(window.CU);
             const sessionMeta = await recordLoginSession(user, d);
             if (d.isAdmin || user.email === ADMIN_EMAIL) {
-                if (!d.isAdmin) await ref.update({ isAdmin: true });
                 go('pg-admin');
                 document.body.classList.add('is-admin');
                 const fab = $('ai-chat-fab');
@@ -9160,8 +9190,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         await pgCollection('users').doc(referredBy).update({ referrals: FS().arrayUnion(uid) });
                     }
                 }
-                await pgCollection('users').doc(uid).set({ name, email, phone, phoneNormalized, country, balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: rc, referredBy, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
-                await fetch(`${API_BASE}/api/pg/user/create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid, name, email, phone, referredBy, role: 'user', status: 'active' }) });
+                await pgFetch('/api/pg/user/create', { method: 'POST', body: JSON.stringify({ uid, name, email, phone, referredBy, role: 'user', status: 'active' }) });
                 sendTransactionalEmail('welcome', email, { name: name });
                 toast('Account created! Welcome bonus added 🎉');
                 tg(`🆕 <b>New Member</b>\nName: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\nCountry: ${country || '—'}\nRef: ${ref || 'none'}`);
@@ -10794,86 +10823,39 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         }
         function pgCollection(name) {
             const wrap = (target, docId = null) => new Proxy(target, { get(obj, prop) {
-                if (prop === 'get') return async () => { try { return await pgCollectionRead(name, docId); } catch (_) { return obj.get(); } };
+                if (prop === 'get') return async () => {
+                    if (!USE_POSTGRES_DATA) return obj.get();
+                    try { return await pgCollectionRead(name, docId); }
+                    catch (error) {
+                        // A mapped PostgreSQL resource must not silently restart Firestore reads.
+                        // Doing so hid Heroku authorization/data-migration failures and exhausted
+                        // Firestore quota. Unmapped legacy collections retain their temporary fallback.
+                        if (name === 'users' || PG_COLLECTION_PATHS[name]) throw error;
+                        return obj.get();
+                    }
+                };
                 if (prop === '__pgSubscribe') return (next, error) => { let stopped = false; const load = () => pgCollectionRead(name, docId).then(s => !stopped && next(s)).catch(e => { if (!stopped && error) error(e); }); load(); const timer = setInterval(load, 60000); return () => { stopped = true; clearInterval(timer); }; };
-                if (prop === 'add') return async payload => { const result = await obj.add(payload); mirrorFirestoreWrite(name, payload); return result; };
-                if (prop === 'update' && name === 'users') return async fields => {
-                    const result = await obj.update(fields);
-                    const uid = window.CU?.uid || firebase.auth().currentUser?.uid;
-                    if (uid && docId) fetch(`${API_BASE}/api/pg/user/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-uid': uid }, body: JSON.stringify({ uid: docId, fields }) }).catch(() => {});
+                if (prop === 'add') return async payload => {
+                    // Financial records have dedicated Heroku handlers. Write them there first
+                    // instead of creating a Firestore record and mirroring it afterwards.
+                    const paths = {
+                        deposits: ['/api/pg/deposits/create', 'deposit'],
+                        withdrawals: ['/api/pg/withdrawals/create', 'withdrawal'],
+                        investments: ['/api/pg/investments/create', 'investment'],
+                        loans: ['/api/pg/loans/create', 'loan']
+                    };
+                    const route = paths[name];
+                    if (route && USE_POSTGRES_DATA) {
+                        const uid = payload?.uid || window.CU?.uid || firebase.auth().currentUser?.uid;
+                        const result = await pgFetch(route[0], { method: 'POST', body: JSON.stringify({ ...payload, uid }) });
+                        const row = result?.[route[1]];
+                        if (!row?.id) throw new Error('PostgreSQL did not return a record ID');
+                        return { id: row.id, data: () => row };
+                    }
+                    const result = await obj.add(payload);
+                    mirrorFirestoreWrite(name, payload);
                     return result;
                 };
-                if (prop === 'where' || prop === 'orderBy' || prop === 'limit' || prop === 'startAfter' || prop === 'endBefore' || prop === 'collection') return (...args) => wrap(obj[prop](...args), docId);
-                if (prop === 'doc') return id => wrap(obj.doc(id), id);
-                const value = obj[prop]; return typeof value === 'function' ? value.bind(obj) : value;
-            }});
-            return wrap(firestoreCollection(name));
-        }
-
-        // PostgreSQL-first Firestore compatibility layer.  Existing UI code can retain
-        // Firestore snapshot semantics while reads use the migrated API; Firestore is
-        // only consulted when the API is unavailable.
-        const firestoreCollection = db.collection.bind(db);
-        const PG_COLLECTION_PATHS = {
-            userNotifs: uid => `/api/pg/notifications/${uid}`,
-            targetedAnnouncements: uid => `/api/pg/notifications/${uid}`,
-            p2pTrades: uid => `/api/pg/p2p/trades/${uid}`,
-            activity: uid => `/api/pg/activity/${uid}`,
-            dms: uid => `/api/pg/messages/${uid}`,
-            withdrawals: uid => `/api/pg/withdrawals/${uid}`,
-            tickets: uid => `/api/pg/tickets/${uid}`,
-            virtualCards: uid => `/api/pg/cards/${uid}`,
-            kyc: uid => `/api/pg/kyc/${uid}`,
-            loans: uid => `/api/pg/loans/${uid}`,
-            investments: uid => `/api/pg/investments/${uid}`,
-            giftLogs: uid => `/api/pg/gifts/${uid}`,
-            deposits: uid => `/api/pg/deposits/${uid}`,
-            drawTickets: uid => `/api/pg/draw/tickets/${uid}`,
-            stakes: uid => `/api/pg/stakes/${uid}`,
-            transfers: uid => `/api/pg/transfers/${uid}`,
-            gameSessions: uid => `/api/pg/games/sessions/${uid}`,
-            savings: uid => `/api/pg/savings/${uid}`,
-            follows: uid => `/api/pg/follows/${uid}`,
-            loginHistory: uid => `/api/pg/security/${uid}`,
-            securityEvents: uid => `/api/pg/security/${uid}`,
-            referralBonuses: uid => `/api/pg/referrals/${uid}`,
-            p2pAds: () => '/api/pg/p2p/ads', p2p_listings: () => '/api/pg/p2p/ads',
-            settings: () => '/api/pg/settings', appSettings: () => '/api/pg/settings',
-            surveys: () => '/api/pg/surveys', campaigns: () => '/api/pg/campaigns',
-            predictionEvents: () => '/api/pg/predictions', paymentMethods: () => '/api/pg/settings/paymentMethods',
-            blog: () => '/api/pg/blog', broadcasts: () => '/api/pg/broadcasts'
-        };
-        function pgSnapshot(rows, docId) {
-            const list = Array.isArray(rows) ? rows : (rows ? [rows] : []);
-            const docs = list.map((row, i) => ({ id: row.id || row.uid || row.user_id || String(i), exists: true, data: () => row }));
-            if (docId) {
-                const doc = docs.find(d => d.id === docId) || docs[0];
-                return { id: docId, exists: !!doc, data: () => doc ? doc.data() : undefined };
-            }
-            return { docs, empty: !docs.length, size: docs.length, forEach: fn => docs.forEach(fn) };
-        }
-        async function pgCollectionRead(name, docId) {
-            const uid = window.CU?.uid || firebase.auth().currentUser?.uid;
-            let path;
-            if (name === 'users') path = docId ? `/api/pg/user/${docId}` : '/api/pg/admin/users';
-            else path = PG_COLLECTION_PATHS[name]?.(uid);
-            if (!path || !uid) throw new Error('No PostgreSQL read mapping');
-            const headers = name === 'users' && !docId ? { 'x-admin-uid': uid } : { 'x-user-uid': uid };
-            const response = await fetch(`${API_BASE}${path}`, { headers });
-            if (!response.ok) throw new Error(`PostgreSQL read failed (${response.status})`);
-            return pgSnapshot(await response.json(), docId);
-        }
-        function mirrorFirestoreWrite(name, payload) {
-            const paths = { deposits: '/api/pg/deposits/create', withdrawals: '/api/pg/withdrawals/create', investments: '/api/pg/investments/create', loans: '/api/pg/loans/create' };
-            const path = paths[name]; const uid = window.CU?.uid || firebase.auth().currentUser?.uid;
-            if (!path || !uid) return;
-            fetch(`${API_BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-uid': uid }, body: JSON.stringify({ ...payload, uid }) }).catch(() => {});
-        }
-        function pgCollection(name) {
-            const wrap = (target, docId = null) => new Proxy(target, { get(obj, prop) {
-                if (prop === 'get') return async () => { try { return await pgCollectionRead(name, docId); } catch (_) { return obj.get(); } };
-                if (prop === '__pgSubscribe') return (next, error) => { let stopped = false; const load = () => pgCollectionRead(name, docId).then(s => !stopped && next(s)).catch(e => { if (!stopped && error) error(e); }); load(); const timer = setInterval(load, 60000); return () => { stopped = true; clearInterval(timer); }; };
-                if (prop === 'add') return async payload => { const result = await obj.add(payload); mirrorFirestoreWrite(name, payload); return result; };
                 if (prop === 'update' && name === 'users') return async fields => {
                     const result = await obj.update(fields);
                     const uid = window.CU?.uid || firebase.auth().currentUser?.uid;
@@ -12554,12 +12536,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (!imageUrl) { inp.value = text; return; }
             }
             try {
-                try {
+                if (USE_POSTGRES_DATA) {
                     await pgFetch('/api/pg/messages/send', { method: 'POST', body: JSON.stringify({ senderUid: u.uid, receiverUid: _activeDMUser.id, content: text || imageUrl || 'Image', type: imageUrl ? 'image' : 'text' }) });
                     await loadDMMessages();
                     clearDMImg();
                     return;
-                } catch (_) { }
+                }
+                // Temporary Firebase rollout path. PostgreSQL mode returns above, so it never
+                // retries a failed PostgreSQL message write against Firestore.
                 const msgRef = pgCollection('dms').doc(_activeDMId).collection('msgs').doc();
                 await msgRef.set({ from: u.uid, to: _activeDMUser.id, text, image: imageUrl || null, read: false, createdAt: FS().serverTimestamp() });
 
