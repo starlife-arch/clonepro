@@ -1,4 +1,4 @@
-import { getDb, admin } from './_lib/firebase.js';
+import { query } from './_lib/postgres.js';
 import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 
 function normalizePhone(value) {
@@ -12,37 +12,28 @@ async function netlifyHandler(req) {
   try {
     if (req.method !== 'POST') throw new Error('Method not allowed');
     const { phone_number, amountUSD, uid, userName, userEmail } = await req.json();
-    if (!phone_number || amountUSD === undefined || !uid || !userName || !userEmail) {
-      throw new Error('phone_number, amountUSD, uid, userName, and userEmail are required');
-    }
+    if (!phone_number || amountUSD === undefined || !uid || !userName || !userEmail) throw new Error('phone_number, amountUSD, uid, userName, and userEmail are required');
     const usd = Number(amountUSD);
     if (!Number.isFinite(usd) || usd <= 0) throw new Error('amountUSD must be a positive number');
     if (!process.env.PRINTPAY_API_KEY) throw new Error('PRINTPAY_API_KEY is not configured');
 
     const phone = normalizePhone(phone_number);
     const amountKES = Math.round(usd * Number(process.env.USD_TO_KES_RATE || 130));
-    const response = await fetch('https://printpay.site/api/stk_push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x_api_key: process.env.PRINTPAY_API_KEY, phone_number: phone, amount: amountKES })
-    });
+    const response = await fetch('https://printpay.site/api/stk_push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x_api_key: process.env.PRINTPAY_API_KEY, phone_number: phone, amount: amountKES }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.status !== 'success' || !data.checkout_id) {
+      console.error('[printpay] STK provider rejected request', { status: response.status, response: data, uid, amountKES });
       throw new Error(data.error || data.message || 'PrintPay could not initiate the STK push');
     }
 
-    await getDb().collection('deposits').add({
-      uid, userName, userEmail,
-      method: 'M-Pesa (PrintPay)',
-      amountUSD: usd,
-      amountKES,
-      checkoutId: data.checkout_id,
-      status: 'pending',
-      phone,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const depositId = `printpay_${Date.now()}_${uid.substring(0, 6)}`;
+    await query(`INSERT INTO deposits (id, user_id, amount, amount_kes, method, status, checkout_id, phone, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) ON CONFLICT (id) DO NOTHING`,
+    [depositId, uid, usd, amountKES, 'M-Pesa (PrintPay)', 'pending', data.checkout_id, phone]);
+    console.log('[printpay] STK initiated and PostgreSQL deposit recorded', { depositId, checkoutId: data.checkout_id, uid, amountKES });
     return new Response(JSON.stringify({ success: true, checkoutId: data.checkout_id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
+    console.error('[printpay] STK push failed', { message: error.message, stack: error.stack });
     const status = error.message === 'Method not allowed' ? 405 : 500;
     return new Response(JSON.stringify({ success: false, error: error.message }), { status, headers: { 'Content-Type': 'application/json' } });
   }
