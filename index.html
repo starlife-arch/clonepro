@@ -8945,16 +8945,28 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 go(window._maintenanceState?.active ? 'pg-maint' : 'pg-land');
                 return;
             }
-            const ref = pgCollection('users').doc(user.uid);
-            let snap = await ref.get();
-            if (!snap.exists) {
-                await ref.set({ name: user.displayName || 'User', email: user.email, phone: '', phoneNormalized: '', country: '', balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: genRef(), referredBy: null, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
-                snap = await ref.get();
-                logAct(user.uid, 'Welcome bonus', .1, '💎', 'deposit');
+            // Users signed in through Firebase Auth can pre-date the PostgreSQL rollout.
+            // Provision their PostgreSQL profile before reading any application data so the
+            // compatibility layer never falls back to Firestore for a missing user row.
+            let pgUser = await loadUserFromPG(user.uid);
+            if (!pgUser) {
+                try {
+                    await pgFetch('/api/pg/user/create', {
+                        method: 'POST',
+                        body: JSON.stringify({ uid: user.uid, name: user.displayName || 'User', email: user.email, phone: '', role: 'user', status: 'active' })
+                    });
+                    pgUser = await loadUserFromPG(user.uid);
+                } catch (error) {
+                    console.error('[pg] unable to provision signed-in user', error);
+                }
             }
-            const d = snap.data();
-            const pgUser = await loadUserFromPG(user.uid);
-            window.CU = { uid: user.uid, ...d, ...(pgUser || {}) };
+            if (!pgUser) {
+                toast('Your account could not be loaded from the Starlife service. Please try again.', 'tr', 5000);
+                await auth.signOut();
+                return;
+            }
+            const d = { ...pgUser, isAdmin: pgUser.role === 'admin' };
+            window.CU = { uid: user.uid, ...pgUser };
             initializeFCM();
             if (window._pgUserPoll) clearInterval(window._pgUserPoll);
             window._pgUserPoll = setInterval(async () => {
@@ -8981,7 +8993,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await applyMaintenanceModeToUI(window.CU);
             const sessionMeta = await recordLoginSession(user, d);
             if (d.isAdmin || user.email === ADMIN_EMAIL) {
-                if (!d.isAdmin) await ref.update({ isAdmin: true });
                 go('pg-admin');
                 document.body.classList.add('is-admin');
                 const fab = $('ai-chat-fab');
@@ -9160,8 +9171,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         await pgCollection('users').doc(referredBy).update({ referrals: FS().arrayUnion(uid) });
                     }
                 }
-                await pgCollection('users').doc(uid).set({ name, email, phone, phoneNormalized, country, balance: 1, tokenBalance: 0, purchasedGiftCoinBalance: 0, receivedGiftCoinBalance: 0, giftCoinBalance: 0, paidDMPriceCoins: 10, paidDMChargingOn: false, paidDMBlocked: false, paidDMEarningsCoins: 0, paidDMPlatformShareCoins: 0, totalInvested: 0, totalEarned: 0, referralEarned: 0, shareholderStake: 0, shareholderEarned: 0, shareholderDistributed: 0, surveyPoints: 0, surveysCompleted: 0, surveysSkipped: 0, referralCode: rc, referredBy, referrals: [], privileges: { ...DEFAULT_USER_PRIVILEGES }, isBanned: false, isRestricted: false, isAdmin: false, firstStakeAt: null, loanDefaultCount: 0, createdAt: FS().serverTimestamp() });
-                await fetch(`${API_BASE}/api/pg/user/create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid, name, email, phone, referredBy, role: 'user', status: 'active' }) });
+                await pgFetch('/api/pg/user/create', { method: 'POST', body: JSON.stringify({ uid, name, email, phone, referredBy, role: 'user', status: 'active' }) });
                 sendTransactionalEmail('welcome', email, { name: name });
                 toast('Account created! Welcome bonus added 🎉');
                 tg(`🆕 <b>New Member</b>\nName: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\nCountry: ${country || '—'}\nRef: ${ref || 'none'}`);
@@ -10736,7 +10746,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // PostgreSQL-first Firestore compatibility layer.  Existing UI code can retain
         // Firestore snapshot semantics while reads use the migrated API; Firestore is
         // only consulted when the API is unavailable.
-        const starlifeFirestoreCollection = db.collection.bind(db);
+        const firestoreCollection = db.collection.bind(db);
         const PG_COLLECTION_PATHS = {
             userNotifs: uid => `/api/pg/notifications/${uid}`,
             targetedAnnouncements: uid => `/api/pg/notifications/${uid}`,
@@ -10794,9 +10804,38 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         }
         function pgCollection(name) {
             const wrap = (target, docId = null) => new Proxy(target, { get(obj, prop) {
-                if (prop === 'get') return async () => { try { return await pgCollectionRead(name, docId); } catch (_) { return obj.get(); } };
+                if (prop === 'get') return async () => {
+                    try { return await pgCollectionRead(name, docId); }
+                    catch (error) {
+                        // A mapped PostgreSQL resource must not silently restart Firestore reads.
+                        // Doing so hid Heroku authorization/data-migration failures and exhausted
+                        // Firestore quota. Unmapped legacy collections retain their temporary fallback.
+                        if (name === 'users' || PG_COLLECTION_PATHS[name]) throw error;
+                        return obj.get();
+                    }
+                };
                 if (prop === '__pgSubscribe') return (next, error) => { let stopped = false; const load = () => pgCollectionRead(name, docId).then(s => !stopped && next(s)).catch(e => { if (!stopped && error) error(e); }); load(); const timer = setInterval(load, 60000); return () => { stopped = true; clearInterval(timer); }; };
-                if (prop === 'add') return async payload => { const result = await obj.add(payload); mirrorFirestoreWrite(name, payload); return result; };
+                if (prop === 'add') return async payload => {
+                    // Financial records have dedicated Heroku handlers. Write them there first
+                    // instead of creating a Firestore record and mirroring it afterwards.
+                    const paths = {
+                        deposits: ['/api/pg/deposits/create', 'deposit'],
+                        withdrawals: ['/api/pg/withdrawals/create', 'withdrawal'],
+                        investments: ['/api/pg/investments/create', 'investment'],
+                        loans: ['/api/pg/loans/create', 'loan']
+                    };
+                    const route = paths[name];
+                    if (route) {
+                        const uid = payload?.uid || window.CU?.uid || firebase.auth().currentUser?.uid;
+                        const result = await pgFetch(route[0], { method: 'POST', body: JSON.stringify({ ...payload, uid }) });
+                        const row = result?.[route[1]];
+                        if (!row?.id) throw new Error('PostgreSQL did not return a record ID');
+                        return { id: row.id, data: () => row };
+                    }
+                    const result = await obj.add(payload);
+                    mirrorFirestoreWrite(name, payload);
+                    return result;
+                };
                 if (prop === 'update' && name === 'users') return async fields => {
                     const result = await obj.update(fields);
                     const uid = window.CU?.uid || firebase.auth().currentUser?.uid;
@@ -10807,7 +10846,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (prop === 'doc') return id => wrap(obj.doc(id), id);
                 const value = obj[prop]; return typeof value === 'function' ? value.bind(obj) : value;
             }});
-            return wrap(starlifeFirestoreCollection(name));
+            return wrap(firestoreCollection(name));
         }
 
         // SHAREHOLDER
@@ -12482,7 +12521,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     await loadDMMessages();
                     clearDMImg();
                     return;
-                } catch (_) { }
+                } catch (error) {
+                    // Do not retry a failed Heroku/PostgreSQL message write against Firestore.
+                    // That split conversations and continued consuming the exhausted quota.
+                    throw error;
+                }
                 const msgRef = pgCollection('dms').doc(_activeDMId).collection('msgs').doc();
                 await msgRef.set({ from: u.uid, to: _activeDMUser.id, text, image: imageUrl || null, read: false, createdAt: FS().serverTimestamp() });
 
