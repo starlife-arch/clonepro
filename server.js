@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { runMigrations } from './server-handlers/_lib/migrate.js';
 import migrateHandler from './server-handlers/migrate-from-firestore.js';
+import migratePgToFirestore from './server-handlers/migrate-pg-to-firestore.js';
 
 import handler0 from './server-handlers/admin-delete-login-video.js';
 import handler1 from './server-handlers/admin-sign-login-video-upload.js';
@@ -162,6 +163,7 @@ app.all('/api/printpay-stk-push', printpayStkPush);
 app.all('/api/printpay-check-status', printpayCheckStatus);
 app.all('/api/printpay-webhook', printpayWebhook);
 app.post('/api/migrate-from-firestore', migrateHandler);
+app.post('/api/migrate-pg-to-firestore', migratePgToFirestore);
 app.get('/api/pg/user/:uid', pgUser);
 app.post('/api/pg/user/create', pgUserCreate);
 app.post('/api/pg/user/update', pgUserUpdate);
