@@ -9266,6 +9266,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         function admitUserToApp(sessionMeta = null) {
             go('pg-app');
+            // Authentication can resume after a user last viewed any tab. Always
+            // select a real app tab after showing the app shell so there is never
+            // a state where every `.itc` page remains hidden.
+            tab('home');
             updateUI();
             loadAllUserData();
             loadBroadcasts();
@@ -9405,11 +9409,17 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const heldEl = $('h-held'); if (heldEl) heldEl.textContent = '$' + fmt(held);
             $('h-inv').textContent = fmt(u.totalInvested);
             $('h-ern').textContent = fmt(u.totalEarned);
-            $('h-sh').textContent = fmt(u.shareholderEarned || 0);
+            // This value is shown in the shareholder section below. Older page
+            // layouts do not include the legacy `h-sh` summary element, so do
+            // not let its absence prevent the rest of the dashboard rendering.
+            const shareholderSummary = $('h-sh');
+            if (shareholderSummary) shareholderSummary.textContent = fmt(u.shareholderEarned || 0);
             // Update savings earned display if exists
             const savEarnEl = $('sv-earned');
             if (savEarnEl) savEarnEl.textContent = '$' + fmt(u.savingsEarned || 0);
-            $('h-svpts').textContent = u.surveyPoints || 0;
+            // The survey-points home summary is optional in current layouts.
+            const surveyPointsSummary = $('h-svpts');
+            if (surveyPointsSummary) surveyPointsSummary.textContent = u.surveyPoints || 0;
             // ref
             $('ref-code').textContent = u.referralCode || '—';
             const rl = $('ref-link-display'); if (rl) rl.textContent = `https://starlifeadvert.netlify.app/?ref=${u.referralCode || ''}`;
