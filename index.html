@@ -9413,7 +9413,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             // Update savings earned display if exists
             const savEarnEl = $('sv-earned');
             if (savEarnEl) savEarnEl.textContent = '$' + fmt(u.savingsEarned || 0);
-            $('h-svpts').textContent = u.surveyPoints || 0;
+            // The survey-points home summary is optional in current layouts.
+            const surveyPointsSummary = $('h-svpts');
+            if (surveyPointsSummary) surveyPointsSummary.textContent = u.surveyPoints || 0;
             // ref
             $('ref-code').textContent = u.referralCode || '—';
             const rl = $('ref-link-display'); if (rl) rl.textContent = `https://starlifeadvert.netlify.app/?ref=${u.referralCode || ''}`;
