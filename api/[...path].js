@@ -49,6 +49,9 @@ import handler47 from '../server-handlers/sync-admin-claims.js';
 import handler48 from '../server-handlers/upload-image.js';
 import handler49 from '../server-handlers/validate-2fa.js';
 import handler50 from '../server-handlers/verify-2fa.js';
+import printpayStkPush from '../server-handlers/printpay-stk-push.js';
+import printpayCheckStatus from '../server-handlers/printpay-check-status.js';
+import printpayWebhook from '../server-handlers/printpay-webhook.js';
 
 const handlers = {
   "admin-delete-login-video": handler0,
@@ -102,6 +105,9 @@ const handlers = {
   "upload-image": handler48,
   "validate-2fa": handler49,
   "verify-2fa": handler50,
+  "printpay-stk-push": printpayStkPush,
+  "printpay-check-status": printpayCheckStatus,
+  "printpay-webhook": printpayWebhook,
 };
 
 function cleanRouteName(value) {
