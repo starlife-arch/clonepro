@@ -4468,9 +4468,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     </div>
                 </div>
                 <div class="card" style="margin-bottom:12px">
-                    <div style="font-weight:700;color:var(--g);margin-bottom:8px">💳 Pay with Pesapal (Card, M-Pesa, etc.)</div>
+                    <div style="font-weight:700;color:var(--g);margin-bottom:8px">💳 Pay with Print Pay (Card, M-Pesa STK, etc.)</div>
                     <div class="fg"><label class="fl">Amount (USD)</label><input class="fi" id="dep-pesapal-amount" type="number" min="10" placeholder="Enter amount (min $10)"></div>
-                    <button class="btn btn-p btn-full" onclick="initiatePesapalDeposit()">Pay with Pesapal</button>
+                    <button class="btn btn-p btn-full" onclick="initiatePesapalDeposit()">Pay with M-Pesa / Card</button>
                 </div>
                 <div id="deposit-methods-grid"></div>
                 <div class="card" style="margin-top:14px;margin-bottom:14px;border:1px solid rgba(0,200,83,.28)">
@@ -9593,6 +9593,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             return `Withdrawals are allowed ${cfg.allowedDays.join(', ')} from ${cfg.allowedHourStart}:00 to ${cfg.allowedHourEnd}:00 (${cfg.timezone}).`;
         }
         const DEFAULT_PAYMENT_METHODS = [
+            { key: 'm-pesa', name: 'M-Pesa', details: 'Instant M-Pesa STK Push deposit via Print Pay — enter your Safaricom phone number (07XX / 2547XX).', status: 'active' },
+            { key: 'print-pay', name: 'Print Pay', details: 'Card & M-Pesa checkout via Print Pay — instant automatic approval.', status: 'active' },
+            { key: 'pesapal', name: 'Pesapal', details: 'Card, M-Pesa and bank checkout via Pesapal — instant automatic approval.', status: 'active' },
             { key: 'bank-transfer', name: 'Bank Transfer', details: 'Generic bank withdrawal: account holder, bank name, account number, routing/sort code.', status: 'active' },
             { key: 'revolut', name: 'Revolut', details: 'Revolut tag, linked phone, or linked email.', status: 'active' },
             { key: 'uk-faster-payments', name: 'UK Faster Payments', details: 'UK sort code and account number.', status: 'active' },
@@ -9620,6 +9623,14 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         const DEPOSIT_DISABLED_METHOD_KEYS = new Set(['sendwave', 'remitly']);
         function isDepositMethodAllowed(methodName) {
             return !DEPOSIT_DISABLED_METHOD_KEYS.has(paymentMethodKeyFromName(methodName));
+        }
+        // Deposit methods handled automatically by a payment gateway (no manual proof needed).
+        const GATEWAY_DEPOSIT_KEYS = ['m-pesa', 'mpesa', 'print-pay', 'printpay', 'pesapal'];
+        function isGatewayDepositMethod(methodName) {
+            const key = paymentMethodKeyFromName(methodName);
+            if (GATEWAY_DEPOSIT_KEYS.includes(key)) return true;
+            const n = String(methodName || '').toLowerCase();
+            return n.includes('pesapal') || n.includes('print pay') || n.includes('printpay');
         }
         function makeId(prefix = 'id') {
             const rand = Math.random().toString(36).slice(2, 8);
@@ -9681,7 +9692,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (wd) wd.innerHTML = withdrawalOptions;
             if (dep) dep.innerHTML = depositOptions;
             if (grid) {
-                grid.innerHTML = depositMethods.map(m => `<div class="dep-method"><div class="dm-name">${m.name}</div><div class="dm-detail"><span style="font-size:.8rem;color:var(--t2)">Details</span><span class="dm-val">${(m.details || '—').replace(/</g, '&lt;')}</span></div></div>`).join('') || '<div class="es">No active deposit methods available right now.</div>';
+                grid.innerHTML = depositMethods.map(m => `<div class="dep-method"><div class="dm-name">${m.name}</div><div class="dm-detail"><span style="font-size:.8rem;color:var(--t2)">Details</span><span class="dm-val">${(m.details || '—').replace(/</g, '&lt;')}</span></div>${isGatewayDepositMethod(m.name) ? '<button class="btn btn-p btn-sm" style="margin-top:6px" onclick="initiatePesapalDeposit()">Pay with M-Pesa / Card →</button>' : ''}</div>`).join('') || '<div class="es">No active deposit methods available right now.</div>';
             }
             updateWithdrawMethodUI();
         }
@@ -10448,10 +10459,15 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!checkAdminBlock('deposits')) return;
             const method = $('dep-method').value;
             const amt = parseFloat($('dep-amt').value);
-            const ref = $('dep-ref').value.trim();
+            let ref = $('dep-ref').value.trim();
             const u = window.CU;
             if (!amt || amt <= 0) return toast('Enter amount', 'ty');
             if (!isDepositMethodAllowed(method)) return toast(`${method} is not available for deposits. Please choose another method.`, 'ty');
+            // M-Pesa / Print Pay / Pesapal are gateway methods — pay instantly with STK push instead of uploading proof.
+            if (isGatewayDepositMethod(method)) {
+                if ($('dep-pesapal-amount')) $('dep-pesapal-amount').value = amt;
+                return initiatePesapalDeposit();
+            }
             if (!ref) return toast('Enter your transaction reference', 'ty');
             await db.collection('deposits').add({ uid: u.uid, userName: u.name, userEmail: u.email, method, amount: amt, ref, status: 'pending', promoCode: window._appliedPromo?.code || null, promoId: window._appliedPromo?.id || null, promoType: window._appliedPromo?.type || null, promoValue: window._appliedPromo?.value || null, promoMinDeposit: window._appliedPromo?.minDeposit || 0, promoDepositScope: window._appliedPromo?.depositScope || null, promoAppliedAt: window._appliedPromo ? FS().serverTimestamp() : null, promoBonusApplied: false, createdAt: FS().serverTimestamp() });
             sendTransactionalEmail('deposit_pending', u.email, { name: u.name, amount: amt, method: method, transactionId: ref, userReference: ref, status: 'Pending Approval', ...transactionTimestampParts() });
@@ -19798,7 +19814,6 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                     amount: amountUSD,
                     description: `Deposit for ${u.name}`,
                     callback_url: `${window.location.origin}/pesapal-callback`,
-                    notification_id: window.PESAPAL_IPN_ID || "YOUR_ACTUAL_IPN_ID",
                     billing_address: {
                         email_address: u.email,
                         phone_number: u.phone || "", // Assuming user has a phone number field

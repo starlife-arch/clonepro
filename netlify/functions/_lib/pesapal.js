@@ -1,12 +1,26 @@
 import fetch from 'node-fetch';
 
+// Print Pay / Pesapal share ONE set of gateway credentials — accept both
+// PRINTPAY_* and PESAPAL_* env var names so a configured gateway is never
+// reported as "not configured".
+const envFirst = (...names) => {
+  for (const n of names) {
+    const v = (process.env[n] || '').trim();
+    if (v) return v;
+  }
+  return '';
+};
+
 const PESAPAL_CONFIG = {
-    consumerKey: process.env.PESAPAL_CONSUMER_KEY,
-    consumerSecret: process.env.PESAPAL_CONSUMER_SECRET,
-    baseUrl: process.env.PESAPAL_BASE_URL
+    consumerKey: envFirst('PRINTPAY_API_KEY', 'PRINTPAY_CONSUMER_KEY', 'PRINT_PAY_API_KEY', 'PESAPAL_CONSUMER_KEY', 'PESAPAL_API_KEY'),
+    consumerSecret: envFirst('PRINTPAY_SECRET_KEY', 'PRINTPAY_CONSUMER_SECRET', 'PRINT_PAY_SECRET_KEY', 'PESAPAL_CONSUMER_SECRET', 'PESAPAL_SECRET_KEY'),
+    baseUrl: (envFirst('PRINTPAY_BASE_URL', 'PRINT_PAY_BASE_URL', 'PESAPAL_BASE_URL') || 'https://pay.pesapal.com/v3').replace(/\/$/, '')
 };
 
 async function getAccessToken() {
+    if (!PESAPAL_CONFIG.consumerKey || !PESAPAL_CONFIG.consumerSecret) {
+        throw new Error('Print Pay API key not configured. Set PRINTPAY_API_KEY/PRINTPAY_SECRET_KEY (or PESAPAL_CONSUMER_KEY/PESAPAL_CONSUMER_SECRET — same gateway, either name works) in Netlify environment variables.');
+    }
     const url = `${PESAPAL_CONFIG.baseUrl}/api/Auth/RequestToken`;
     const headers = {
         'Content-Type': 'application/json',
