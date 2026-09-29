@@ -5,7 +5,7 @@ body { background:var(--bg)!important; color:var(--text1)!important; font-family
 #pg-app > nav:first-child { max-width:480px; margin:0 auto; background:rgba(10,11,15,.95)!important; border-bottom:1px solid var(--border); }
 #pg-app .wrap { padding:0 0 96px!important; }
 #pg-app .moving-ticker { display:none!important; }
-#pg-app .fintech-home { display:block!important; padding-bottom:24px; }
+#pg-app .fintech-home { padding-bottom:24px; }
 .fintech-header { display:flex; align-items:center; gap:10px; padding:16px 20px; position:sticky; top:0; z-index:100; background:rgba(10,11,15,.95); backdrop-filter:blur(20px); }
 .profile-avatar,.icon-button { width:36px; height:36px; display:grid; place-items:center; flex:0 0 36px; border:0; border-radius:50%; cursor:pointer; }
 .profile-avatar { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; font-weight:700; }

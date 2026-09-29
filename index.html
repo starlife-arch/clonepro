@@ -9266,6 +9266,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         function admitUserToApp(sessionMeta = null) {
             go('pg-app');
+            // Authentication can resume after a user last viewed any tab. Always
+            // select a real app tab after showing the app shell so there is never
+            // a state where every `.itc` page remains hidden.
+            tab('home');
             updateUI();
             loadAllUserData();
             loadBroadcasts();
