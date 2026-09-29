@@ -27,20 +27,16 @@ async function netlifyHandler(req) {
     const phone = normalizePhone(phone_number);
     const amountKES = Math.round(usd * Number(process.env.USD_TO_KES_RATE || 130));
 
-    // Send API key as BOTH header and body field — PrintPay accepts either
+    const formBody = new URLSearchParams({
+      x_api_key: apiKey,
+      phone_number: phone,
+      amount: String(amountKES)
+    });
+
     const response = await fetch('https://printpay.site/api/stk_push', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        x_api_key: apiKey,
-        api_key: apiKey,
-        phone_number: phone,
-        amount: amountKES
-      })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formBody.toString()
     });
 
     const data = await response.json().catch(() => ({}));
@@ -50,7 +46,7 @@ async function netlifyHandler(req) {
       throw new Error(data.error || data.message || data.detail || `PrintPay error: ${response.status}`);
     }
 
-    const checkoutId = data.checkout_id || data.checkoutRequestID || data.CheckoutRequestID || data.request_id;
+    const checkoutId = data.checkout_id;
     if (!checkoutId) throw new Error('PrintPay did not return a checkout ID');
 
     const depositId = `printpay_${Date.now()}_${uid.substring(0, 6)}`;
