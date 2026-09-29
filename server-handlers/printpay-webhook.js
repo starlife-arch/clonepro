@@ -18,10 +18,27 @@ async function netlifyHandler(req) {
     const { checkout_id, status, mpesa_receipt, amount, result_code } = await req.json();
     if (!checkout_id) return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const db = getDb();
+    // Check Firestore first
+    let ref = null;
+    let deposit = null;
     const deposits = await db.collection('deposits').where('checkoutId', '==', checkout_id).limit(1).get();
-    if (deposits.empty) return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    const ref = deposits.docs[0].ref;
-    const deposit = deposits.docs[0].data();
+    if (!deposits.empty) {
+      ref = deposits.docs[0].ref;
+      deposit = deposits.docs[0].data();
+    } else {
+      // Fallback: check PostgreSQL and create Firestore doc if found
+      try {
+        const { query } = await import('./_lib/postgres.js');
+        const { rows } = await query('SELECT * FROM deposits WHERE checkout_id = $1 LIMIT 1', [checkout_id]);
+        if (rows.length > 0) {
+          const row = rows[0];
+          ref = db.collection('deposits').doc(row.id);
+          deposit = { uid: row.user_id, userName: '', userEmail: '', amountUSD: Number(row.amount), amountKES: Number(row.amount_kes) };
+          await ref.set({ ...deposit, checkoutId: checkout_id, method: 'M-Pesa (PrintPay)', status: 'pending', createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+      } catch (pgErr) { console.warn('[printpay-webhook] PG fallback failed:', pgErr.message); }
+    }
+    if (!ref || !deposit) return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (status === 'SUCCESS' && Number(result_code) === 0) {
       await ref.update({ status: 'awaiting_approval', mpesaReceipt: mpesa_receipt, paidAt: admin.firestore.FieldValue.serverTimestamp() });
       await Promise.allSettled([
