@@ -3261,6 +3261,136 @@ const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
         }
 
     </style>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0b0f !important;
+      color: #ffffff !important;
+      font-family: 'Inter', -apple-system, sans-serif !important;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    /* Hide old topbar and old nav completely */
+    .topbar, #topbar, .old-nav, #bottom-nav-old { display: none !important; }
+
+    /* Cards */
+    .card, .arow, .ai, .loan-card, .sv-card, .ticket {
+      background: #13141a !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+      border-radius: 16px !important;
+      padding: 16px !important;
+      margin-bottom: 10px !important;
+      box-shadow: none !important;
+    }
+
+    /* All buttons */
+    .btn, button[class*="btn"] {
+      border-radius: 12px !important;
+      border: none !important;
+      font-family: 'Inter', sans-serif !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: opacity 0.2s !important;
+    }
+    .btn-p, .btn.btn-p {
+      background: #4f8ef7 !important;
+      color: #fff !important;
+    }
+    .btn-d, .btn.btn-d {
+      background: rgba(255,77,106,0.15) !important;
+      color: #ff4d6a !important;
+    }
+    .btn-gh, .btn.btn-gh {
+      background: #1c1d26 !important;
+      color: #fff !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+    }
+    .btn-sky { background: rgba(79,142,247,0.15) !important; color: #4f8ef7 !important; }
+    .btn-gold { background: rgba(245,185,66,0.15) !important; color: #f5b942 !important; }
+    .btn-p { background: #4f8ef7 !important; color: #fff !important; }
+
+    /* All inputs */
+    .fi, input, select, textarea {
+      background: #1c1d26 !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+      border-radius: 12px !important;
+      color: #fff !important;
+      font-family: 'Inter', sans-serif !important;
+      padding: 14px !important;
+      outline: none !important;
+      width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #4f8ef7 !important;
+    }
+    input::placeholder, textarea::placeholder { color: #4a4d63 !important; }
+
+    /* Badges */
+    .badge { border-radius: 20px !important; font-size: 11px !important; font-weight: 600 !important; padding: 3px 10px !important; border: none !important; }
+    .badge.bg, .bg { background: rgba(0,200,150,0.15) !important; color: #00c896 !important; }
+    .badge.br, .br { background: rgba(255,77,106,0.15) !important; color: #ff4d6a !important; }
+    .badge.bgold, .bgold { background: rgba(245,185,66,0.15) !important; color: #f5b942 !important; }
+    .badge.bsky, .bsky { background: rgba(79,142,247,0.15) !important; color: #4f8ef7 !important; }
+    .badge.bmut, .bmut { background: rgba(139,143,168,0.15) !important; color: #8b8fa8 !important; }
+
+    /* Bottom nav */
+    #main-nav, .bottom-nav, nav {
+      background: rgba(10,11,15,0.97) !important;
+      border-top: 1px solid rgba(255,255,255,0.06) !important;
+      backdrop-filter: blur(20px) !important;
+    }
+
+    /* Remove ALL emojis from buttons and labels using CSS */
+    /* Text colors */
+    .ar-name, .ai-desc { color: #ffffff !important; font-weight: 600 !important; }
+    .ar-sub, .ai-time, .ai-sub { color: #8b8fa8 !important; font-size: 12px !important; }
+
+    /* Section headers */
+    .section-title, .s-title, h2, h3 {
+      color: #ffffff !important;
+      font-family: 'Inter', sans-serif !important;
+      font-weight: 700 !important;
+    }
+
+    /* Balance display */
+    #bal, .balance-amount, [id*="balance"] {
+      font-size: 42px !important;
+      font-weight: 800 !important;
+      color: #ffffff !important;
+      letter-spacing: -1.5px !important;
+    }
+
+    /* Links */
+    a { color: #4f8ef7 !important; }
+
+    /* Modals */
+    .modal, .modal-content, [id*="modal"], [id^="m-"] {
+      background: #13141a !important;
+      border-radius: 24px 24px 0 0 !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+    }
+
+    /* Remove any white backgrounds */
+    [style*="background: white"], [style*="background:#fff"], [style*="background: #fff"] {
+      background: #13141a !important;
+    }
+
+    /* Scrollbar hidden */
+    ::-webkit-scrollbar { width: 0 !important; }
+
+    /* Page content area */
+    .content, .page-content, #app-content {
+      padding-bottom: 90px;
+    }
+    </style>
 </head>
 
 <body>
@@ -4180,17 +4310,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             </div>
         </nav>
 
-        <!-- ── Floating theme toggle ── -->
-        <div id="theme-toggle-btn" onclick="toggleAppTheme()" title="Toggle dark / light mode"
-             style="position:fixed;bottom:90px;left:16px;z-index:400;display:flex;align-items:center;gap:6px;
-                    background:var(--s2);border:1px solid var(--bd);border-radius:999px;
-                    padding:7px 13px;cursor:pointer;font-size:.78rem;font-weight:600;
-                    color:var(--t1);box-shadow:0 2px 12px rgba(0,0,0,.18);user-select:none;
-                    transition:background .2s,color .2s,border-color .2s">
-            <span id="theme-toggle-icon" style="font-size:1rem">🌙</span>
-            <span id="theme-toggle-label">Dark</span>
-        </div>
-
         <div class="moving-ticker" id="moving-ticker" role="region" aria-label="Site announcements">
             <div class="moving-ticker-tag" id="moving-ticker-tag">Live</div>
             <div class="moving-ticker-viewport">
@@ -4227,11 +4346,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                             style="background:rgba(64,196,255,.12);color:var(--sky);border:1px solid rgba(64,196,255,.25)"
                             onclick="tab('rewards')">🎰 Spin</button>
                     </div>
-                </div>
-                <div class="dl-app-wrap">
-                    <a class="dl-app-btn"
-                        href="https://drive.google.com/uc?export=download&id=1BmNndgK8nCU89NOYYchs7mBEJL0zp1Qx"
-                        target="_blank" rel="noopener">📲 Install Starlife App</a>
                 </div>
                 <!-- Ad Banner -->
                 <!-- Ad Banner -->
@@ -23479,30 +23593,8 @@ function showReceiptModal(r){
     window._adminAssetImages=[];
 // Also load admin receipts
 
-        // ════════════════════════════════════════════════════════
-        // THEME TOGGLE (dark ↔ light)
-        // ════════════════════════════════════════════════════════
-        (function() {
-            const THEME_KEY = 'sl_theme';
-            function applyTheme(t) {
-                document.body.setAttribute('data-theme', t);
-                // Update floating pill button
-                const icon  = document.getElementById('theme-toggle-icon');
-                const label = document.getElementById('theme-toggle-label');
-                if (icon)  icon.textContent  = t === 'light' ? '☀️' : '🌙';
-                if (label) label.textContent = t === 'light' ? 'Light' : 'Dark';
-                try { localStorage.setItem(THEME_KEY, t); } catch(e){}
-            }
-            window.toggleAppTheme = function() {
-                const cur = document.body.getAttribute('data-theme') || 'dark';
-                applyTheme(cur === 'dark' ? 'light' : 'dark');
-            };
-            // Apply saved theme on load — default is dark
-            try {
-                const saved = localStorage.getItem(THEME_KEY) || 'dark';
-                applyTheme(saved);
-            } catch(e) { applyTheme('dark'); }
-        })();
+        // Keep the application in its single, dark color mode.
+        document.body.setAttribute('data-theme', 'dark');
 
         // ════════════════════════════════════════════════════════
         // BROADCAST COLOR PICKERS
