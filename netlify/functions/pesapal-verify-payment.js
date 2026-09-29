@@ -20,10 +20,23 @@ function getDb() {
   return adminDb;
 }
 
-// ── Pesapal config ────────────────────────────────────────────────────────────
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_BASE   = (process.env.PESAPAL_BASE_URL || "https://pay.pesapal.com/v3").replace(/\/$/, "");
+// ── Print Pay (gateway) config ───────────────────────────────────────────────
+// "Print Pay" and "Pesapal" are the SAME gateway with ONE set of credentials.
+// PRINTPAY_* names take priority; PESAPAL_* names also work, so a configured
+// gateway is never reported as "not configured" / "X API key required".
+const envFirst = (...names) => {
+  for (const n of names) {
+    const v = (process.env[n] || "").trim();
+    if (v) return v;
+  }
+  return "";
+};
+const PRINTPAY_KEY    = envFirst("PRINTPAY_API_KEY", "PRINTPAY_CONSUMER_KEY", "PRINT_PAY_API_KEY", "PESAPAL_CONSUMER_KEY", "PESAPAL_API_KEY");
+const PRINTPAY_SECRET = envFirst("PRINTPAY_SECRET_KEY", "PRINTPAY_CONSUMER_SECRET", "PRINT_PAY_SECRET_KEY", "PESAPAL_CONSUMER_SECRET", "PESAPAL_SECRET_KEY");
+const PRINTPAY_BASE   = (envFirst("PRINTPAY_BASE_URL", "PRINT_PAY_BASE_URL", "PESAPAL_BASE_URL") || "https://pay.pesapal.com/v3").replace(/\/$/, "");
+const PESAPAL_KEY    = PRINTPAY_KEY;
+const PESAPAL_SECRET = PRINTPAY_SECRET;
+const PESAPAL_BASE   = PRINTPAY_BASE;
 
 function fetchJSON(url, method = "GET", headers = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -138,9 +151,15 @@ async function approveDeposit(db, orderTrackingId) {
       status: "approved",
       approvedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    txn.update(userRef, {
-      mainBalance: admin.firestore.FieldValue.increment(depositData.amount)
-    });
+    // Deposits are credited to the user's "balance" field (same as admin
+    // approvals in the app). Also keep "mainBalance" in sync if it exists so
+    // neither naming convention loses the funds.
+    const userData = userDoc.data() || {};
+    const credit = { balance: admin.firestore.FieldValue.increment(depositData.amount) };
+    if (typeof userData.mainBalance === "number") {
+      credit.mainBalance = admin.firestore.FieldValue.increment(depositData.amount);
+    }
+    txn.update(userRef, credit);
   });
 
   console.log(`✅ Deposit approved: $${depositData.amount} for user ${depositData.uid}`);

@@ -21,10 +21,25 @@ function getDb() {
   return adminDb;
 }
 
-// ── Pesapal config ────────────────────────────────────────────────────────────
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_BASE   = (process.env.PESAPAL_BASE_URL || "https://pay.pesapal.com/v3").replace(/\/$/, "");
+// ── Print Pay (gateway) config ───────────────────────────────────────────────
+// "Print Pay" and "Pesapal" are the SAME payment gateway in this app and share
+// ONE set of credentials. Accept every env var name the dashboard may use
+// (PRINTPAY_* or PESAPAL_*) so a configured gateway is never falsely reported
+// as "print pay api key not configured" / "X API key required".
+const envFirst = (...names) => {
+  for (const n of names) {
+    const v = (process.env[n] || "").trim();
+    if (v) return v;
+  }
+  return "";
+};
+const PRINTPAY_KEY    = envFirst("PRINTPAY_API_KEY", "PRINTPAY_CONSUMER_KEY", "PRINT_PAY_API_KEY", "PESAPAL_CONSUMER_KEY", "PESAPAL_API_KEY");
+const PRINTPAY_SECRET = envFirst("PRINTPAY_SECRET_KEY", "PRINTPAY_CONSUMER_SECRET", "PRINT_PAY_SECRET_KEY", "PESAPAL_CONSUMER_SECRET", "PESAPAL_SECRET_KEY");
+const PRINTPAY_BASE   = (envFirst("PRINTPAY_BASE_URL", "PRINT_PAY_BASE_URL", "PESAPAL_BASE_URL") || "https://pay.pesapal.com/v3").replace(/\/$/, "");
+// Backwards-compatible aliases (rest of this file uses PESAPAL_* names internally)
+const PESAPAL_KEY    = PRINTPAY_KEY;
+const PESAPAL_SECRET = PRINTPAY_SECRET;
+const PESAPAL_BASE   = PRINTPAY_BASE;
 const APP_URL        = (process.env.URL || process.env.DEPLOY_PRIME_URL || "").replace(/\/$/, "");
 
 // ── Simple HTTPS helper ───────────────────────────────────────────────────────
@@ -86,6 +101,15 @@ export default async (req, context) => {
     const amount = parseFloat(orderDetails.amount);
     if (!Number.isFinite(amount) || amount < 10) {
       return new Response(JSON.stringify({ ok: false, error: "Minimum deposit is $10." }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Clear config error instead of the confusing "auth failed: {}" /
+    // "X API key required" style messages when keys are truly absent.
+    if (!PESAPAL_KEY || !PESAPAL_SECRET) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: "Print Pay API key not configured. Set PRINTPAY_API_KEY & PRINTPAY_SECRET_KEY (or PESAPAL_CONSUMER_KEY / PESAPAL_CONSUMER_SECRET — both names work for the same gateway) in Netlify environment variables."
+      }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 
     const token   = await getToken();
