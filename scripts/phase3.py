@@ -1,4 +1,35 @@
-/* ============================================================
+#!/usr/bin/env python3
+# Phase 3: real tab() nav sync, toast classes, modal class check, styles.css rewrite
+import re
+
+P = 'index.html'
+s = open(P, encoding='utf-8').read()
+
+# ---------- Real tab(): add nav-item active sync + wallet alias ----------
+old = """        function tab(name) {
+            document.querySelectorAll('.itc').forEach(t => { t.style.display = 'none'; t.classList.remove('on'); });
+            document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));"""
+new = """        function tab(name) {
+            if (name === 'wallet') name = 'deposit';
+            document.querySelectorAll('.itc').forEach(t => { t.style.display = 'none'; t.classList.remove('on'); });
+            document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            try { var _niMap = { home: 'nav-home', invest: 'nav-invest', deposit: 'nav-wallet', withdraw: 'nav-wallet', messages: 'nav-messages', profile: 'nav-profile' }; var _ni = document.getElementById(_niMap[name]); if (_ni) _ni.classList.add('active'); } catch (e) {}
+            window.scrollTo(0, 0);"""
+assert old in s, 'real tab() header not found'
+s = s.replace(old, new, 1)
+
+# ---------- Toast classes -> new palette ----------
+for a, b in [("'toast tg'", "'toast ok'"), ('"toast tg"', '"toast ok"'), ("'toast tr'", "'toast err'"),
+             ('"toast tr"', '"toast err"'), ("'toast tw'", "'toast warn'"), ('"toast tw"', '"toast warn"'),
+             ("'toast tb'", "'toast info'"), ('"toast tb"', '"toast info"')]:
+    s = s.replace(a, b)
+
+open(P, 'w', encoding='utf-8').write(s)
+print('phase3 index done')
+
+# ---------- styles.css: full Revolut-style rewrite ----------
+CSS = """/* ============================================================
    STARLIFE — REVOLUT-STYLE DESIGN SYSTEM
    ============================================================ */
 
@@ -210,3 +241,6 @@ body {
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 0; }
+"""
+open('styles.css', 'w', encoding='utf-8').write(CSS)
+print('styles.css rewritten')
