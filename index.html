@@ -11,8 +11,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="/styles.css" rel="stylesheet">
     <script>
-// Use the same origin for payment requests. This avoids browser CORS preflights to the retired Heroku API.
-const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
+// Keep every platform request on this deployment. The former Heroku API no
+// longer accepts requests from the public site, which caused browser CORS
+// failures and left actions such as support and messaging unusable.
+const API_BASE = '';
 const PAYMENT_API_BASE = '';
 </script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
