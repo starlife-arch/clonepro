@@ -25,160 +25,27 @@ const PAYMENT_API_BASE = '';
            DARK THEME (default) — pure black
            ============================================================ */
         :root {
-            --g: #00E676;
-            --gd: #00B34A;
-            --gg: rgba(0, 230, 118, 0.13);
-            --gold: #FFD54F;
-            --sky: #40C4FF;
-            --red: #FF5252;
-            --orange: #FF7043;
-            --purple: #CE93D8;
-            --bg: #000000;
-            --s1: #0d0d0d;
-            --s2: #111111;
-            --s3: #1a1a1a;
-            --bd: rgba(255, 255, 255, 0.08);
-            --bds: rgba(0, 230, 118, 0.25);
-            --t1: #FFFFFF;
-            --t2: #A0A0A0;
-            --t3: #555555;
-            --r: 14px;
-            --rs: 10px;
-            --rl: 22px;
-        }
-
-        /* ============================================================
-           LIGHT THEME — pure white
-           Applied when body has data-theme="light"
-           ============================================================ */
-        [data-theme="light"] {
-            --bg: #FFFFFF;
-            --s1: #FFFFFF;
-            --s2: #F5F5F5;
-            --s3: #EEEEEE;
-            --bd: rgba(0, 0, 0, 0.08);
-            --bds: rgba(0, 180, 80, 0.30);
-            --t1: #000000;
-            --t2: #444444;
-            --t3: #888888;
-            --g: #00B34A;
-            --gd: #008A3A;
-            --gg: rgba(0, 179, 74, 0.10);
-            --gold: #B06000;
+            --g:   #4f8ef7;
+            --gd:  #3a7ae0;
+            --gg:  rgba(79,142,247,0.15);
+            --bg:  #0a0b0f;
+            --s1:  #13141a;
+            --s2:  #1c1d26;
+            --s3:  #26273a;
+            --bd:  rgba(255,255,255,0.08);
+            --bds: rgba(255,255,255,0.06);
+            --t1:  #ffffff;
+            --t2:  #8b8fa8;
+            --t3:  #4a4d63;
+            --red: #ff4d6a;
+            --grn: #00c896;
+            --gold:#f5b942;
+            --r:   14px;
         }
 
         /* ── DARK: kill ALL decorative bg/blur/patterns ── */
         body::before, body::after { display: none !important; }
         #finance-bg-canvas { display: none !important; }
-
-        /* ════════════════════════════════════════════════════════
-           LIGHT MODE — pure white, pure black text, no patterns
-           ════════════════════════════════════════════════════════ */
-
-        /* Base */
-        [data-theme="light"] body { background: #FFFFFF !important; color: #000000 !important; }
-        [data-theme="light"] #finance-bg-canvas { display: none !important; }
-        [data-theme="light"] body::before,
-        [data-theme="light"] body::after { display: none !important; }
-
-        /* All page sections get pure white bg */
-        [data-theme="light"] .page,
-        [data-theme="light"] .wrap,
-        [data-theme="light"] .s1,
-        [data-theme="light"] section,
-        [data-theme="light"] .pg-inner { background: #FFFFFF !important; }
-
-        /* Cards / surfaces */
-        [data-theme="light"] .card,
-        [data-theme="light"] .card2,
-        [data-theme="light"] .s-card,
-        [data-theme="light"] .inv-card,
-        [data-theme="light"] .prof-info,
-        [data-theme="light"] .arow,
-        [data-theme="light"] .modal-box,
-        [data-theme="light"] .draw-box {
-            background: #FFFFFF !important;
-            border-color: #E8E8E8 !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.07) !important;
-            color: #000000 !important;
-        }
-        [data-theme="light"] .card * { color: inherit; }
-
-        /* Balance / hero card — keep green accent */
-        [data-theme="light"] .bal-card { background: #000000 !important; color: #FFFFFF !important; }
-        [data-theme="light"] .bal-card * { color: inherit !important; }
-
-        /* Nav */
-        [data-theme="light"] .nav-bal {
-            background: #F0FAF4 !important;
-            border-color: rgba(0,179,74,0.25) !important;
-            color: #007A33 !important;
-        }
-        [data-theme="light"] .nav-logo { color: #00A344 !important; }
-        [data-theme="light"] .nav-av { background: linear-gradient(135deg,#00A344,#004D20) !important; }
-
-        /* Bottom nav */
-        [data-theme="light"] .bi { color: #999999 !important; }
-        [data-theme="light"] .bi.on { color: #00A344 !important; }
-        [data-theme="light"] .bi.on .ico { filter: none !important; }
-
-        /* Inputs */
-        [data-theme="light"] input,
-        [data-theme="light"] select,
-        [data-theme="light"] textarea {
-            background: #F8F8F8 !important;
-            border-color: #DDDDDD !important;
-            color: #000000 !important;
-        }
-        [data-theme="light"] input::placeholder,
-        [data-theme="light"] textarea::placeholder { color: #AAAAAA !important; }
-
-        /* Tables / rows */
-        [data-theme="light"] table { color: #000000 !important; }
-        [data-theme="light"] th { background: #F5F5F5 !important; color: #444 !important; border-color: #E8E8E8 !important; }
-        [data-theme="light"] td { border-color: #EEEEEE !important; color: #000000 !important; }
-        [data-theme="light"] .arow { border-color: #EEEEEE !important; }
-        [data-theme="light"] .ar-name { color: #000000 !important; }
-        [data-theme="light"] .ar-sub { color: #555555 !important; }
-
-        /* Admin panel */
-        [data-theme="light"] #pg-admin,
-        [data-theme="light"] #pg-admin .wrap,
-        [data-theme="light"] #at-root { background: #FFFFFF !important; }
-        [data-theme="light"] .atab,
-        [data-theme="light"] .itab,
-        [data-theme="light"] .itabs { background: #FFFFFF !important; border-color: #E8E8E8 !important; color: #000000 !important; }
-        [data-theme="light"] .atab.on,
-        [data-theme="light"] .itab.on { background: #00A344 !important; color: #FFFFFF !important; border-color: #00A344 !important; }
-
-        /* Text helpers */
-        [data-theme="light"] .es { color: #888888 !important; }
-        [data-theme="light"] .t2, [data-theme="light"] .sub { color: #555555 !important; }
-        [data-theme="light"] .t3 { color: #888888 !important; }
-        [data-theme="light"] h1,[data-theme="light"] h2,
-        [data-theme="light"] h3,[data-theme="light"] h4 { color: #000000 !important; }
-
-        /* Floating theme toggle pill — light mode styling */
-        [data-theme="light"] #theme-toggle-btn {
-            background: #000000 !important;
-            color: #FFFFFF !important;
-            border-color: #000000 !important;
-        }
-
-        /* Modals */
-        [data-theme="light"] .modal { background: rgba(0,0,0,0.55) !important; }
-        [data-theme="light"] .modal-box { background: #FFFFFF !important; }
-
-        /* Notification panel */
-        [data-theme="light"] .notif-panel { background: #FFFFFF !important; border-color: #E8E8E8 !important; }
-
-        /* Misc inline dark surfaces */
-        [data-theme="light"] [style*="var(--s1)"] { background: #FFFFFF !important; }
-        [data-theme="light"] [style*="var(--s2)"] { background: #F5F5F5 !important; }
-        [data-theme="light"] [style*="var(--s3)"] { background: #EEEEEE !important; }
-        [data-theme="light"] [style*="var(--t1)"] { color: #000000 !important; }
-        [data-theme="light"] [style*="var(--t2)"] { color: #444444 !important; }
-        [data-theme="light"] [style*="var(--t3)"] { color: #888888 !important; }
 
 
 
@@ -2195,14 +2062,6 @@ const PAYMENT_API_BASE = '';
             line-height: 1.5
         }
 
-        /* In light mode: stronger amber so it's readable on white */
-        [data-theme="light"] .nb {
-            background: rgba(255, 193, 7, .13);
-            border-color: rgba(255, 160, 0, .35);
-        }
-        [data-theme="light"] .nb-txt {
-            color: #a05900;
-        }
 
         /* PROFILE INFO */
         .prof-info {
@@ -3254,12 +3113,7 @@ const PAYMENT_API_BASE = '';
             margin: 10px 0;
         }
 
-        [data-theme="light"] .broadcast {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        [data-theme="dark"] .broadcast {
+        .broadcast {
             background: #1e293b;
             color: #facc15;
         }
@@ -4291,7 +4145,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 ══════════════════════════════════════════ -->
     <div class="page" id="pg-app">
         <nav>
-            <div class="nav-logo">Starlife<b>.</b></div>
+            <div class="nav-logo"><span style="font-size:20px;font-weight:800;color:#4f8ef7;letter-spacing:-0.5px">Starlife.</span></div>
             <div class="nav-r">
                 <div class="nav-bal">$<span id="nav-bal">0.00</span></div>
                 <div class="bell-wrap" onclick="toggleNotifs()">
@@ -11439,10 +11293,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const snap = await db.collection('broadcasts').limit(10).get();
             const list = snap.docs.map(d => d.data());
             const el = $('notif-area');
-            const isDark = document.body.getAttribute('data-theme') !== 'light';
-            const defaultBg = isDark ? 'rgba(255,213,79,.08)' : 'rgba(255,193,7,.12)';
-            const defaultBdr = isDark ? 'rgba(255,213,79,.22)' : 'rgba(255,165,0,.35)';
-            const defaultTc = isDark ? '#FFD54F' : '#b06800';
+            const defaultBg = 'rgba(255,213,79,.08)';
+            const defaultBdr = 'rgba(255,213,79,.22)';
+            const defaultTc = '#FFD54F';
             el.innerHTML = list.map(b => {
                 const bg = b.bgColor || defaultBg;
                 const tc = b.textColor || defaultTc;
@@ -23563,8 +23416,6 @@ function showReceiptModal(r){
     window._adminAssetImages=[];
 // Also load admin receipts
 
-        // Keep the application in its single, dark color mode.
-        document.body.setAttribute('data-theme', 'dark');
 
         // ════════════════════════════════════════════════════════
         // BROADCAST COLOR PICKERS
@@ -23715,11 +23566,9 @@ function showReceiptModal(r){
 
     <script data-cfasync="false">
         window.features = Object.assign({
-            themeToggle: true,
             broadcastV2: true
         }, window.features || {});
     </script>
-    <script src="features/theme/index.js"></script>
     <script src="features/broadcast/index.js"></script>
 
 </body>
