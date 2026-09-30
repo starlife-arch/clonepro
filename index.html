@@ -3445,7 +3445,7 @@ const PAYMENT_API_BASE = '';
         }
         function openModal(id) { if (window._real_openModal) window._real_openModal(id); }
         function closeModal(id) { if (window._real_closeModal) window._real_closeModal(id); }
-        function tab(name) { if (window._real_tab) window._real_tab(name); else { document.querySelectorAll('.itc').forEach(function (t) { t.style.display = 'none'; t.classList.remove('on'); }); var el = document.getElementById('t-' + name); if (el) { el.style.display = 'block'; el.classList.add('on'); } } }
+        function tab(name) { if (window._real_tab) return window._real_tab(name); var el = document.getElementById('t-' + name); if (!el) { console.warn('Unknown app tab:', name); return false; } document.querySelectorAll('.itc').forEach(function (t) { t.style.display = 'none'; t.classList.remove('on'); }); el.style.display = 'block'; el.classList.add('on'); return true; }
         function atab(el, id) { if (window._real_atab) window._real_atab(el, id); }
 function shTab(el, id) { if (window._real_shTab) window._real_shTab(el, id); }
         function svTab(el, id) { if (window._real_svTab) window._real_svTab(el, id); }
@@ -9375,10 +9375,16 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         // TAB NAVIGATION
         // ════════════════════════════════════════════════════════
         function _baseTab(name) {
+            const _el = $('t-' + name);
+            if (!_el) {
+                console.warn('Unknown app tab:', name);
+                return false;
+            }
             document.querySelectorAll('.itc').forEach(t => { t.style.display = 'none'; t.classList.remove('on'); });
             document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));
-            const _el = $('t-' + name); if (_el) { _el.style.display = 'block'; _el.classList.add('on'); }
+            _el.style.display = 'block'; _el.classList.add('on');
             if ($('bi-' + name)) $('bi-' + name).classList.add('on');
+            return true;
         }
 
         function toggleMore() { const m = $('more-menu'); m.style.display = m.style.display === 'none' ? 'block' : 'none'; }
@@ -21646,10 +21652,18 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
         // ════════════════════════════════════════════════════════
         const _tabBase = window.tab || function () { };
         function tab(name) {
+            const el = $('t-' + name);
+            // Never clear the current screen until the requested panel is known to
+            // exist. A stale or misspelled navigation target used to hide every
+            // panel and leave only the bottom navigation visible.
+            if (!el) {
+                console.warn('Unknown app tab:', name);
+                return false;
+            }
             document.querySelectorAll('.itc').forEach(t => { t.style.display = 'none'; t.classList.remove('on'); });
             document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            const el = $('t-' + name); if (el) { el.style.display = 'block'; el.classList.add('on'); }
+            el.style.display = 'block'; el.classList.add('on');
             if ($('bi-' + name)) $('bi-' + name).classList.add('on');
             if ($('nav-' + name)) $('nav-' + name).classList.add('active');
             window.scrollTo({ top: 0, behavior: 'instant' });
@@ -21689,7 +21703,22 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
                 // Re-attach event listeners (DOM may have been re-rendered)
                 attachBirthdayKYCListeners();
             }
+            return true;
         }
+
+        function ensureAppTabIsVisible() {
+            const app = $('pg-app');
+            if (!app || !app.classList.contains('active') || app.querySelector('.itc.on')) return;
+            tab('home');
+        }
+
+        // Browser page restoration can preserve inline display styles from an
+        // earlier navigation. Re-select Home if that restoration has left the
+        // authenticated shell without an active content panel.
+        window.addEventListener('pageshow', () => setTimeout(ensureAppTabIsVisible, 0));
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) ensureAppTabIsVisible();
+        });
 
         function refreshBirthdayDisplay() {
             const u = window.CU;
