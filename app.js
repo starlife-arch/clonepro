@@ -1,4 +1,6 @@
-const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
+// API calls are served by this deployment; do not send browser requests to
+// the retired cross-origin Heroku service.
+const API_BASE = '';
 const STORAGE_KEY = "starlife-assets-v1";
 
 const PRICE_LIMITS = {

@@ -11,8 +11,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="/styles.css" rel="stylesheet">
     <script>
-// Use the same origin for payment requests. This avoids browser CORS preflights to the retired Heroku API.
-const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
+// Keep every platform request on this deployment. The former Heroku API no
+// longer accepts requests from the public site, which caused browser CORS
+// failures and left actions such as support and messaging unusable.
+const API_BASE = '';
 const PAYMENT_API_BASE = '';
 </script>
     <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
@@ -9120,10 +9122,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         function admitUserToApp(sessionMeta = null) {
             go('pg-app');
-            // Authentication can resume after a user last viewed any tab. Always
-            // select a real app tab after showing the app shell so there is never
-            // a state where every `.itc` page remains hidden.
-            tab('home');
+            // Do not rely on the legacy global `tab` function here. Multiple
+            // feature scripts register tab helpers, and a restored page can call
+            // an older helper before the final one has been installed.
+            selectAppTab('home');
             updateUI();
             loadAllUserData();
             loadBroadcasts();
@@ -21651,21 +21653,34 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
         // TAB LOAD HOOKS
         // ════════════════════════════════════════════════════════
         const _tabBase = window.tab || function () { };
+        function selectAppTab(name) {
+            const selected = $('t-' + name);
+            if (!selected) {
+                console.warn('Unknown app tab:', name);
+                return null;
+            }
+            // Use inline important styles because Chrome can restore stale inline
+            // `display:none` values from a previous session. Without this, the
+            // authenticated shell and bottom navigation are shown with no panel.
+            document.querySelectorAll('.itc').forEach(t => {
+                t.style.setProperty('display', 'none', 'important');
+                t.classList.remove('on');
+            });
+            document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            selected.style.setProperty('display', 'block', 'important');
+            selected.classList.add('on');
+            if ($('bi-' + name)) $('bi-' + name).classList.add('on');
+            if ($('nav-' + name)) $('nav-' + name).classList.add('active');
+            return selected;
+        }
+
         function tab(name) {
-            const el = $('t-' + name);
             // Never clear the current screen until the requested panel is known to
             // exist. A stale or misspelled navigation target used to hide every
             // panel and leave only the bottom navigation visible.
-            if (!el) {
-                console.warn('Unknown app tab:', name);
-                return false;
-            }
-            document.querySelectorAll('.itc').forEach(t => { t.style.display = 'none'; t.classList.remove('on'); });
-            document.querySelectorAll('.bi').forEach(b => b.classList.remove('on'));
-            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            el.style.display = 'block'; el.classList.add('on');
-            if ($('bi-' + name)) $('bi-' + name).classList.add('on');
-            if ($('nav-' + name)) $('nav-' + name).classList.add('active');
+            const el = selectAppTab(name);
+            if (!el) return false;
             window.scrollTo({ top: 0, behavior: 'instant' });
             if (name === 'rewards') { initWheel(); loadCheckin(); renderBadges(); loadDeal(); }
             if (name === 'games') { loadGamesTab(); refreshCrashWallet(); refreshSnakeWallet(); loadPredictions('open'); loadMyPredictionBets('pending'); loadBattleRoom(); loadBattleTournaments(); }
@@ -21708,13 +21723,33 @@ The platform team will be in touch with next steps.`; const rejectedMsg=`Thank y
 
         function ensureAppTabIsVisible() {
             const app = $('pg-app');
-            if (!app || !app.classList.contains('active') || app.querySelector('.itc.on')) return;
-            tab('home');
+            if (!app || !app.classList.contains('active')) return;
+            const hasVisiblePanel = Array.from(app.querySelectorAll('.itc')).some(panel =>
+                getComputedStyle(panel).display !== 'none' && panel.getClientRects().length > 0
+            );
+            if (!hasVisiblePanel) selectAppTab('home');
         }
 
         // Browser page restoration can preserve inline display styles from an
         // earlier navigation. Re-select Home if that restoration has left the
-        // authenticated shell without an active content panel.
+        // authenticated shell without an active content panel. The observer also
+        // covers tab helpers that run after authentication and hide every panel.
+        let appVisibilityRecoveryFrame = null;
+        function scheduleAppVisibilityRecovery() {
+            if (appVisibilityRecoveryFrame !== null) return;
+            appVisibilityRecoveryFrame = requestAnimationFrame(() => {
+                appVisibilityRecoveryFrame = null;
+                ensureAppTabIsVisible();
+            });
+        }
+        const appShell = $('pg-app');
+        if (appShell) {
+            new MutationObserver(scheduleAppVisibilityRecovery).observe(appShell, {
+                attributes: true,
+                attributeFilter: ['class', 'style'],
+                subtree: true
+            });
+        }
         window.addEventListener('pageshow', () => setTimeout(ensureAppTabIsVisible, 0));
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) ensureAppTabIsVisible();
