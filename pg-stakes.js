@@ -1,0 +1,5 @@
+import { query } from './_lib/postgres.js';
+import { requireUser } from './_lib/pg-auth.js';
+const id = (prefix, uid) => `${prefix}_${Date.now()}_${uid.substring(0, 6)}`;
+export async function listStakes(req,res){ try { if(!await requireUser(req,res)) return; const {rows}=await query('SELECT * FROM stakes WHERE user_id = $1 ORDER BY created_at DESC',[req.params.uid]); return res.json(rows); } catch(error){ console.error('[pg] stakes failed',error); return res.status(500).json({error:'Server error'}); } }
+export async function createStake(req,res){ const {uid,plan='Shareholder Stake',amount,status='active'}=req.body||{}; try { if(!await requireUser(req,res,uid))return; if(!Number.isFinite(Number(amount))||Number(amount)<=0)return res.status(400).json({error:'A positive amount is required'}); const {rows:[stake]}=await query('INSERT INTO stakes (id,user_id,plan,amount,status) VALUES ($1,$2,$3,$4,$5) RETURNING *',[id('stake',uid),uid,plan,amount,status]); return res.status(201).json({success:true,stake}); }catch(error){console.error('[pg] create stake failed',error);return res.status(500).json({error:'Server error'});} }

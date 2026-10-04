@@ -1,0 +1,3 @@
+import { query } from './_lib/postgres.js';
+import { requireUser } from './_lib/pg-auth.js';
+export default async function markNotificationRead(req,res){const {uid,notificationId}=req.body||{};try{if(!await requireUser(req,res,uid))return;if(!notificationId)return res.status(400).json({error:'notificationId is required'});const result=await query('UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2',[notificationId,uid]);if(!result.rowCount)return res.status(404).json({error:'Notification not found'});return res.json({success:true,notificationId});}catch(error){console.error('[pg] mark notification read failed',error);return res.status(500).json({error:'Server error'});}}

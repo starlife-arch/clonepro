@@ -1,0 +1,3 @@
+import { query } from './_lib/postgres.js';
+import { findUser } from './_lib/pg-auth.js';
+export default async function pgAnnouncements(req,res){ try { const uid=req.get('x-user-uid'); if(!uid||!await findUser(uid))return res.status(401).json({error:'Unauthorized'}); const {rows}=await query("SELECT value FROM admin_settings WHERE key = 'announcements'"); const value=rows[0]?.value; const announcements=Array.isArray(value)?value:(value?.announcements||[]); return res.json(announcements.filter(item=>item?.active!==false&&item?.enabled!==false)); }catch(error){console.error('[pg] announcements failed',error);return res.status(500).json({error:'Server error'});} }

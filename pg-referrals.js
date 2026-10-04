@@ -1,0 +1,1 @@
+import{query}from './_lib/postgres.js';import{requireUser}from './_lib/pg-auth.js';export default async function referrals(req,res){try{if(!await requireUser(req,res))return;res.json((await query('SELECT * FROM referrals WHERE referrer_id=$1 ORDER BY created_at DESC',[req.params.uid])).rows)}catch(e){res.status(500).json({error:'Server error'})}}
