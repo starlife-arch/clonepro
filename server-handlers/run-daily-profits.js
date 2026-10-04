@@ -254,16 +254,16 @@ export async function runDailyProfits() {
 
 
 
-import { runNetlifyHandler } from './_lib/vercel-adapter.js';
-
 export default async function handler(req, res) {
-  const secret = req.headers?.['x-cron-secret'] || req.headers?.get?.('x-cron-secret');
-  if (secret !== process.env.CRON_SECRET) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  const secret = req.headers?.['x-cron-secret'];
+  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  return runNetlifyHandler(req, res, async () => {
-    await runDailyProfits();
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
-  });
+  try {
+    const result = await runDailyProfits();
+    return res.json(result);
+  } catch (err) {
+    console.error('[run-daily-profits] fatal:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
 }
