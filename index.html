@@ -20178,7 +20178,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
                 };
 
                 // Call API function to initiate Pesapal payment
-                const res = await fetch("/api/pesapal-initiate-payment", {
+                const res = await fetch(API_BASE + "/api/pesapal-initiate-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ orderDetails, userId: u.uid, userName: u.name })
@@ -20204,7 +20204,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
 
             if (orderTrackingId && merchantReference) {
                 // Call API function to verify payment status
-                const res = await fetch("/api/pesapal-verify-payment", {
+                const res = await fetch(API_BASE + "/api/pesapal-verify-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ orderTrackingId, merchantReference })
