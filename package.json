@@ -21,6 +21,6 @@
     "migrate:admin-roles": "node scripts/migrate-admin-roles.js"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   }
 }
