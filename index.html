@@ -19360,7 +19360,6 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
             }
             const win = window.open('', '_blank');
             win.document.write(`<html><head><title>Wallet Statement</title></head><body style="font-family:Arial;padding:24px"><h2>Starlife Wallet Statement</h2><p>${window.CU.name || ''} · ${window.CU.email || ''}</p><table border="1" cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%"><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th></tr>${rows.map(r => `<tr><td>${r.date}</td><td>${r.type}</td><td>${r.description}</td><td>${r.amount}</td><td>${r.status}</td></tr>`).join('')}</table>
-    <script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
 </body></html>`); win.document.close(); win.focus(); win.print();
         }
         // PROMO CODES
