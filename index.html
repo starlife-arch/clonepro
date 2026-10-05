@@ -3261,6 +3261,7 @@ const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
         }
 
     </style>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 
 <body>
@@ -6323,42 +6324,42 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
         <!-- ═══ CAMPAIGNS ═══ -->
         <div id="t-campaigns" class="itc" style="padding:0 14px 80px">
-            <div class="ptitle">️ Campaigns</div>
+            <div class="ptitle"><i data-lucide="megaphone" class="nav-ic"></i> Campaigns</div>
             <div class="psub">Apply for active community support campaigns.</div>
             <div id="campaign-list"><div class="es">Loading campaigns…</div></div>
         </div>
 
         <div class="bnav">
-            <div class="bi on" id="bi-home" onclick="tab('home')"><span class="ico"></span>Home</div>
-            <div class="bi" id="bi-invest" onclick="tab('invest')"><span class="ico"></span>Invest</div>
-            <div class="bi" id="bi-shareholder" onclick="tab('shareholder')"><span class="ico"></span>Stakes</div>
-            <div class="bi" id="bi-loans" onclick="tab('loans')"><span class="ico"></span>Loans</div>
+            <div class="bi on" id="bi-home" onclick="tab('home')"><span class="ico"><i data-lucide="home" class="nav-ic"></i></span>Home</div>
+            <div class="bi" id="bi-invest" onclick="tab('invest')"><span class="ico"><i data-lucide="trending-up" class="nav-ic"></i></span>Invest</div>
+            <div class="bi" id="bi-shareholder" onclick="tab('shareholder')"><span class="ico"><i data-lucide="diamond" class="nav-ic"></i></span>Stakes</div>
+            <div class="bi" id="bi-loans" onclick="tab('loans')"><span class="ico"><i data-lucide="banknote" class="nav-ic"></i></span>Loans</div>
             <div class="bi" id="bi-more" onclick="toggleMore()"><span class="ico">≡</span>More</div>
         </div>
 
         <!-- MORE MENU -->
         <div id="more-menu"
             style="display:none;position:fixed;bottom:65px;right:12px;z-index:400;background:var(--s1);border:1px solid var(--bds);border-radius:var(--r);padding:8px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-            <div class="more-item" onclick="tab('campaigns');loadCampaigns();hideMore()">️ Campaigns</div>
-            <div class="more-item" onclick="tab('surveys');hideMore()"> Surveys</div>
-            <div class="more-item" onclick="tab('savings');hideMore()"> Savings Wallet</div>
-            <div class="more-item" onclick="tab('referral');hideMore()"> Referrals</div>
-            <div class="more-item" onclick="tab('rewards');hideMore()"> Rewards</div>
-            <div class="more-item" onclick="tab('games');hideMore()"> Games</div>
-            <div class="more-item" onclick="tab('tokens');hideMore()"> Tokens</div>
-            <div class="more-item" onclick="tab('gifts');hideMore()"> Gift Coins</div>
-            <div class="more-item" onclick="tab('paid-dm');hideMore()"> Paid DM</div>
-            <div class="more-item" onclick="tab('support');hideMore()"> Support</div>
-            <div class="more-item" onclick="tab('activity');hideMore()"> Activity</div>
-            <div class="more-item" onclick="tab('about');hideMore()">ℹ️ About Us</div>
-            <div class="more-item" onclick="tab('blog');hideMore()"> Blog</div>
-            <div class="more-item" onclick="tab('transfer');hideMore()"> Transfer / Gift</div>
-            <div class="more-item" onclick="tab('my-cards');loadMyCards();hideMore()"> My Cards</div>
-            <div class="more-item" onclick="tab('p2p');loadP2P();hideMore()"> P2P Trading</div>
-            <div class="more-item" onclick="tab('messages');loadDMList();hideMore()"> Messages</div>
-            <div class="more-item" onclick="tab('followers');loadFollowers();hideMore()"> Following</div>
-            <div class="more-item" onclick="tab('profile');hideMore()"> Profile</div>
-            <div class="more-item" id="nav-agent" style="display:none" onclick="go('pg-agent');hideMore()"> Agent
+            <div class="more-item" onclick="tab('campaigns');loadCampaigns();hideMore()"><i data-lucide="megaphone" class="nav-ic"></i> Campaigns</div>
+            <div class="more-item" onclick="tab('surveys');hideMore()"><i data-lucide="clipboard-list" class="nav-ic"></i> Surveys</div>
+            <div class="more-item" onclick="tab('savings');hideMore()"><i data-lucide="piggy-bank" class="nav-ic"></i> Savings Wallet</div>
+            <div class="more-item" onclick="tab('referral');hideMore()"><i data-lucide="users" class="nav-ic"></i> Referrals</div>
+            <div class="more-item" onclick="tab('rewards');hideMore()"><i data-lucide="gift" class="nav-ic"></i> Rewards</div>
+            <div class="more-item" onclick="tab('games');hideMore()"><i data-lucide="gamepad-2" class="nav-ic"></i> Games</div>
+            <div class="more-item" onclick="tab('tokens');hideMore()"><i data-lucide="circle-dollar-sign" class="nav-ic"></i> Tokens</div>
+            <div class="more-item" onclick="tab('gifts');hideMore()"><i data-lucide="hand-coins" class="nav-ic"></i> Gift Coins</div>
+            <div class="more-item" onclick="tab('paid-dm');hideMore()"><i data-lucide="mail" class="nav-ic"></i> Paid DM</div>
+            <div class="more-item" onclick="tab('support');hideMore()"><i data-lucide="headphones" class="nav-ic"></i> Support</div>
+            <div class="more-item" onclick="tab('activity');hideMore()"><i data-lucide="activity" class="nav-ic"></i> Activity</div>
+            <div class="more-item" onclick="tab('about');hideMore()"><i data-lucide="info" class="nav-ic"></i> About Us</div>
+            <div class="more-item" onclick="tab('blog');hideMore()"><i data-lucide="newspaper" class="nav-ic"></i> Blog</div>
+            <div class="more-item" onclick="tab('transfer');hideMore()"><i data-lucide="arrow-left-right" class="nav-ic"></i> Transfer / Gift</div>
+            <div class="more-item" onclick="tab('my-cards');loadMyCards();hideMore()"><i data-lucide="credit-card" class="nav-ic"></i> My Cards</div>
+            <div class="more-item" onclick="tab('p2p');loadP2P();hideMore()"><i data-lucide="repeat" class="nav-ic"></i> P2P Trading</div>
+            <div class="more-item" onclick="tab('messages');loadDMList();hideMore()"><i data-lucide="message-circle" class="nav-ic"></i> Messages</div>
+            <div class="more-item" onclick="tab('followers');loadFollowers();hideMore()"><i data-lucide="user-check" class="nav-ic"></i> Following</div>
+            <div class="more-item" onclick="tab('profile');hideMore()"><i data-lucide="user" class="nav-ic"></i> Profile</div>
+            <div class="more-item" id="nav-agent" style="display:none" onclick="go('pg-agent');hideMore()"><i data-lucide="briefcase" class="nav-ic"></i> Agent
                 Dashboard</div>
         </div>
     </div><!-- /pg-app -->
@@ -7139,7 +7140,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
 
             <div id="at-campaigns" class="atab">
                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-                    <div style="font-weight:700">️ Campaigns</div>
+                    <div style="font-weight:700"><i data-lucide="megaphone" class="nav-ic"></i> Campaigns</div>
                     <button class="btn btn-p btn-sm" onclick="adminShowCampaignForm()">+ New Campaign</button>
                 </div>
                 <div id="admin-campaign-form" class="card" style="display:none;margin-bottom:14px">
@@ -19323,6 +19324,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
       </td>
     </tr>
   </table>
+    <script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
 </body>
 </html>`
                     })
@@ -19359,6 +19361,7 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
             }
             const win = window.open('', '_blank');
             win.document.write(`<html><head><title>Wallet Statement</title></head><body style="font-family:Arial;padding:24px"><h2>Starlife Wallet Statement</h2><p>${window.CU.name || ''} · ${window.CU.email || ''}</p><table border="1" cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%"><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th></tr>${rows.map(r => `<tr><td>${r.date}</td><td>${r.type}</td><td>${r.description}</td><td>${r.amount}</td><td>${r.status}</td></tr>`).join('')}</table>
+    <script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
 </body></html>`); win.document.close(); win.focus(); win.print();
         }
         // PROMO CODES
@@ -23660,6 +23663,7 @@ function showReceiptModal(r){
     <script src="features/theme/index.js"></script>
     <script src="features/broadcast/index.js"></script>
 
+    <script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
 </body>
 
 </html>
