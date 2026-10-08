@@ -25,6 +25,12 @@ async function netlifyHandler() {
       const item = doc.data() || {};
       const broadcastId = item.broadcastId;
       if (broadcastId) touchedBroadcasts.set(broadcastId, { subject: item.subject || 'Untitled broadcast' });
+      // Claim the row BEFORE emailing. If this write fails (for example the Firestore quota is
+      // used up) nothing has been sent yet, so the run stops and the row stays "pending" for later.
+      // Once claimed, the row can never be picked up and emailed a second time.
+      await doc.ref.update({ status: 'sending', claimedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+      let sendError = null;
       try {
         const name = item.name || 'Member';
         const fromEmail = item.fromKey === 'maintenance'
@@ -37,16 +43,21 @@ async function netlifyHandler() {
           html: personalizeMessage(item.message, name),
           headers: { 'Content-Type': 'text/html; charset=UTF-8' },
         });
-        await doc.ref.update({ status: 'sent', sentAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        sent++;
       } catch (err) {
+        sendError = err;
+      }
+
+      if (sendError) {
         failed++;
         await doc.ref.update({
           status: 'failed',
-          error: err.message || 'Send failed',
+          error: sendError.message || 'Send failed',
           failedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+      } else {
+        sent++;
+        await doc.ref.update({ status: 'sent', sentAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       }
     }
 
@@ -68,3 +79,6 @@ import { runNetlifyHandler } from './_lib/vercel-adapter.js';
 export default async function handler(req, res) {
   return runNetlifyHandler(req, res, netlifyHandler);
 }
+
+// Used by the timer in server.js (same code, no HTTP call needed)
+export { netlifyHandler as processEmailQueueOnce };
