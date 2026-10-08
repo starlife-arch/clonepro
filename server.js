@@ -70,6 +70,7 @@ route(app, 'post', '/api/upload-image',             './server-handlers/upload-im
 route(app, 'post', '/api/redeem-points',            './server-handlers/redeem-points.js');
 route(app, 'post', '/api/push-config',              './server-handlers/push-config.js');
 route(app, 'get',  '/api/push-config',              './server-handlers/push-config.js');
+route(app, 'get',  '/api/export-member-emails',     './server-handlers/export-member-emails.js');
 route(app, 'post', '/api/member-lookup',            './server-handlers/member-lookup.js');
 route(app, 'post', '/api/risk-check',               './server-handlers/risk-check.js');
 route(app, 'post', '/api/validate-2fa',             './server-handlers/validate-2fa.js');
