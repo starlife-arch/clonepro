@@ -105,12 +105,18 @@ route(app, 'post', '/api/migrate-pg-to-firestore',  './server-handlers/migrate-p
 // (Nothing was calling the sender before, so queued broadcasts sat at "Processing" forever.)
 let emailQueueRunning = false;
 let emailQueuePausedUntil = 0;
+const emailQueueState = { startedAt: new Date().toISOString(), runs: 0, lastRunAt: null, lastResult: null, lastError: null };
+console.log('[email-queue] sender timer started (runs every minute)');
 cron.schedule('* * * * *', async () => {
   if (emailQueueRunning || Date.now() < emailQueuePausedUntil) return;
   emailQueueRunning = true;
   try {
     const res = await processEmailQueueOnce();
     const out = await res.json().catch(() => ({}));
+    emailQueueState.runs++;
+    emailQueueState.lastRunAt = new Date().toISOString();
+    emailQueueState.lastResult = { processed: out.processed || 0, sent: out.sent || 0, failed: out.failed || 0 };
+    emailQueueState.lastError = out.success === false ? String(out.error || 'unknown error').slice(0, 160) : null;
     if (out.processed) console.log('[email-queue]', JSON.stringify(out));
     if (out.success === false) {
       console.error('[email-queue] run failed:', out.error);
@@ -120,9 +126,30 @@ cron.schedule('* * * * *', async () => {
       }
     }
   } catch (err) {
+    emailQueueState.lastError = String(err.message || err).slice(0, 160);
     console.error('[email-queue] crashed:', err.message);
   } finally {
     emailQueueRunning = false;
+  }
+});
+
+// ── Email sender status (open in a browser to see what the sender is doing) ──
+// Shows counts and yes/no flags only - no emails, names or secrets. Safe to delete later.
+app.get('/api/email-queue-status', async (req, res) => {
+  const timer = { ...emailQueueState, pausedUntil: Date.now() < emailQueuePausedUntil ? new Date(emailQueuePausedUntil).toISOString() : null };
+  const env = {
+    firebaseCredentials: !!(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_PRIVATE_KEY),
+    brevoSmtpUser: !!process.env.BREVO_SMTP_USER,
+    brevoSmtpPass: !!process.env.BREVO_SMTP_PASS,
+  };
+  try {
+    const { initFirebase } = await import('./server-handlers/_lib/broadcast-email.js');
+    const q = initFirebase().collection('emailBroadcastQueue');
+    const count = async status => (await q.where('status', '==', status).count().get()).data().count;
+    const [pending, sending, sent, failed] = await Promise.all([count('pending'), count('sending'), count('sent'), count('failed')]);
+    res.json({ ok: true, timer, env, queue: { pending, sending, sent, failed } });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err.message || err).slice(0, 200), timer, env });
   }
 });
 
