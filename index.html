@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark light">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>Starlife Advert – Invest & Earn</title>
     <link
@@ -3354,10 +3355,22 @@ button>i[class^=ic-]:only-child,span>i[class^=ic-]:only-child,div>i[class^=ic-]:
 .ic-inbox{--m:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpolyline%20points='22%2012%2016%2012%2014%2015%2010%2015%208%2012%202%2012'/%3E%3Cpath%20d='M5.45%205.11%202%2012v6a2%202%200%200%200%202%202h16a2%202%200%200%200%202-2v-6l-3.45-6.89A2%202%200%200%200%2016.76%204H7.24a2%202%200%200%200-1.79%201.11z'/%3E%3C/svg%3E")}
 .ic-dot{--m:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx='12'%20cy='12'%20r='2.5'/%3E%3C/svg%3E")}
 </style>
+<style id="sl-theme-toggle">
+#theme-toggle-btn{position:fixed;left:16px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:2000;display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--bd);border-radius:999px;padding:10px 16px;min-height:44px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--t1);box-shadow:0 2px 12px rgba(0,0,0,.18);-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .2s,color .2s,border-color .2s}
+#theme-toggle-btn:active{transform:scale(.96)}
+#theme-toggle-btn *{pointer-events:none}
+#theme-toggle-icon{font-size:1rem;display:inline-flex}
+body:not(.sl-app-active) #theme-toggle-btn.sl-hide-outside{display:none}
+</style>
 </head>
 
 <body>
     <canvas id="finance-bg-canvas" aria-hidden="true"></canvas>
+    <!-- Floating theme toggle (body-level so nothing in the app can cover it) -->
+    <div id="theme-toggle-btn" role="button" tabindex="0" aria-label="Toggle dark / light mode" title="Toggle dark / light mode">
+        <span id="theme-toggle-icon"><i class=ic-moon></i></span>
+        <span id="theme-toggle-label">Dark</span>
+    </div>
     <div class="toast" id="toast"></div>
     <script data-cfasync="false">
         // ═══ EARLY HELPERS (available immediately, no Firebase needed) ═══
@@ -4272,17 +4285,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 </div>
             </div>
         </nav>
-
-        <!-- ── Floating theme toggle ── -->
-        <div id="theme-toggle-btn" onclick="toggleAppTheme()" title="Toggle dark / light mode"
-             style="position:fixed;bottom:90px;left:16px;z-index:400;display:flex;align-items:center;gap:6px;
-                    background:var(--s2);border:1px solid var(--bd);border-radius:999px;
-                    padding:7px 13px;cursor:pointer;font-size:.78rem;font-weight:600;
-                    color:var(--t1);box-shadow:0 2px 12px rgba(0,0,0,.18);user-select:none;
-                    transition:background .2s,color .2s,border-color .2s">
-            <span id="theme-toggle-icon" style="font-size:1rem"></span>
-            <span id="theme-toggle-label">Dark</span>
-        </div>
 
         <div class="moving-ticker" id="moving-ticker" role="region" aria-label="Site announcements">
             <div class="moving-ticker-tag" id="moving-ticker-tag">Live</div>
@@ -7631,6 +7633,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     <input class="fi" id="bc-email-single-id" placeholder="e.g. USER-1234">
                 </div>
                 <button class="btn btn-p btn-full" onclick="sendBroadcastEmail(this)">Send Email Broadcast</button>
+                <button class="btn btn-gh btn-full" style="margin-top:8px" onclick="downloadMemberEmailsCsv(this)"><i class=ic-download></i>Download all member emails (CSV)</button>
                 <div id="bc-email-result" style="margin-top:12px; font-size:.85rem;"></div>
                 <div style="margin-top:16px">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="font-size:.9rem;margin:0">Recent Broadcasts</h3><button class="btn btn-sm" onclick="loadBroadcastEmailLogs()">Refresh</button></div>
@@ -15451,6 +15454,35 @@ Triggers: ${severityInfo.matched.join(', ')}`);
                     btn.textContent = originalText;
                     btn.disabled = false;
                 }
+            }
+        }
+
+        // Downloads every member email as a CSV (EMAIL, FIRSTNAME, LASTNAME) - ready to import into Brevo.
+        async function downloadMemberEmailsCsv(btn) {
+            const original = btn ? btn.innerHTML : '';
+            try {
+                if (btn) { btn.disabled = true; btn.textContent = 'Preparing file...'; }
+                const token = await auth.currentUser?.getIdToken(true);
+                if (!token) throw new Error('Please sign in again');
+                const res = await fetch(API_BASE + '/api/export-member-emails', { headers: { Authorization: 'Bearer ' + token } });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    throw new Error(d.error || 'Export failed');
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'starlife-members-' + new Date().toISOString().slice(0, 10) + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+                toast('Member email list downloaded', 'tg');
+            } catch (err) {
+                toast(err.message || 'Export failed', 'tr');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
             }
         }
 
@@ -23606,19 +23638,45 @@ function showReceiptModal(r){
         (function() {
             const THEME_KEY = 'sl_theme';
             function applyTheme(t) {
-                document.body.setAttribute('data-theme', t);
-                // Update floating pill button
-                const icon  = document.getElementById('theme-toggle-icon');
-                const label = document.getElementById('theme-toggle-label');
-                if (icon)  icon.innerHTML = t === 'light' ? '<i class=ic-sun></i>' : '<i class=ic-moon></i>';
-                if (label) label.textContent = t === 'light' ? 'Light' : 'Dark';
-                try { localStorage.setItem(THEME_KEY, t); } catch(e){}
-            }
-            window.toggleAppTheme = function() {
-                const cur = document.body.getAttribute('data-theme') || 'dark';
-                applyTheme(cur === 'dark' ? 'light' : 'dark');
-            };
-            // Apply saved theme on load — default is dark
+document.body.setAttribute('data-theme', t);
+document.documentElement.setAttribute('data-theme', t);
+document.documentElement.style.colorScheme = t === 'light' ? 'light' : 'dark';
+const meta = document.querySelector('meta[name="color-scheme"]');
+if (meta) meta.setAttribute('content', t === 'light' ? 'only light' : 'dark');
+// Update floating pill button
+const icon  = document.getElementById('theme-toggle-icon');
+const label = document.getElementById('theme-toggle-label');
+if (icon)  icon.innerHTML = t === 'light' ? '<i class=ic-sun></i>' : '<i class=ic-moon></i>';
+if (label) label.textContent = t === 'light' ? 'Light' : 'Dark';
+try { localStorage.setItem(THEME_KEY, t); } catch(e){}
+}
+window.toggleAppTheme = function() {
+const cur = document.body.getAttribute('data-theme') || 'dark';
+applyTheme(cur === 'dark' ? 'light' : 'dark');
+};
+// Wire the button: pointerup + click + keyboard, de-duplicated so one tap = one toggle
+(function wireThemeBtn() {
+const btn = document.getElementById('theme-toggle-btn');
+if (!btn) return;
+btn.classList.add('sl-hide-outside');
+let last = 0;
+function fire(e) {
+const now = Date.now();
+if (e && e.cancelable) e.preventDefault();
+if (now - last < 450) return;
+last = now;
+window.toggleAppTheme();
+}
+btn.addEventListener('pointerup', fire);
+btn.addEventListener('click', fire);
+btn.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') fire(e); });
+// show the pill only while the signed-in app screen is showing
+const app = document.getElementById('pg-app');
+function sync() { document.body.classList.toggle('sl-app-active', !!(app && app.classList.contains('active'))); }
+if (app && window.MutationObserver) new MutationObserver(sync).observe(app, { attributes: true, attributeFilter: ['class'] });
+sync();
+})();
+// Apply saved theme on load — default is dark
             try {
                 const saved = localStorage.getItem(THEME_KEY) || 'dark';
                 applyTheme(saved);
