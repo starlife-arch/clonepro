@@ -79,6 +79,8 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
+  const incomingAdminUid = new URLSearchParams(window.location.search).get('adminUid');
+  if (incomingAdminUid) $('adminUid').value = incomingAdminUid;
   let session = null;
   let customers = [];
   const datasets = [
