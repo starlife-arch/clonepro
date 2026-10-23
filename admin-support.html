@@ -120,10 +120,15 @@
     $('userOverride').value=value;
     $('overrideInfo').textContent='Admin override: '+(value==='inherit'?'none; customer preference applies':value==='true'?'forced on':'forced off')+(data.globalDisabled?' · global pause active':'');
   }
+  async function loadActivity(){
+    if(!session)return;
+    const data=await run(()=>api('admin-support-data',{action:'session-activity',targetUid:session.target_user_id,sessionId:session.id}));
+    if(data)$('activityOutput').textContent=JSON.stringify(data,null,2);
+  }
   async function loadDataset(key){
     if(!session)return toast('Start a support session first.');
     const data=await run(()=>api('admin-support-data',{action:'customer-dataset',targetUid:session.target_user_id,sessionId:session.id,dataset:key}));
-    if(data)$('datasetOutput').textContent=JSON.stringify(data,null,2);
+    if(data){$('datasetOutput').textContent=JSON.stringify(data,null,2);await loadActivity();}
   }
   datasets.forEach(([key,label])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>loadDataset(key));$('datasetButtons').append(b)});
   $('loadCustomers').addEventListener('click',()=>run(loadCustomers));
@@ -134,7 +139,7 @@
     if(!targetUid)throw new Error('Select a customer first.');
     if(reason.length<8)throw new Error('Enter a support reason of at least 8 characters.');
     const data=await api('admin-controls',{action:'start-support-session',targetUid,reason});
-    setSession(data.session);await loadSummary();toast('Support session started. Data access is audited.');
+    setSession(data.session);await loadSummary();await loadActivity();toast('Support session started. Data access is audited.');
   }));
   $('endSession').addEventListener('click',()=>run(async()=>{
     if(!session)return;
