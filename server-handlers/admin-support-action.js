@@ -8,14 +8,11 @@ const operations = {
   'profile.update': { module: './pg-user-update.js', exportName: 'default', method: 'POST', write: true },
   'investments.list': { module: './pg-investments.js', exportName: 'default', method: 'GET', write: false },
   'savings.list': { module: './pg-savings.js', exportName: 'listSavings', method: 'GET', write: false },
-  'savings.create': { module: './pg-savings.js', exportName: 'createSavings', method: 'POST', write: true },
   'stakes.list': { module: './pg-stakes.js', exportName: 'listStakes', method: 'GET', write: false },
-  'stakes.create': { module: './pg-stakes.js', exportName: 'createStake', method: 'POST', write: true },
   'tickets.list': { module: './pg-tickets.js', exportName: 'tickets', method: 'GET', write: false },
   'tickets.create': { module: './pg-tickets.js', exportName: 'createTicket', method: 'POST', write: true },
   'tickets.message': { module: './pg-tickets.js', exportName: 'ticketMessage', method: 'POST', write: true },
   'transfers.list': { module: './pg-transfers.js', exportName: 'transfers', method: 'GET', write: false },
-  'transfers.send': { module: './pg-transfers.js', exportName: 'sendTransfer', method: 'POST', write: true, financial: true },
   'withdrawals.list': { module: './pg-withdrawals.js', exportName: 'default', method: 'GET', write: false },
   'deposits.list': { module: './pg-deposits.js', exportName: 'default', method: 'GET', write: false },
   'loans.list': { module: './pg-loans.js', exportName: 'default', method: 'GET', write: false },
@@ -53,14 +50,10 @@ export default async function adminSupportAction(req, res) {
 
   // Force customer ownership fields server-side; never trust a target UID in the payload.
   const body = { ...(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) };
-  if (action === 'profile.update' || action === 'savings.create' || action === 'stakes.create' || action === 'tickets.create' || action === 'tickets.message') body.uid = targetUid;
+  if (action === 'profile.update' || action === 'tickets.create' || action === 'tickets.message') body.uid = targetUid;
   if (action === 'transfers.send') body.senderUid = targetUid;
   if (action === 'messages.send') body.senderUid = targetUid;
 
-  if (action === 'savings.create' || action === 'stakes.create' || action === 'transfers.send') {
-    if (!Number.isFinite(Number(body.amount)) || Number(body.amount) <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-  }
-  if (action === 'transfers.send' && (!body.receiverUid || body.receiverUid === targetUid)) return res.status(400).json({ error: 'Choose a valid recipient other than the selected customer' });
   if (action === 'messages.send' && (!body.receiverUid || !String(body.content || '').trim())) return res.status(400).json({ error: 'A recipient and message content are required' });
   if (action === 'tickets.message' && (!body.ticketId || !String(body.message || '').trim())) return res.status(400).json({ error: 'ticketId and message are required' });
   if (action === 'tickets.create' && (!String(body.subject || '').trim() || !String(body.category || '').trim())) return res.status(400).json({ error: 'Ticket subject and category are required' });
