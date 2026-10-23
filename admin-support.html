@@ -57,7 +57,7 @@
 <option value="messages.list">List messages</option><option value="messages.send">Send message</option><option value="notifications.list">List notifications</option>
 <option value="activity.list">List activity</option><option value="security.list">View security history</option>
 </select></label>
-<label>JSON payload<textarea id="actionPayload" rows="5" spellcheck="false">{}</textarea></label>
+<div id="actionFields" class="grid" aria-live="polite"><p class="muted">Choose an action to see the fields needed.</p></div>
 <label>Reason for action (required for writes)<textarea id="actionReason" rows="3" placeholder="Customer request, verification steps, and authorization; at least 8 characters"></textarea></label>
 </div>
 <div class="row" style="margin-top:10px"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="actionConfirm"> I confirm this exact action is authorized</label><button id="runSupportAction" class="primary">Run audited action</button></div>
@@ -95,7 +95,11 @@
     const uid=adminUid(); if(!uid) throw new Error('Enter your admin account ID first.');
     const token=sessionStorage.getItem('adminSupportIdToken')||''; if(!token) throw new Error('Open Admin Support from the signed-in app so a verified Firebase token is available.');
     const response=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
-    const data=await response.json().catch(()=>({error:'Invalid server response'}));
+    const raw=await response.text();
+    let data; try { data=raw ? JSON.parse(raw) : {}; } catch (_) {
+      const preview=raw.replace(/\\s+/g,' ').slice(0,180);
+      throw new Error('Server returned a non-JSON response (HTTP '+response.status+'). The support API route may not be deployed on this site or the request was redirected. Response: '+(preview||'[empty response]'));
+    }
     if(!response.ok) throw new Error(data.error||('Request failed ('+response.status+')'));
     return data;
   }
@@ -148,29 +152,35 @@
     const data=await run(()=>api('admin-support-data',{action:'session-activity',targetUid:session.target_user_id,sessionId:session.id}));
     if(data)$('activityOutput').textContent=JSON.stringify(data,null,2);
   }
-  const actionExamples = {
-    'profile.read':'{}','profile.update':'{"fields":{"name":"Updated customer name"}}','investments.list':'{}','savings.list':'{}',
-'stakes.list':'{}','stakes.create':'{"plan":"Shareholder Stake","amount":10}',
-    'tickets.list':'{}','tickets.create':'{"subject":"Customer support request","category":"account","priority":"normal"}',
-    'tickets.message':'{"ticketId":"ticket_id_here","message":"Follow-up requested by customer"}','transfers.list':'{}',
-
-    'withdrawals.list':'{}','deposits.list':'{}','loans.list':'{}','messages.list':'{}',
-    'messages.send':'{"receiverUid":"recipient_uid_here","content":"Customer-authorized message","type":"text"}',
-    'notifications.list':'{}','activity.list':'{}','security.list':'{}'
+  const actionFields = {
+    'profile.update': [{key:'name',label:'Customer name',type:'text'},{key:'phone',label:'Phone number',type:'tel'},{key:'country',label:'Country',type:'text'}],
+    'tickets.create': [{key:'subject',label:'Ticket subject',type:'text',required:true},{key:'category',label:'Category',type:'select',options:['account','deposit','withdrawal','investment','technical','other']},{key:'priority',label:'Priority',type:'select',options:['low','normal','high']}],
+    'tickets.message': [{key:'ticketId',label:'Ticket ID',type:'text',required:true},{key:'message',label:'Reply message',type:'textarea',required:true}],
+    'messages.send': [{key:'receiverUid',label:'Recipient user ID',type:'text',required:true},{key:'content',label:'Message',type:'textarea',required:true}]
   };
   const writeActions = new Set(['profile.update','tickets.create','tickets.message','messages.send']);
-  $('supportAction').addEventListener('change',()=>{$('actionPayload').value=actionExamples[$('supportAction').value]||'{}';$('actionConfirm').checked=false;});
+  function renderActionFields(){
+    const action=$('supportAction').value, fields=actionFields[action]||[]; $('actionFields').replaceChildren();
+    if(!fields.length){const hint=document.createElement('p');hint.className='muted';hint.textContent='No extra fields are needed for this read action.';$('actionFields').append(hint);}
+    fields.forEach(spec=>{const label=document.createElement('label');label.textContent=spec.label+(spec.required?' *':'');let input;
+      if(spec.type==='select'){input=document.createElement('select');spec.options.forEach(v=>input.add(new Option(v.charAt(0).toUpperCase()+v.slice(1),v)));}
+      else if(spec.type==='textarea'){input=document.createElement('textarea');input.rows=3;} else {input=document.createElement('input');input.type=spec.type||'text';}
+      input.dataset.actionField=spec.key;input.required=!!spec.required;input.autocomplete='off';label.append(input);$('actionFields').append(label);
+    }); $('actionConfirm').checked=false; $('actionOutput').textContent='Ready. Complete the fields above and submit the action.';
+  }
+  function collectActionPayload(){
+    const payload={};$('actionFields').querySelectorAll('[data-action-field]').forEach(input=>{const value=input.value.trim();if(value)payload[input.dataset.actionField]=value;});
+    if($('supportAction').value==='profile.update'){const fields={};['name','phone','country'].forEach(k=>{if(payload[k])fields[k]=payload[k]});return {fields};} return payload;
+  }
+  $('supportAction').addEventListener('change',renderActionFields); renderActionFields();
   $('runSupportAction').addEventListener('click',()=>run(async()=>{
     if(!session)throw new Error('Start a support session first.');
-    const action=$('supportAction').value, write=writeActions.has(action);
-    let payload;try{payload=JSON.parse($('actionPayload').value||'{}')}catch(_){throw new Error('Payload must be valid JSON.')}
-    const reason=$('actionReason').value.trim();
+    const action=$('supportAction').value, write=writeActions.has(action), payload=collectActionPayload();
+    if(action==='profile.update'&&!Object.keys(payload.fields||{}).length)throw new Error('Enter at least one profile field to update.');
     if(write&&!$('actionConfirm').checked)throw new Error('Confirm the exact write action before submitting.');
-    if(write&&reason.length<8)throw new Error('Enter a reason of at least 8 characters.');
+    const reason=$('actionReason').value.trim();if(write&&reason.length<8)throw new Error('Enter a reason of at least 8 characters.');
     const result=await api('admin-support-action',{action,targetUid:session.target_user_id,sessionId:session.id,payload,confirmed:write&&$('actionConfirm').checked,reason});
-    $('actionOutput').textContent=JSON.stringify(result,null,2);
-    await loadActivity();
-    toast('Support action returned a response; inspect the result and audit trail.');
+    $('actionOutput').textContent=typeof result==='string'?result:JSON.stringify(result,null,2);await loadActivity();toast('Action completed. Review the result and audit trail.');
   }));
   async function loadDataset(key){
     if(!session)return toast('Start a support session first.');
