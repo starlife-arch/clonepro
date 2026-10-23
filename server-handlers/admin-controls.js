@@ -51,6 +51,15 @@ export default async function adminControls(req, res) {
       await audit(admin.id, enabled ? 'auto_invest_user_enabled' : 'auto_invest_user_disabled', targetUid, { enabled });
       return res.json({ success: true, targetUid, enabled, globallyPaused: await globalDisabled() });
     }
+    if (action === 'clear-user-auto-invest') {
+      const { targetUid } = req.body || {};
+      if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
+      const target = await query("SELECT id FROM users WHERE id=$1 AND role <> 'admin'", [targetUid]);
+      if (!target.rows[0]) return res.status(404).json({ error: 'Customer account not found' });
+      await query('DELETE FROM user_auto_invest_preferences WHERE user_id=$1', [targetUid]);
+      await audit(admin.id, 'auto_invest_user_override_cleared', targetUid, { fallsBackToCustomerPreference: true });
+      return res.json({ success: true, targetUid, override: null, fallsBackToCustomerPreference: true });
+    }
     if (action === 'get-user-auto-invest') {
       const { targetUid } = req.body || {};
       if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
