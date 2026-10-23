@@ -44,6 +44,26 @@
 <div class="row" style="margin:14px 0"><label style="min-width:220px">Admin auto-reinvest override<select id="userOverride"><option value="inherit">Use customer's own setting</option><option value="true">Force enabled</option><option value="false">Force disabled</option></select></label><button id="saveOverride" class="primary" disabled>Save override</button><button id="refreshOverride" disabled>Refresh override</button><span id="overrideInfo" class="muted"></span></div>
 </section>
 <section class="card">
+<h2>Audited customer actions</h2>
+<p class="muted">Actions run through an explicit allowlist of existing customer handlers, with the active session attached. Writes require a confirmation checkbox and a reason. Transfers move funds if submitted; do not use this action for testing or without the customer's authorization.</p>
+<div class="grid">
+<label>Action<select id="supportAction">
+<option value="profile.read">View profile</option><option value="profile.update">Update profile fields</option>
+<option value="investments.list">List investments</option><option value="savings.list">List savings</option><option value="savings.create">Create savings record</option>
+<option value="stakes.list">List stakes</option><option value="stakes.create">Create stake</option><option value="tickets.list">List support tickets</option>
+<option value="tickets.create">Create support ticket</option><option value="tickets.message">Reply to support ticket</option>
+<option value="transfers.list">List transfers</option><option value="transfers.send">Send transfer (money-moving)</option>
+<option value="withdrawals.list">List withdrawals</option><option value="deposits.list">List deposits</option><option value="loans.list">List loans</option>
+<option value="messages.list">List messages</option><option value="messages.send">Send message</option><option value="notifications.list">List notifications</option>
+<option value="activity.list">List activity</option><option value="security.list">View security history</option>
+</select></label>
+<label>JSON payload<textarea id="actionPayload" rows="5" spellcheck="false">{}</textarea></label>
+<label>Reason for action (required for writes)<textarea id="actionReason" rows="3" placeholder="Customer request, verification steps, and authorization; at least 8 characters"></textarea></label>
+</div>
+<div class="row" style="margin-top:10px"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="actionConfirm"> I confirm this exact action is authorized</label><button id="runSupportAction" class="primary">Run audited action</button></div>
+<pre id="actionOutput">No support action submitted.</pre>
+</section>
+<section class="card">
 <h2>Customer workspace records</h2>
 <p class="muted">Choose a record type to review the customer's data within this active support session.</p>
 <div id="datasetButtons" class="data-buttons"></div>
@@ -125,6 +145,31 @@
     const data=await run(()=>api('admin-support-data',{action:'session-activity',targetUid:session.target_user_id,sessionId:session.id}));
     if(data)$('activityOutput').textContent=JSON.stringify(data,null,2);
   }
+  const actionExamples = {
+    'profile.read':'{}','profile.update':'{"fields":{"name":"Updated customer name"}}','investments.list':'{}','savings.list':'{}',
+    'savings.create':'{"amount":10}','stakes.list':'{}','stakes.create':'{"plan":"Shareholder Stake","amount":10}',
+    'tickets.list':'{}','tickets.create':'{"subject":"Customer support request","category":"account","priority":"normal"}',
+    'tickets.message':'{"ticketId":"ticket_id_here","message":"Follow-up requested by customer"}','transfers.list':'{}',
+    'transfers.send':'{"receiverUid":"recipient_uid_here","amount":1,"note":"Authorized customer transfer"}',
+    'withdrawals.list':'{}','deposits.list':'{}','loans.list':'{}','messages.list':'{}',
+    'messages.send':'{"receiverUid":"recipient_uid_here","content":"Customer-authorized message","type":"text"}',
+    'notifications.list':'{}','activity.list':'{}','security.list':'{}'
+  };
+  const writeActions = new Set(['profile.update','savings.create','stakes.create','tickets.create','tickets.message','transfers.send','messages.send']);
+  $('supportAction').addEventListener('change',()=>{$('actionPayload').value=actionExamples[$('supportAction').value]||'{}';$('actionConfirm').checked=false;});
+  $('runSupportAction').addEventListener('click',()=>run(async()=>{
+    if(!session)throw new Error('Start a support session first.');
+    const action=$('supportAction').value, write=writeActions.has(action);
+    let payload;try{payload=JSON.parse($('actionPayload').value||'{}')}catch(_){throw new Error('Payload must be valid JSON.')}
+    const reason=$('actionReason').value.trim();
+    if(write&&!$('actionConfirm').checked)throw new Error('Confirm the exact write action before submitting.');
+    if(write&&reason.length<8)throw new Error('Enter a reason of at least 8 characters.');
+    if(action==='transfers.send'&&!confirm('This may move real funds. Verify customer consent, recipient and amount. Continue?'))return;
+    const result=await api('admin-support-action',{action,targetUid:session.target_user_id,sessionId:session.id,payload,confirmed:write&&$('actionConfirm').checked,reason});
+    $('actionOutput').textContent=JSON.stringify(result,null,2);
+    await loadActivity();
+    toast('Support action returned a response; inspect the result and audit trail.');
+  }));
   async function loadDataset(key){
     if(!session)return toast('Start a support session first.');
     const data=await run(()=>api('admin-support-data',{action:'customer-dataset',targetUid:session.target_user_id,sessionId:session.id,dataset:key}));
