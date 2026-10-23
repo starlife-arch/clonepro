@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { query, pool } from './_lib/postgres.js';
-import { requireAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
 async function audit(adminId, action, targetUser, meta = {}) {
   await query(
@@ -35,7 +35,7 @@ async function globalDisabled() {
 
 export default async function adminControls(req, res) {
   try {
-    const admin = await requireAdmin(req, res);
+    const admin = await requireVerifiedAdmin(req, res);
     if (!admin) return;
     const { action } = req.body || {};
     if (req.method === 'GET' || action === 'status') {
