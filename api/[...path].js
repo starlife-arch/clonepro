@@ -137,7 +137,7 @@ export default async function handler(req, res) {
   // CORS headers on EVERY request — not just 404s
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-cron-secret, x-migration-secret');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-admin-uid, x-cron-secret, x-migration-secret');
 
   // Handle preflight
   if (req.method === 'OPTIONS') return res.status(200).end();
