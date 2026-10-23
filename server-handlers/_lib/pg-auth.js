@@ -73,7 +73,7 @@ export async function requireAdmin(req, res, expectedUid) {
  */
 export async function requireVerifiedAdmin(req, res) {
   const authorization = req.get('authorization') || '';
-  const match = /^Bearer\\s+(.+)$/i.exec(String(authorization));
+  const match = /^Bearer\s+(.+)$/i.exec(String(authorization));
   const adminUid = req.get('x-admin-uid');
   if (!match || !adminUid) {
     res.status(401).json({ error: 'A valid Firebase ID token and admin identity are required' });
