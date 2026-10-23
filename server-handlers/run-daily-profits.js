@@ -1,4 +1,5 @@
 import { getDb, admin } from './_lib/firebase.js';
+import { query } from './_lib/postgres.js';
 
 const DEFAULT_INVESTMENT_DAILY_RATE = 0.02;
 const BATCH_FLUSH = 400;
@@ -24,6 +25,23 @@ async function loadInvestmentDailyRate(db) {
     console.warn('[run-daily-profits] platform settings unavailable', error);
   }
   return DEFAULT_INVESTMENT_DAILY_RATE;
+}
+
+
+async function loadAutoReinvestControls() {
+  try {
+    const { rows } = await query("SELECT key, value FROM admin_settings WHERE key IN ('auto_invest_global_disabled','auto_reinvest_minimum_amount')");
+    const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
+    const { rows: prefs } = await query('SELECT user_id, enabled FROM user_auto_invest_preferences WHERE enabled IS NOT NULL');
+    return {
+      globalDisabled: values.auto_invest_global_disabled === true || values.auto_invest_global_disabled === 'true',
+      minimumAmount: Math.max(0, Number(values.auto_reinvest_minimum_amount ?? 1)),
+      perUser: new Map(prefs.map(row => [row.user_id, row.enabled]))
+    };
+  } catch (error) {
+    console.error('[run-daily-profits] auto-reinvest controls unavailable; reinvestment paused', error);
+    return { globalDisabled: true, minimumAmount: 1, perUser: new Map() };
+  }
 }
 
 function getEffectiveInvestmentRate(userObj, platformRate) {
@@ -56,6 +74,7 @@ export async function runDailyProfits() {
   const inc = admin.firestore.FieldValue.increment;
   const serverTimestamp = admin.firestore.FieldValue.serverTimestamp;
   const platformRate = await loadInvestmentDailyRate(db);
+  const autoReinvestControls = await loadAutoReinvestControls();
 
   try {
     const invSnap = await db.collection('investments').where('status', '==', 'active').get();
@@ -79,9 +98,16 @@ export async function runDailyProfits() {
 
         let reinvestAmt = 0;
         let balanceProfit = profit;
-        if (uData.autoReinvest && uData.autoReinvestPct > 0) {
-          reinvestAmt = parseFloat((profit * uData.autoReinvestPct / 100).toFixed(4));
-          balanceProfit = parseFloat((profit - reinvestAmt).toFixed(4));
+        const adminOverride = autoReinvestControls.perUser.get(inv.uid);
+        const userAutoReinvestEnabled = typeof adminOverride === 'boolean' ? adminOverride : !!uData.autoReinvest;
+        if (!autoReinvestControls.globalDisabled && userAutoReinvestEnabled && Number(uData.autoReinvestPct) > 0) {
+          const proposedReinvest = parseFloat((profit * Number(uData.autoReinvestPct) / 100).toFixed(4));
+          // If the calculated reinvest amount is too small, credit all profit to
+          // available balance instead of creating tiny investment records.
+          if (proposedReinvest >= autoReinvestControls.minimumAmount) {
+            reinvestAmt = proposedReinvest;
+            balanceProfit = parseFloat((profit - reinvestAmt).toFixed(4));
+          }
         }
 
         state.batch.update(db.collection('users').doc(inv.uid), { balance: inc(balanceProfit), totalEarned: inc(profit) });
