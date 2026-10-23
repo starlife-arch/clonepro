@@ -45,17 +45,21 @@ export default async function adminSupportAction(req, res) {
   if (!sessions[0]) return res.status(403).json({ error: 'A valid active support session for this customer is required' });
 
   if (op.write && (confirmed !== true || typeof reason !== 'string' || reason.trim().length < 8)) {
+    await audit(admin.id, 'support_action_rejected', targetUid, { sessionId, action, reason: 'missing confirmation or insufficient reason' });
     return res.status(400).json({ error: 'Write actions require confirmed=true and a reason of at least 8 characters' });
   }
 
   // Force customer ownership fields server-side; never trust a target UID in the payload.
   const body = { ...(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) };
   if (action === 'profile.update' || action === 'tickets.create' || action === 'tickets.message') body.uid = targetUid;
-  if (action === 'transfers.send') body.senderUid = targetUid;
   if (action === 'messages.send') body.senderUid = targetUid;
 
-  if (action === 'messages.send' && (!body.receiverUid || !String(body.content || '').trim())) return res.status(400).json({ error: 'A recipient and message content are required' });
+  if (action === 'messages.send' && (!body.receiverUid || body.receiverUid === targetUid || !String(body.content || '').trim())) return res.status(400).json({ error: 'A different recipient and message content are required' });
   if (action === 'tickets.message' && (!body.ticketId || !String(body.message || '').trim())) return res.status(400).json({ error: 'ticketId and message are required' });
+  if (action === 'tickets.message') {
+    const ownedTicket = await query('SELECT id FROM tickets WHERE id=$1 AND user_id=$2', [body.ticketId, targetUid]);
+    if (!ownedTicket.rows[0]) return res.status(404).json({ error: 'Ticket not found for selected customer' });
+  }
   if (action === 'tickets.create' && (!String(body.subject || '').trim() || !String(body.category || '').trim())) return res.status(400).json({ error: 'Ticket subject and category are required' });
 
   const route = '/api/support-session/' + String(action).slice(0, 80);
