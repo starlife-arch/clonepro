@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-admin-uid, x-cron-secret, x-migration-secret');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-admin-uid, x-support-session-id, x-cron-secret, x-migration-secret');
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
@@ -45,6 +45,8 @@ function route(app, method, path, handlerPath) {
 // Audited administrative controls (also available through the Vercel catch-all API route).
 route(app, 'post', '/api/admin-controls', './server-handlers/admin-controls.js');
 route(app, 'get', '/api/admin-controls', './server-handlers/admin-controls.js');
+route(app, 'post', '/api/admin-support-data', './server-handlers/admin-support-data.js');
+route(app, 'get', '/api/admin-support-data', './server-handlers/admin-support-data.js');
 
 // All routes
 route(app, 'post', '/api/printpay-stk-push',        './server-handlers/printpay-stk-push.js');
