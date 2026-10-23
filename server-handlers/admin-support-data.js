@@ -1,5 +1,5 @@
 import { query } from './_lib/postgres.js';
-import { requireAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
 const datasets = {
   investments: { sql: 'SELECT id, plan, amount, daily_rate, status, total_earned, maturity_date, created_at FROM investments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
@@ -25,7 +25,7 @@ async function audit(adminId, action, targetUser, meta = {}) {
 
 export default async function adminSupportData(req, res) {
   try {
-    const admin = await requireAdmin(req, res);
+    const admin = await requireVerifiedAdmin(req, res);
     if (!admin) return;
     const { action, targetUid, sessionId, dataset, search = '' } = req.method === 'GET' ? req.query : (req.body || {});
 
