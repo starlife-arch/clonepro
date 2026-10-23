@@ -23875,6 +23875,17 @@ sync();
     link.textContent = 'Admin Support';
     link.setAttribute('aria-label','Open audited admin support workspace');
     link.style.cssText = 'position:fixed;right:16px;bottom:84px;z-index:9998;padding:10px 14px;border-radius:999px;background:#244fc5;color:#fff;font:700 13px system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.22);';
+    link.addEventListener('click', async (event) => {
+      event.preventDefault();
+      try {
+        const currentAuth = typeof auth !== 'undefined' ? auth : (typeof firebase !== 'undefined' ? firebase.auth() : null);
+        const firebaseUser = currentAuth && currentAuth.currentUser;
+        if (!firebaseUser) throw new Error('Your sign-in has expired. Sign in again first.');
+        const idToken = await firebaseUser.getIdToken();
+        sessionStorage.setItem('adminSupportIdToken', idToken);
+        window.location.href = link.href;
+      } catch (error) { alert(error.message || 'Could not authenticate admin support session.'); }
+    });
     document.body.appendChild(link);
   }
   window.addEventListener('load', syncShortcut, { once:true });
