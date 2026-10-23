@@ -101,10 +101,10 @@ export default async function adminSupportAction(req, res) {
     if (typeof handler !== 'function') throw new Error('Configured customer action handler is unavailable');
     await handler(mockReq, mockRes);
     if (!completed) {
-      statusCode = statusCode || 204;
-      responseBody = { success: statusCode < 400 };
+      statusCode = 502;
+      responseBody = { error: 'Customer handler did not return a result; no success was assumed' };
     }
-    await audit(admin.id, 'support_action_completed', targetUid, { sessionId, action, statusCode, success: statusCode < 400 });
+    await audit(admin.id, statusCode < 400 ? 'support_action_completed' : 'support_action_failed', targetUid, { sessionId, action, statusCode, success: statusCode < 400 });
     return res.status(statusCode).json(responseBody);
   } catch (error) {
     console.error('[admin-support-action] failed', { action, message: error.message });
