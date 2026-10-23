@@ -47,6 +47,7 @@ route(app, 'post', '/api/admin-controls', './server-handlers/admin-controls.js')
 route(app, 'get', '/api/admin-controls', './server-handlers/admin-controls.js');
 route(app, 'post', '/api/admin-support-data', './server-handlers/admin-support-data.js');
 route(app, 'get', '/api/admin-support-data', './server-handlers/admin-support-data.js');
+route(app, 'post', '/api/admin-support-action', './server-handlers/admin-support-action.js');
 
 // All routes
 route(app, 'post', '/api/printpay-stk-push',        './server-handlers/printpay-stk-push.js');
