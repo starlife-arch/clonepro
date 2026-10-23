@@ -3261,7 +3261,27 @@ const API_BASE = 'https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
             color: #facc15;
         }
 
-    </style>
+    
+/* Admin support follow-up: keep title icons in flow and preserve light-theme contrast. */
+.ptitle { display:flex; align-items:center; flex-wrap:wrap; gap:.45rem; min-width:0; }
+.ptitle > i[class^="ic-"] { position:static !important; inset:auto !important; transform:none !important; flex:0 0 1.25rem; width:1.25rem; height:1.25rem; display:inline-block; vertical-align:middle; }
+#t-messages .ptitle { line-height:1.25; overflow-wrap:anywhere; }
+#t-messages .ptitle .ic-megaphone,
+#t-messages .psub .ic-megaphone { position:static !important; transform:none !important; margin:0; }
+.moving-ticker-item { display:inline-flex; align-items:center; gap:.45rem; }
+.moving-ticker-item > .ic-megaphone { position:static !important; transform:none !important; flex:0 0 1rem; width:1rem; height:1rem; margin:0; }
+[data-theme="light"] .ptitle,
+[data-theme="light"] .psub,
+[data-theme="light"] #t-messages,
+[data-theme="light"] #t-messages .es,
+[data-theme="light"] #t-messages .message-preview { color:#111111 !important; }
+[data-theme="light"] .card :not(button):not(.btn):not(.tag):not(.user-tag)[style*="color:#fff"],
+[data-theme="light"] .card :not(button):not(.btn):not(.tag):not(.user-tag)[style*="color: #fff"],
+[data-theme="light"] .card :not(button):not(.btn):not(.tag):not(.user-tag)[style*="color:#FFFFFF"],
+[data-theme="light"] .card :not(button):not(.btn):not(.tag):not(.user-tag)[style*="color: white"] { color:#111111 !important; }
+[data-theme="light"] .moving-ticker { color:#111111; }
+
+</style>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style id="sl-icons">
 /* SVG ICON SYSTEM (replaces emoji) */
@@ -23839,7 +23859,33 @@ sync();
     <script src="features/theme/index.js"></script>
     <script src="features/broadcast/index.js"></script>
 
-    <script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
+    <script>
+(function initAdminSupportShortcut(){
+  function syncShortcut(){
+    const user = window.CU;
+    const existing = document.getElementById('admin-support-shortcut');
+    if (!user || !(user.isAdmin === true || user.role === 'admin')) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing) return;
+    const link = document.createElement('a');
+    link.id = 'admin-support-shortcut';
+    link.href = '/admin-support.html';
+    link.textContent = 'Admin Support';
+    link.setAttribute('aria-label','Open audited admin support workspace');
+    link.style.cssText = 'position:fixed;right:16px;bottom:84px;z-index:9998;padding:10px 14px;border-radius:999px;background:#244fc5;color:#fff;font:700 13px system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.22);';
+    document.body.appendChild(link);
+  }
+  window.addEventListener('load', syncShortcut, { once:true });
+  const timer = setInterval(() => {
+    syncShortcut();
+    if (window.CU) clearInterval(timer);
+  }, 500);
+  if (document.readyState !== 'loading') syncShortcut();
+})();
+</script>
+<script>if(typeof lucide !== "undefined") lucide.createIcons();</script>
 </body>
 
 </html>
