@@ -1,6 +1,6 @@
 # Admin support sessions and auto-invest controls
 
-Apply `migrations/016_admin_support_auto_invest.sql` after migrations `001_users.sql` and `013_admin.sql`.
+Apply `migrations/016_admin_support_auto_invest.sql` after migrations `001_users.sql` and `013_admin.sql`, then apply `migrations/017_auto_reinvest_overrides.sql`. Migration 017 converts the default rows created by 016 into nullable overrides; explicit admin choices are preserved.
 
 ## API
 
