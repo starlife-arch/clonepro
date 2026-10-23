@@ -1,11 +1,13 @@
 name: Admin support static checks
 
 on:
+  push:
+    branches: ['main', 'feat/admin-support-console-coverage']
+    paths:
   pull_request:
     paths:
       - 'admin-support.html'
       - 'index.html'
-      - 'api/[...path].js'
       - 'server.js'
       - 'server-handlers/admin-controls.js'
       - 'server-handlers/admin-support-*.js'
