@@ -1,95 +1,91 @@
-import { query } from './_lib/postgres.js';
+import { getDb } from './_lib/firebase.js';
 import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
 const datasets = {
-  investments: { sql: 'SELECT id, plan, amount, daily_rate, status, total_earned, maturity_date, created_at FROM investments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  savings: { sql: 'SELECT id, amount, status, created_at, updated_at FROM savings WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  stakes: { sql: 'SELECT id, plan, amount, status, total_earned, created_at, updated_at FROM stakes WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  tickets: { sql: 'SELECT id, subject, category, status, priority, created_at, updated_at FROM tickets WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 100' },
-  transfers: { sql: 'SELECT id, sender_id, receiver_id, amount, note, status, created_at FROM transfers WHERE sender_id=$1 OR receiver_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  withdrawals: { sql: 'SELECT id, amount, method, status, created_at, updated_at FROM withdrawals WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  deposits: { sql: 'SELECT id, amount, method, status, created_at, updated_at FROM deposits WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  loans: { sql: 'SELECT id, amount, status, created_at, updated_at FROM loans WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  drawTickets: { sql: 'SELECT id, draw_id, quantity, created_at FROM draw_tickets WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  notifications: { sql: 'SELECT id, title, content, read, created_at FROM targeted_announcements WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  security: { sql: 'SELECT id, event_type, ip_address, device, created_at FROM security_events WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' },
-  loginHistory: { sql: 'SELECT id, ip_address, device, location, created_at FROM login_history WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100' }
+  investments: ['investments', 'uid', 'userId'],
+  savings: ['savings', 'uid', 'userId'],
+  stakes: ['stakes', 'uid', 'userId'],
+  tickets: ['tickets', 'uid', 'userId'],
+  transfers: ['transfers', 'senderUid', 'receiverUid'],
+  withdrawals: ['withdrawals', 'uid', 'userId'],
+  deposits: ['deposits', 'uid', 'userId'],
+  loans: ['loans', 'uid', 'userId'],
+  drawTickets: ['drawTickets', 'uid', 'userId'],
+  notifications: ['notifications', 'uid', 'userId'],
+  security: ['security', 'uid', 'userId'],
+  loginHistory: ['loginHistory', 'uid', 'userId']
 };
-
-async function audit(adminId, action, targetUser, meta = {}) {
-  await query(
-    'INSERT INTO admin_activity (admin_id, action, target_user, meta) VALUES ($1,$2,$3,$4::jsonb)',
-    [adminId, action, targetUser || null, JSON.stringify(meta)]
-  );
+const asDate = (value) => value?.toDate ? value.toDate().toISOString() : value ?? null;
+function plain(doc) {
+  const data = doc.data();
+  return { id: doc.id, ...data, created_at: asDate(data.createdAt ?? data.created_at), updated_at: asDate(data.updatedAt ?? data.updated_at) };
 }
-
+async function audit(db, adminId, action, targetUser, meta = {}) {
+  await db.collection('adminActivity').add({ adminId, action, targetUid: targetUser || null, meta, createdAt: new Date() });
+}
+async function activeSession(db, sessionId, adminId, targetUid) {
+  if (!sessionId || !targetUid) return null;
+  const snap = await db.collection('adminSupportSessions').doc(String(sessionId)).get();
+  if (!snap.exists) return null;
+  const session = snap.data();
+  const expires = session.expiresAt?.toDate ? session.expiresAt.toDate() : new Date(session.expires_at || 0);
+  if ((session.adminUid || session.admin_id) !== adminId ||
+      (session.targetUid || session.target_user_id) !== targetUid ||
+      (session.status || 'active') !== 'active' || !(expires > new Date())) return null;
+  return { id: snap.id, ...session };
+}
+async function userRows(db) {
+  const snap = await db.collection('users').get();
+  return snap.docs.map(plain);
+}
 export default async function adminSupportData(req, res) {
   try {
     const admin = await requireVerifiedAdmin(req, res);
     if (!admin) return;
+    const db = getDb();
     const { action, targetUid, sessionId, dataset, search = '' } = req.method === 'GET' ? req.query : (req.body || {});
 
     if (action === 'list-customers') {
-      const { rows } = await query(
-        `SELECT u.id, u.name, u.email, u.phone, u.status, u.kyc_status,
-          COALESCE(w.balance,0) AS balance, COALESCE(w.game_balance,0) AS game_balance
-         FROM users u LEFT JOIN wallets w ON w.user_id=u.id
-         WHERE u.role <> 'admin'
-           AND ($1 = '' OR u.name ILIKE $2 OR u.email ILIKE $2 OR u.id ILIKE $2 OR u.phone ILIKE $2)
-         ORDER BY u.created_at DESC LIMIT 300`,
-        [String(search || '').trim(), `%${String(search || '').trim()}%`]
-      );
-      await audit(admin.id, 'support_customer_directory_viewed', null, { search: String(search || '').slice(0, 80), count: rows.length });
-      return res.json(rows);
+      const q = String(search || '').trim().toLowerCase();
+      const users = (await userRows(db)).filter(u => !u.isAdmin && !['admin','superadmin'].includes(String(u.adminRole || u.role || '').toLowerCase()))
+        .filter(u => !q || [u.name, u.email, u.id, u.phone].some(v => String(v || '').toLowerCase().includes(q)))
+        .sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0,300);
+      await audit(db, admin.id, 'support_customer_directory_viewed', null, { search: q.slice(0,80), count: users.length });
+      return res.json(users.map(u => ({ id:u.id, name:u.name || u.displayName || '', email:u.email || '', phone:u.phone || u.phoneNumber || '', status:u.status || '', kyc_status:u.kycStatus || u.kyc_status || '' })));
     }
 
     if (!targetUid || !sessionId) return res.status(400).json({ error: 'targetUid and sessionId are required' });
-    const { rows: sessions } = await query(
-      `SELECT id FROM admin_support_sessions
-       WHERE id=$1 AND admin_id=$2 AND target_user_id=$3 AND status='active' AND expires_at>NOW()`,
-      [sessionId, admin.id, targetUid]
-    );
-    if (!sessions[0]) return res.status(403).json({ error: 'A valid active support session for this customer is required' });
+    if (!await activeSession(db, sessionId, admin.id, targetUid)) return res.status(403).json({ error: 'A valid active support session for this customer is required' });
 
     if (action === 'session-activity') {
-      const { rows } = await query(
-        `SELECT id, action, target_user, meta, created_at
-         FROM admin_activity
-         WHERE admin_id=$1 AND target_user=$2
-           AND (meta->>'sessionId'=$3 OR action IN ('support_session_started','support_session_ended'))
-         ORDER BY created_at DESC LIMIT 50`,
-        [admin.id, targetUid, sessionId]
-      );
-      await audit(admin.id, 'support_session_activity_viewed', targetUid, { sessionId, count: rows.length });
+      const snap = await db.collection('adminActivity').where('adminId','==',admin.id).where('targetUid','==',targetUid).limit(100).get();
+      const rows = snap.docs.map(plain).filter(r => r.meta?.sessionId === sessionId || ['support_session_started','support_session_ended'].includes(r.action)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,50);
+      await audit(db, admin.id, 'support_session_activity_viewed', targetUid, { sessionId, count: rows.length });
       return res.json(rows);
     }
 
     if (action === 'customer-summary') {
-      const { rows } = await query(
-        `SELECT u.id,u.name,u.email,u.phone,u.role,u.status,u.kyc_status,u.country,u.created_at,
-          COALESCE(w.balance,0) AS balance,COALESCE(w.game_balance,0) AS game_balance,
-          COALESCE(w.held_balance,0) AS held_balance,COALESCE(w.total_deposited,0) AS total_deposited,
-          COALESCE(w.total_withdrawn,0) AS total_withdrawn,COALESCE(w.total_earned,0) AS total_earned
-         FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=$1 AND u.role <> 'admin'`,
-        [targetUid]
-      );
-      if (!rows[0]) return res.status(404).json({ error: 'Customer not found' });
-      await audit(admin.id, 'support_customer_summary_viewed', targetUid, { sessionId });
-      return res.json(rows[0]);
+      const snap = await db.collection('users').doc(String(targetUid)).get();
+      if (!snap.exists) return res.status(404).json({ error: 'Customer not found' });
+      const u = snap.data();
+      if (u.isAdmin === true || ['admin','superadmin'].includes(String(u.adminRole || u.role || '').toLowerCase())) return res.status(400).json({ error:'Select a customer account' });
+      const summary = { id:snap.id, name:u.name || u.displayName || '', email:u.email || '', phone:u.phone || u.phoneNumber || '', role:u.role || 'user', status:u.status || '', kyc_status:u.kycStatus || u.kyc_status || '', country:u.country || '', balance:Number(u.balance ?? u.walletBalance ?? 0), game_balance:Number(u.gameBalance ?? 0), held_balance:Number(u.heldBalance ?? 0), total_deposited:Number(u.totalDeposited ?? 0), total_withdrawn:Number(u.totalWithdrawn ?? 0), total_earned:Number(u.totalEarned ?? 0) };
+      await audit(db, admin.id, 'support_customer_summary_viewed', targetUid, { sessionId });
+      return res.json(summary);
     }
 
     if (action === 'customer-dataset') {
       const config = datasets[String(dataset || '')];
       if (!config) return res.status(400).json({ error: 'Unsupported customer dataset' });
-      const params = dataset === 'transfers' ? [targetUid, targetUid] : [targetUid];
-      const sql = dataset === 'transfers'
-        ? 'SELECT id,sender_id,receiver_id,amount,note,status,created_at FROM transfers WHERE sender_id=$1 OR receiver_id=$2 ORDER BY created_at DESC LIMIT 100'
-        : config.sql;
-      const { rows } = await query(sql, params);
-      await audit(admin.id, 'support_customer_dataset_viewed', targetUid, { sessionId, dataset, count: rows.length });
+      const [collection, ...ownerFields] = config;
+      const snap = await db.collection(collection).limit(1000).get();
+      const rows = snap.docs.map(plain).filter(row => {
+        if (dataset === 'transfers') return [row.senderUid,row.senderId,row.from].includes(targetUid) || [row.receiverUid,row.receiverId,row.to].includes(targetUid);
+        return ownerFields.some(field => row[field] === targetUid);
+      }).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,100);
+      await audit(db, admin.id, 'support_customer_dataset_viewed', targetUid, { sessionId, dataset, count: rows.length });
       return res.json(rows);
     }
-
     return res.status(400).json({ error: 'Unsupported support data action' });
   } catch (error) {
     console.error('[admin-support-data] failed', error);
