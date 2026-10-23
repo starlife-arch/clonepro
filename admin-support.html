@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Support Workspace</title>
+<style>
+:root{color-scheme:light;--bg:#f4f7fb;--surface:#fff;--text:#172033;--muted:#526174;--border:#d6deea;--accent:#244fc5;--warn:#8a3d12}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--surface:#161b22;--text:#f0f3f6;--muted:#b5bfcc;--border:#3b4655;--accent:#75a7ff;--warn:#ffb86b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}header{padding:18px 24px;background:#142347;color:white;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}main{max-width:1300px;margin:auto;padding:20px;display:grid;gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.stack{display:grid;gap:9px}label{display:grid;gap:4px;color:var(--muted);font-size:13px}input,select,textarea,button{font:inherit;border-radius:8px;border:1px solid var(--border);padding:9px 10px;background:var(--surface);color:var(--text);max-width:100%}button{cursor:pointer}button.primary{background:var(--accent);color:white;border-color:var(--accent)}button.danger{border-color:#c24141;color:#c24141}.muted{color:var(--muted)}.warning{color:var(--warn)}.banner{display:none;padding:13px 16px;border:2px solid #c24141;background:#fff0f0;color:#771d1d;border-radius:10px;font-weight:750;position:sticky;top:0;z-index:5}.banner.active{display:block}html[data-theme=dark] .banner.active{background:#3c1717;color:#ffd9d9}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:12px;border-radius:8px;max-height:440px;overflow:auto;font-size:12px}h1,h2,h3{margin:0 0 10px}h1{font-size:20px}h2{font-size:17px}small{color:var(--muted)}.pill{display:inline-block;border:1px solid var(--border);border-radius:99px;padding:3px 8px;font-size:12px}.metric{font-size:20px;font-weight:750}.hidden{display:none!important}#toast{position:fixed;bottom:16px;right:16px;background:var(--text);color:var(--surface);padding:10px 14px;border-radius:8px;display:none;max-width:min(450px,90vw);z-index:20}.data-buttons{display:flex;gap:6px;flex-wrap:wrap}.data-buttons button{font-size:13px}@media(max-width:600px){main{padding:10px}header{padding:14px} .grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div><h1>Admin Support Workspace</h1><div>Controlled customer assistance · session and reads are audited</div></div><div class="row"><button id="themeBtn" type="button">Switch to dark mode</button><a href="/" style="color:white">Back to app</a></div></header>
+<main>
+<div id="sessionBanner" class="banner" role="status">ADMIN SUPPORT SESSION ACTIVE — CUSTOMER ACTIONS AND DATA ACCESS ARE AUDITED. Verify the selected customer before proceeding.</div>
+<section class="card">
+<h2>Admin identity</h2>
+<p class="muted">Enter your existing admin account ID. The server validates the role on every request. This page does not ask for or store passwords.</p>
+<div class="grid">
+<label>Admin account ID<input id="adminUid" autocomplete="off" placeholder="Admin UID"></label>
+<label>Find customer<input id="search" placeholder="Name, email, phone or UID"></label>
+</div>
+<div class="row" style="margin-top:10px"><button class="primary" id="loadCustomers">Load customers</button><span id="customerCount" class="muted"></span></div>
+<div style="margin-top:12px"><label>Customer account<select id="customer"><option value="">Load customers first</option></select></label></div>
+<div class="grid" style="margin-top:12px">
+<label>Support reason (required)<textarea id="reason" rows="2" placeholder="Describe the customer request; at least 8 characters"></textarea></label>
+<div class="stack" style="align-content:end"><button id="startSession" class="primary">Start 30-minute support session</button><button id="endSession" class="danger" disabled>End support session</button><small id="sessionInfo">No active session in this page.</small></div>
+</div>
+</section>
+<section class="card">
+<h2>Global auto-reinvest policy</h2>
+<p class="muted">Global pause does not erase customer preferences. Reinvestment amounts below the minimum stay in the customer's available balance. Default minimum: $1.00.</p>
+<div class="grid">
+<div class="stack"><strong id="globalState">Policy not loaded</strong><div class="row"><button id="pauseGlobal" class="danger">Pause globally</button><button id="resumeGlobal" class="primary">Restore global auto-reinvest</button></div></div>
+<div class="stack"><label>Minimum reinvest amount (USD)<input id="minimumAmount" type="number" min="0" max="1000000" step="0.01" value="1"></label><button id="saveMinimum">Save minimum</button><small>Set to 0 to disable the minimum threshold.</small></div>
+</div>
+<div class="row" style="margin-top:12px"><button id="refreshPolicy">Refresh policy</button><span id="policyMeta" class="muted"></span></div>
+</section>
+<section class="card">
+<h2>Selected customer</h2>
+<p class="muted">Customer data and feature records are read-only here. Financial transactions and payouts are intentionally not executed from this workspace.</p>
+<div id="customerSummary" class="grid"><p class="muted">Start a support session and load a customer to view details.</p></div>
+<div class="row" style="margin:14px 0"><label style="min-width:220px">Admin auto-reinvest override<select id="userOverride"><option value="inherit">Use customer's own setting</option><option value="true">Force enabled</option><option value="false">Force disabled</option></select></label><button id="saveOverride" class="primary" disabled>Save override</button><button id="refreshOverride" disabled>Refresh override</button><span id="overrideInfo" class="muted"></span></div>
+</section>
+<section class="card">
+<h2>Customer workspace records</h2>
+<p class="muted">Choose a record type to review the customer's data within this active support session.</p>
+<div id="datasetButtons" class="data-buttons"></div>
+<pre id="datasetOutput">No customer data loaded.</pre>
+</section>
+<section class="card">
+<h2>Session activity</h2>
+<p class="muted">The backend writes support-session starts/ends, policy changes, customer data views and supported user API actions to the admin activity log.</p>
+<pre id="activityOutput">Activity log visibility is not exposed by this workspace endpoint.</pre>
+</section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let session = null;
+  let customers = [];
+  const datasets = [
+    ['investments','Investments'],['savings','Savings'],['stakes','Stakes'],['tickets','Support tickets'],
+    ['transfers','Transfers'],['withdrawals','Withdrawals'],['deposits','Deposits'],['loans','Loans'],
+    ['drawTickets','Draw tickets'],['notifications','Announcements'],['security','Security events'],['loginHistory','Login history']
+  ];
+  function toast(message){$('toast').textContent=message;$('toast').style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>$('toast').style.display='none',4500)}
+  function adminUid(){return $('adminUid').value.trim()}
+  function customerUid(){return $('customer').value}
+  async function api(path, body, method='POST'){
+    const uid=adminUid(); if(!uid) throw new Error('Enter your admin account ID first.');
+    const response=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json','x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
+    const data=await response.json().catch(()=>({error:'Invalid server response'}));
+    if(!response.ok) throw new Error(data.error||('Request failed ('+response.status+')'));
+    return data;
+  }
+  async function run(fn){try{return await fn()}catch(e){toast(e.message||String(e));return null}}
+  function setSession(next){
+    session=next;
+    $('sessionBanner').classList.toggle('active',!!session);
+    $('startSession').disabled=!!session;
+    $('endSession').disabled=!session;
+    $('saveOverride').disabled=!session;
+    $('refreshOverride').disabled=!session;
+    $('sessionInfo').textContent=session?('Session '+session.id+' · expires '+new Date(session.expires_at).toLocaleString()):'No active session in this page.';
+    if(session){$('sessionBanner').textContent='ADMIN SUPPORT SESSION ACTIVE — CUSTOMER: '+(session.target_user_id||'selected')+' — SESSION '+session.id+' — ACTIONS ARE AUDITED. Expires '+new Date(session.expires_at).toLocaleTimeString()+'.';}
+  }
+  async function loadCustomers(){
+    const q=$('search').value.trim();
+    const result=await run(()=>api('admin-support-data',{action:'list-customers',search:q}));
+    if(!result)return;
+    customers=result;
+    $('customer').replaceChildren(new Option('Select a customer',''));
+    customers.forEach(c=>$('customer').add(new Option([c.name||'(unnamed)',c.email||c.id].filter(Boolean).join(' — '),c.id)));
+    $('customerCount').textContent=customers.length+' customer(s) shown';
+  }
+  async function loadPolicy(){
+    const data=await run(()=>api('admin-controls',{action:'status'}));
+    if(!data)return;
+    $('globalState').textContent=data.globalDisabled?'Globally paused':'Global auto-reinvest enabled';
+    $('minimumAmount').value=Number(data.minimumReinvestAmount??1);
+    $('policyMeta').textContent=(data.total_users??'—')+' customer accounts';
+  }
+  async function loadSummary(){
+    if(!session)return toast('Start a support session first.');
+    const data=await run(()=>api('admin-support-data',{action:'customer-summary',targetUid:session.target_user_id,sessionId:session.id}));
+    if(!data)return;
+    $('customerSummary').innerHTML='';
+    const fields=[['Name',data.name],['Email',data.email],['Phone',data.phone],['Status',data.status],['KYC',data.kyc_status],['Country',data.country],['Available balance',data.balance],['Game balance',data.game_balance],['Held balance',data.held_balance],['Total deposited',data.total_deposited],['Total withdrawn',data.total_withdrawn],['Total earned',data.total_earned]];
+    fields.forEach(([label,value])=>{const el=document.createElement('div');el.className='card';el.innerHTML='<small>'+label+'</small><div class="metric"></div>';el.querySelector('.metric').textContent=value==null?'—':String(value);$('customerSummary').append(el)});
+    await loadOverride();
+  }
+  async function loadOverride(){
+    if(!session)return;
+    const data=await run(()=>api('admin-controls',{action:'get-user-auto-invest',targetUid:session.target_user_id}));
+    if(!data)return;
+    const value=data.admin_override_enabled===true?'true':data.admin_override_enabled===false?'false':'inherit';
+    $('userOverride').value=value;
+    $('overrideInfo').textContent='Admin override: '+(value==='inherit'?'none; customer preference applies':value==='true'?'forced on':'forced off')+(data.globalDisabled?' · global pause active':'');
+  }
+  async function loadDataset(key){
+    if(!session)return toast('Start a support session first.');
+    const data=await run(()=>api('admin-support-data',{action:'customer-dataset',targetUid:session.target_user_id,sessionId:session.id,dataset:key}));
+    if(data)$('datasetOutput').textContent=JSON.stringify(data,null,2);
+  }
+  datasets.forEach(([key,label])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>loadDataset(key));$('datasetButtons').append(b)});
+  $('loadCustomers').addEventListener('click',()=>run(loadCustomers));
+  $('search').addEventListener('keydown',e=>{if(e.key==='Enter')run(loadCustomers)});
+  $('customer').addEventListener('change',()=>{if(!session){$('customerSummary').textContent='Selected customer: '+(customerUid()||'none')+'. Start a support session to inspect records.'}});
+  $('startSession').addEventListener('click',()=>run(async()=>{
+    const targetUid=customerUid(),reason=$('reason').value.trim();
+    if(!targetUid)throw new Error('Select a customer first.');
+    if(reason.length<8)throw new Error('Enter a support reason of at least 8 characters.');
+    const data=await api('admin-controls',{action:'start-support-session',targetUid,reason});
+    setSession(data.session);await loadSummary();toast('Support session started. Data access is audited.');
+  }));
+  $('endSession').addEventListener('click',()=>run(async()=>{
+    if(!session)return;
+    await api('admin-controls',{action:'end-support-session',sessionId:session.id});
+    setSession(null);$('customerSummary').textContent='Session ended.';$('datasetOutput').textContent='Session ended; start a new session to view records.';toast('Support session ended.');
+  }));
+  $('pauseGlobal').addEventListener('click',()=>run(async()=>{if(!confirm('Pause auto-reinvest globally? Saved per-customer preferences will be preserved.'))return;await api('admin-controls',{action:'set-global-auto-invest',disabled:true});await loadPolicy();toast('Global auto-reinvest paused. Preferences preserved.');}));
+  $('resumeGlobal').addEventListener('click',()=>run(async()=>{if(!confirm('Restore auto-reinvest globally? Per-customer overrides remain unchanged.'))return;await api('admin-controls',{action:'set-global-auto-invest',disabled:false});await loadPolicy();toast('Global auto-reinvest restored.');}));
+  $('saveMinimum').addEventListener('click',()=>run(async()=>{const amount=Number($('minimumAmount').value);if(!Number.isFinite(amount)||amount<0)throw new Error('Enter a valid non-negative amount.');await api('admin-controls',{action:'set-minimum-reinvest-amount',amount});await loadPolicy();toast('Minimum reinvest amount saved.');}));
+  $('saveOverride').addEventListener('click',()=>run(async()=>{
+    if(!session)throw new Error('Start a support session first.');
+    const value=$('userOverride').value;
+    if(value==='inherit')await api('admin-controls',{action:'clear-user-auto-invest',targetUid:session.target_user_id});
+    else await api('admin-controls',{action:'set-user-auto-invest',targetUid:session.target_user_id,enabled:value==='true'});
+    await loadOverride();toast('Customer auto-reinvest override saved.');
+  }));
+  $('refreshOverride').addEventListener('click',()=>run(loadOverride));
+  $('refreshPolicy').addEventListener('click',()=>run(loadPolicy));
+  $('themeBtn').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;$('themeBtn').textContent=next==='dark'?'Switch to light mode':'Switch to dark mode';});
+  run(loadPolicy);
+})();
+</script>
+</body>
+</html>
