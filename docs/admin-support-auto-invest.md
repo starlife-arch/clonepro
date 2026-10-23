@@ -32,3 +32,21 @@ The UI fix in `styles.css` introduces light/dark theme tokens, better contrast f
 - Confirm an ended/expired support session cannot be ended as active.
 - Confirm withdrawal approval only changes a pending record and is audited; never test against production payment credentials.
 - Verify the scheduler guard and UI changes before production use.
+
+
+## Auto-reinvest rules
+
+The daily profit job reads the global disable switch and per-user admin overrides before processing investment profits. The global switch suppresses reinvestment while still crediting the user's full profit to their available balance. Per-user overrides are nullable: when no admin override exists, the user's own `autoReinvest` setting is honored; an explicit admin on/off setting overrides that preference for that customer. Global restore does not alter those saved settings.
+
+The default minimum reinvestment amount is **$1.00**. If the calculated percentage of profit is below this threshold, no reinvestment record is created and the entire profit is credited to the user's available balance. Admins can change this threshold with `set-minimum-reinvest-amount` and `{ "amount": 1.00 }`. Setting it to zero disables the minimum threshold.
+
+## Admin actions on behalf of customers
+
+For an API endpoint that uses the shared `requireUser` guard, the admin client must send all of:
+- `x-admin-uid: <admin account id>`
+- `x-support-session-id: <active session id>`
+- `x-user-uid: <selected customer id>`
+
+The session must belong to that admin, target that customer, remain active, and not be expired. Each guarded API call is recorded in `admin_activity` with method and route. Use the existing endpoint for the intended operation so its validation and business logic still run.
+
+**Scope caveat:** this shared guard only covers API handlers that call `requireUser`. Features that write directly from the browser to Firestore, or use other authorization helpers, need their own audited support-session authorization before they can be operated this way. This draft does not claim every platform feature is already covered. Do not treat it as complete until all user-capable actions have been inventoried and verified.
