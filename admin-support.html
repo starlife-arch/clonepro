@@ -134,7 +134,7 @@
   }
   async function loadOverride(){
     if(!session)return;
-    const data=await run(()=>api('admin-controls',{action:'get-user-auto-invest',targetUid:session.target_user_id}));
+    const data=await run(()=>api('admin-controls',{action:'get-user-auto-invest',targetUid:session.target_user_id,sessionId:session.id}));
     if(!data)return;
     const value=data.admin_override_enabled===true?'true':data.admin_override_enabled===false?'false':'inherit';
     $('userOverride').value=value;
@@ -196,8 +196,8 @@
   $('saveOverride').addEventListener('click',()=>run(async()=>{
     if(!session)throw new Error('Start a support session first.');
     const value=$('userOverride').value;
-    if(value==='inherit')await api('admin-controls',{action:'clear-user-auto-invest',targetUid:session.target_user_id});
-    else await api('admin-controls',{action:'set-user-auto-invest',targetUid:session.target_user_id,enabled:value==='true'});
+    if(value==='inherit')await api('admin-controls',{action:'clear-user-auto-invest',targetUid:session.target_user_id,sessionId:session.id});
+    else await api('admin-controls',{action:'set-user-auto-invest',targetUid:session.target_user_id,sessionId:session.id,enabled:value==='true'});
     await loadOverride();toast('Customer auto-reinvest override saved.');
   }));
   $('refreshOverride').addEventListener('click',()=>run(loadOverride));
