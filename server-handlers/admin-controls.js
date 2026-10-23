@@ -1,134 +1,113 @@
 import { randomUUID } from 'node:crypto';
-import { query, pool } from './_lib/postgres.js';
+import { getDb } from './_lib/firebase.js';
 import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
-async function audit(adminId, action, targetUser, meta = {}) {
-  await query(
-    'INSERT INTO admin_activity (admin_id, action, target_user, meta) VALUES ($1,$2,$3,$4::jsonb)',
-    [adminId, action, targetUser || null, JSON.stringify(meta)]
-  );
+const dateValue = (v) => v?.toDate ? v.toDate() : (v ? new Date(v) : null);
+async function audit(db, adminId, action, targetUid, meta = {}) {
+  await db.collection('adminActivity').add({ adminId, action, targetUid: targetUid || null, meta, createdAt: new Date() });
 }
-async function requireActiveSupportSession(adminId, targetUid, sessionId, res) {
-  if (!targetUid || !sessionId) {
-    res.status(400).json({ error: 'targetUid and sessionId are required for customer-scoped controls' });
-    return false;
-  }
-  const { rows } = await query(
-    "SELECT id FROM admin_support_sessions WHERE id=$1 AND admin_id=$2 AND target_user_id=$3 AND status='active' AND expires_at>NOW()",
-    [sessionId, adminId, targetUid]
-  );
-  if (!rows[0]) {
-    res.status(403).json({ error: 'A valid active support session for this customer is required' });
-    return false;
-  }
-  return true;
+async function setting(db, key, fallback) {
+  const snap = await db.collection('adminSettings').doc(key).get();
+  return snap.exists ? snap.data().value : fallback;
 }
-async function settingValue(key, fallback) {
-  const { rows } = await query('SELECT value FROM admin_settings WHERE key=$1', [key]);
-  if (!rows[0]) return fallback;
-  return rows[0].value;
+async function saveSetting(db, key, value, adminId) {
+  await db.collection('adminSettings').doc(key).set({ key, value, updatedAt: new Date(), updatedBy: adminId }, { merge: true });
 }
-async function globalDisabled() {
-  const value = await settingValue('auto_invest_global_disabled', false);
-  return value === true || value === 'true';
+async function getActiveSession(db, adminId, targetUid, sessionId) {
+  if (!targetUid || !sessionId) return null;
+  const ref = db.collection('adminSupportSessions').doc(String(sessionId));
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const s = snap.data();
+  const expires = dateValue(s.expiresAt || s.expires_at);
+  if ((s.adminUid || s.admin_id) !== adminId || (s.targetUid || s.target_user_id) !== targetUid ||
+      (s.status || 'active') !== 'active' || !expires || expires <= new Date()) return null;
+  return { ref, data:s, id:snap.id };
 }
+function isAdminUser(u) { return u?.isAdmin === true || ['admin','superadmin'].includes(String(u?.adminRole || u?.role || '').toLowerCase()); }
 
 export default async function adminControls(req, res) {
   try {
     const admin = await requireVerifiedAdmin(req, res);
     if (!admin) return;
+    const db = getDb();
     const { action } = req.body || {};
     if (req.method === 'GET' || action === 'status') {
-      const disabled = await globalDisabled();
-      const { rows } = await query("SELECT COUNT(*)::int AS total_users, COUNT(*) FILTER (WHERE p.enabled)::int AS individually_enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.role <> 'admin'");
-      return res.json({ globalDisabled: disabled, minimumReinvestAmount: Number(await settingValue('auto_reinvest_minimum_amount', 1)), ...rows[0] });
+      const disabled = await setting(db, 'auto_invest_global_disabled', false);
+      const users = await db.collection('users').get();
+      const prefs = await db.collection('userAutoInvestPreferences').get();
+      const total = users.docs.filter(d => !isAdminUser(d.data())).length;
+      const enabled = prefs.docs.filter(d => d.data().enabled === true).length;
+      return res.json({ globalDisabled: disabled === true || disabled === 'true', minimumReinvestAmount: Number(await setting(db, 'auto_reinvest_minimum_amount', 1)), total_users: total, individually_enabled: enabled });
     }
     if (action === 'set-global-auto-invest') {
-      if (typeof req.body.disabled !== 'boolean') return res.status(400).json({ error: 'disabled must be a boolean' });
-      await query("INSERT INTO admin_settings(key,value,updated_at) VALUES('auto_invest_global_disabled',$1::jsonb,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()", [JSON.stringify(req.body.disabled)]);
-      await audit(admin.id, req.body.disabled ? 'auto_invest_global_disabled' : 'auto_invest_global_restored', null, { disabled: req.body.disabled, preferencesPreserved: true });
-      return res.json({ success: true, globalDisabled: req.body.disabled, preferencesPreserved: true });
+      if (typeof req.body.disabled !== 'boolean') return res.status(400).json({ error:'disabled must be a boolean' });
+      await saveSetting(db, 'auto_invest_global_disabled', req.body.disabled, admin.id);
+      await audit(db, admin.id, req.body.disabled ? 'auto_invest_global_disabled' : 'auto_invest_global_restored', null, { disabled:req.body.disabled, preferencesPreserved:true });
+      return res.json({ success:true, globalDisabled:req.body.disabled, preferencesPreserved:true });
     }
     if (action === 'set-minimum-reinvest-amount') {
       const amount = Number(req.body?.amount);
-      if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) return res.status(400).json({ error: 'amount must be between 0 and 1,000,000' });
-      await query("INSERT INTO admin_settings(key,value,updated_at) VALUES('auto_reinvest_minimum_amount',$1::jsonb,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()", [JSON.stringify(amount)]);
-      await audit(admin.id, 'auto_reinvest_minimum_amount_updated', null, { amount });
-      return res.json({ success: true, minimumReinvestAmount: amount });
+      if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) return res.status(400).json({ error:'amount must be between 0 and 1,000,000' });
+      await saveSetting(db, 'auto_reinvest_minimum_amount', amount, admin.id);
+      await audit(db, admin.id, 'auto_reinvest_minimum_amount_updated', null, { amount });
+      return res.json({ success:true, minimumReinvestAmount:amount });
     }
-    if (action === 'set-user-auto-invest') {
-      const { targetUid, enabled, sessionId } = req.body || {};
-      if (!targetUid || typeof enabled !== 'boolean') return res.status(400).json({ error: 'targetUid and boolean enabled are required' });
-      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
-      const target = await query('SELECT id,role FROM users WHERE id=$1', [targetUid]);
-      if (!target.rows[0]) return res.status(404).json({ error: 'User not found' });
-      if (target.rows[0].role === 'admin') return res.status(400).json({ error: 'Select a customer account' });
-      await query('INSERT INTO user_auto_invest_preferences(user_id,enabled,updated_at,updated_by) VALUES($1,$2,NOW(),$3) ON CONFLICT(user_id) DO UPDATE SET enabled=EXCLUDED.enabled,updated_at=NOW(),updated_by=EXCLUDED.updated_by', [targetUid, enabled, admin.id]);
-      await audit(admin.id, enabled ? 'auto_invest_user_enabled' : 'auto_invest_user_disabled', targetUid, { enabled });
-      return res.json({ success: true, targetUid, enabled, globallyPaused: await globalDisabled() });
-    }
-    if (action === 'clear-user-auto-invest') {
+    if (['set-user-auto-invest','clear-user-auto-invest','get-user-auto-invest'].includes(action)) {
       const { targetUid, sessionId } = req.body || {};
-      if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
-      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
-      const target = await query("SELECT id FROM users WHERE id=$1 AND role <> 'admin'", [targetUid]);
-      if (!target.rows[0]) return res.status(404).json({ error: 'Customer account not found' });
-      await query('DELETE FROM user_auto_invest_preferences WHERE user_id=$1', [targetUid]);
-      await audit(admin.id, 'auto_invest_user_override_cleared', targetUid, { fallsBackToCustomerPreference: true });
-      return res.json({ success: true, targetUid, override: null, fallsBackToCustomerPreference: true });
-    }
-    if (action === 'get-user-auto-invest') {
-      const { targetUid, sessionId } = req.body || {};
-      if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
-      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
-      const { rows } = await query("SELECT u.id, p.enabled AS admin_override_enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.id=$1 AND u.role <> 'admin'", [targetUid]);
-      await audit(admin.id, 'auto_invest_user_override_viewed', targetUid, { sessionId });
-      if (!rows[0]) return res.status(404).json({ error: 'User not found' });
-      const disabled = await globalDisabled();
-      return res.json({ ...rows[0], globalDisabled: disabled, minimumReinvestAmount: Number(await settingValue('auto_reinvest_minimum_amount', 1)) });
-    }
-    if (action === 'approve-withdrawal') {
-      const { withdrawalId, confirmed, reason } = req.body || {};
-      if (!withdrawalId || confirmed !== true || typeof reason !== 'string' || reason.trim().length < 8) {
-        return res.status(400).json({ error: 'withdrawalId, confirmed=true, and a reason of at least 8 characters are required' });
+      if (!targetUid) return res.status(400).json({ error:'targetUid is required' });
+      if (!await getActiveSession(db, admin.id, targetUid, sessionId)) return res.status(403).json({ error:'A valid active support session for this customer is required' });
+      const userSnap = await db.collection('users').doc(String(targetUid)).get();
+      if (!userSnap.exists || isAdminUser(userSnap.data())) return res.status(404).json({ error:'Customer account not found' });
+      const ref = db.collection('userAutoInvestPreferences').doc(String(targetUid));
+      if (action === 'get-user-auto-invest') {
+        const pref = await ref.get();
+        return res.json({ targetUid, admin_override_enabled:pref.exists && typeof pref.data().enabled === 'boolean' ? pref.data().enabled : null, globalDisabled:!!(await setting(db,'auto_invest_global_disabled',false)), minimumReinvestAmount:Number(await setting(db,'auto_reinvest_minimum_amount',1)) });
       }
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const result = await client.query("UPDATE withdrawals SET status='approved',approved_by=$2,updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,user_id,amount,method", [withdrawalId, admin.id]);
-        if (!result.rows[0]) {
-          await client.query('ROLLBACK');
-          return res.status(409).json({ error: 'Withdrawal not found or no longer pending' });
-        }
-        await client.query("INSERT INTO admin_activity(admin_id,action,target_user,meta) VALUES($1,'withdrawal_approved',$2,$3::jsonb)", [admin.id,result.rows[0].user_id,JSON.stringify({withdrawalId,amount:String(result.rows[0].amount),reason:reason.trim(),confirmed:true})]);
-        await client.query('COMMIT');
-        return res.json({ success:true, withdrawal:result.rows[0], note:'Approval recorded; payout execution remains in the configured payment workflow.' });
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally { client.release(); }
+      if (action === 'set-user-auto-invest') {
+        if (typeof req.body.enabled !== 'boolean') return res.status(400).json({ error:'enabled must be a boolean' });
+        await ref.set({ userUid:targetUid, enabled:req.body.enabled, updatedAt:new Date(), updatedBy:admin.id }, { merge:true });
+        await audit(db,admin.id,req.body.enabled?'auto_invest_user_enabled':'auto_invest_user_disabled',targetUid,{enabled:req.body.enabled,sessionId});
+        return res.json({success:true,targetUid,enabled:req.body.enabled,globallyPaused:!!(await setting(db,'auto_invest_global_disabled',false))});
+      }
+      await ref.delete();
+      await audit(db,admin.id,'auto_invest_user_override_cleared',targetUid,{sessionId,fallsBackToCustomerPreference:true});
+      return res.json({success:true,targetUid,override:null,fallsBackToCustomerPreference:true});
     }
     if (action === 'start-support-session') {
       const { targetUid, reason } = req.body || {};
-      if (!targetUid || typeof reason !== 'string' || reason.trim().length < 8) return res.status(400).json({ error: 'targetUid and support reason of at least 8 characters are required' });
-      const target = await query("SELECT id FROM users WHERE id=$1 AND role <> 'admin'", [targetUid]);
-      if (!target.rows[0]) return res.status(404).json({ error: 'Customer account not found' });
-      const id = randomUUID();
-      const { rows } = await query("INSERT INTO admin_support_sessions(id,admin_id,target_user_id,reason,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '30 minutes') RETURNING id,admin_id,target_user_id,reason,status,started_at,expires_at", [id,admin.id,targetUid,reason.trim()]);
-      await audit(admin.id, 'support_session_started', targetUid, { sessionId:id, reason:reason.trim(), expiresInMinutes:30 });
-      return res.status(201).json({ session:rows[0], banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED', permittedActions:['all_customer_actions_through_existing_authorized_endpoints'] });
+      if (!targetUid || typeof reason !== 'string' || reason.trim().length < 8) return res.status(400).json({ error:'targetUid and support reason of at least 8 characters are required' });
+      const target = await db.collection('users').doc(String(targetUid)).get();
+      if (!target.exists || isAdminUser(target.data())) return res.status(404).json({ error:'Customer account not found' });
+      const id = randomUUID(), now = new Date(), expires = new Date(now.getTime()+30*60*1000);
+      const session = { id, adminUid:admin.id, targetUid:String(targetUid), reason:reason.trim(), status:'active', startedAt:now, expiresAt:expires };
+      await db.collection('adminSupportSessions').doc(id).set(session);
+      await audit(db,admin.id,'support_session_started',targetUid,{sessionId:id,reason:reason.trim(),expiresInMinutes:30});
+      return res.status(201).json({session:{id,admin_id:admin.id,target_user_id:String(targetUid),reason:reason.trim(),status:'active',started_at:now.toISOString(),expires_at:expires.toISOString()},banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED'});
     }
     if (action === 'end-support-session') {
       const { sessionId } = req.body || {};
-      if (!sessionId) return res.status(400).json({ error:'sessionId is required' });
-      const { rows } = await query("UPDATE admin_support_sessions SET status='ended',ended_at=NOW(),ended_by=$2 WHERE id=$1 AND admin_id=$2 AND status='active' AND expires_at>NOW() RETURNING target_user_id", [sessionId,admin.id]);
-      if (!rows[0]) return res.status(404).json({ error:'Active support session not found' });
-      await audit(admin.id,'support_session_ended',rows[0].target_user_id,{sessionId});
-      return res.json({ success:true });
+      const snap = sessionId ? await db.collection('adminSupportSessions').doc(String(sessionId)).get() : null;
+      if (!snap?.exists) return res.status(404).json({error:'Active support session not found'});
+      const s=snap.data();
+      if ((s.adminUid || s.admin_id)!==admin.id || (s.status || 'active')!=='active') return res.status(404).json({error:'Active support session not found'});
+      await snap.ref.update({status:'ended',endedAt:new Date(),endedBy:admin.id});
+      await audit(db,admin.id,'support_session_ended',s.targetUid || s.target_user_id,{sessionId});
+      return res.json({success:true});
     }
-    return res.status(400).json({ error:'Unsupported admin control action' });
+    if (action === 'approve-withdrawal') {
+      const { withdrawalId, confirmed, reason } = req.body || {};
+      if (!withdrawalId || confirmed !== true || typeof reason !== 'string' || reason.trim().length < 8) return res.status(400).json({error:'withdrawalId, confirmed=true, and a reason of at least 8 characters are required'});
+      const ref = db.collection('withdrawals').doc(String(withdrawalId));
+      const snap = await ref.get();
+      if (!snap.exists || String(snap.data().status || '').toLowerCase() !== 'pending') return res.status(409).json({error:'Withdrawal not found or no longer pending'});
+      await ref.update({status:'approved',approvedBy:admin.id,updatedAt:new Date()});
+      await audit(db,admin.id,'withdrawal_approved',snap.data().uid || snap.data().userId,{withdrawalId,amount:snap.data().amount,reason:reason.trim(),confirmed:true});
+      return res.json({success:true,withdrawal:{id:snap.id,...snap.data(),status:'approved',approvedBy:admin.id},note:'Approval recorded; payout execution remains in the configured payment workflow.'});
+    }
+    return res.status(400).json({error:'Unsupported admin control action'});
   } catch (error) {
     console.error('[admin-controls] failed', error);
-    return res.status(500).json({ error:'Server error' });
+    return res.status(500).json({error:'Server error'});
   }
 }
