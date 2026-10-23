@@ -94,7 +94,8 @@
   async function api(path, body, method='POST'){
     const uid=adminUid(); if(!uid) throw new Error('Enter your admin account ID first.');
     const token=sessionStorage.getItem('adminSupportIdToken')||''; if(!token) throw new Error('Open Admin Support from the signed-in app so a verified Firebase token is available.');
-    const response=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
+    const apiBase='https://starlifearch-backend-33b28cd5a5da.herokuapp.com';
+    const response=await fetch(apiBase+'/api/'+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
     const raw=await response.text();
     let data; try { data=raw ? JSON.parse(raw) : {}; } catch (_) {
       const preview=raw.replace(/\\s+/g,' ').slice(0,180);
