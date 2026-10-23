@@ -85,3 +85,45 @@ dialog { border: none; border-radius: .8rem; box-shadow: 0 8px 30px rgba(0,0,0,.
   border-radius: .5rem;
   display: none;
 }
+
+
+/* Accessible theme tokens and responsive messaging fixes */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #f5f7fb; --surface: #fff; --surface-muted: #f0f3f8;
+  --text-primary: #172033; --text-secondary: #4b5565;
+  --border-color: #d6dce6; --icon-color: #344054; --focus-ring: #1769e0;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #0d1117; --surface: #161b22; --surface-muted: #212833;
+  --text-primary: #f0f3f6; --text-secondary: #b5bfcc;
+  --border-color: #3b4655; --icon-color: #d7dee8; --focus-ring: #75b7ff;
+}
+html[data-theme] body { background-color: var(--app-bg); color: var(--text-primary); }
+html[data-theme] :is(.card,.list-item,.modal-content,dialog,.message-card,.chat-panel,.profile-card,.dropdown-menu) {
+  background-color: var(--surface); color: var(--text-primary); border-color: var(--border-color);
+}
+html[data-theme] :is(p,small,.muted,.text-muted,.secondary-text,.message-preview,.timestamp) { color: var(--text-secondary); }
+html[data-theme] :is(input,textarea,select) { background-color: var(--surface); color: var(--text-primary); border-color: var(--border-color); }
+html[data-theme] :is(button,a,input,textarea,select,[tabindex]):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.message-header,.chat-header,.channel-header,.profile-header,.message-title-row {
+  display: flex; align-items: center; flex-wrap: wrap; min-width: 0; gap: .5rem;
+}
+.message-header :is(h1,h2,h3,.channel-name,.profile-name,.title),
+.chat-header :is(h1,h2,h3,.channel-name,.profile-name,.title),
+.channel-header :is(h1,h2,h3,.channel-name,.profile-name,.title),
+.profile-header :is(h1,h2,h3,.channel-name,.profile-name,.title) {
+  min-width: 0; overflow-wrap: anywhere; flex: 1 1 10rem;
+}
+.message-header :is(img,svg,.icon,.megaphone),.chat-header :is(img,svg,.icon,.megaphone),
+.channel-header :is(img,svg,.icon,.megaphone) { flex: 0 0 auto; }
+.message-header .megaphone,.channel-header .megaphone { position: static; transform: none; }
+@media (max-width: 600px) {
+  .message-header,.chat-header,.channel-header,.profile-header,.message-title-row { gap: .4rem; }
+  .message-header :is(h1,h2,h3,.channel-name,.profile-name,.title),
+  .chat-header :is(h1,h2,h3,.channel-name,.profile-name,.title),
+  .channel-header :is(h1,h2,h3,.channel-name,.profile-name,.title) { flex-basis: 100%; }
+  .topbar { flex-wrap: wrap; padding: .75rem 1rem; }
+  .topbar-controls { flex-wrap: wrap; gap: .5rem; }
+}
