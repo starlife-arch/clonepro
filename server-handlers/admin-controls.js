@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { query } from './_lib/postgres.js';
+import { query, pool } from './_lib/postgres.js';
 import { requireAdmin } from './_lib/pg-auth.js';
 
 async function audit(adminId, action, targetUser, meta = {}) {
@@ -47,6 +47,27 @@ export default async function adminControls(req, res) {
       const disabled = await globalDisabled();
       return res.json({ ...rows[0], globalDisabled: disabled, effectiveEnabled: rows[0].enabled && !disabled });
     }
+    if (action === 'approve-withdrawal') {
+      const { withdrawalId, confirmed, reason } = req.body || {};
+      if (!withdrawalId || confirmed !== true || typeof reason !== 'string' || reason.trim().length < 8) {
+        return res.status(400).json({ error: 'withdrawalId, confirmed=true, and a reason of at least 8 characters are required' });
+      }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query("UPDATE withdrawals SET status='approved',approved_by=$2,updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,user_id,amount,method", [withdrawalId, admin.id]);
+        if (!result.rows[0]) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Withdrawal not found or no longer pending' });
+        }
+        await client.query("INSERT INTO admin_activity(admin_id,action,target_user,meta) VALUES($1,'withdrawal_approved',$2,$3::jsonb)", [admin.id,result.rows[0].user_id,JSON.stringify({withdrawalId,amount:String(result.rows[0].amount),reason:reason.trim(),confirmed:true})]);
+        await client.query('COMMIT');
+        return res.json({ success:true, withdrawal:result.rows[0], note:'Approval recorded; payout execution remains in the configured payment workflow.' });
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally { client.release(); }
+    }
     if (action === 'start-support-session') {
       const { targetUid, reason } = req.body || {};
       if (!targetUid || typeof reason !== 'string' || reason.trim().length < 8) return res.status(400).json({ error: 'targetUid and support reason of at least 8 characters are required' });
@@ -55,7 +76,7 @@ export default async function adminControls(req, res) {
       const id = randomUUID();
       const { rows } = await query("INSERT INTO admin_support_sessions(id,admin_id,target_user_id,reason,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '30 minutes') RETURNING id,admin_id,target_user_id,reason,status,started_at,expires_at", [id,admin.id,targetUid,reason.trim()]);
       await audit(admin.id, 'support_session_started', targetUid, { sessionId:id, reason:reason.trim(), expiresInMinutes:30 });
-      return res.status(201).json({ session:rows[0], banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED', permittedActions:['view_account','manage_auto_invest'] });
+      return res.status(201).json({ session:rows[0], banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED', permittedActions:['view_account','manage_auto_invest','approve_withdrawal_with_explicit_confirmation'] });
     }
     if (action === 'end-support-session') {
       const { sessionId } = req.body || {};
