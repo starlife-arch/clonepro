@@ -50,3 +50,12 @@ For an API endpoint that uses the shared `requireUser` guard, the admin client m
 The session must belong to that admin, target that customer, remain active, and not be expired. Each guarded API call is recorded in `admin_activity` with method and route. Use the existing endpoint for the intended operation so its validation and business logic still run.
 
 **Scope caveat:** this shared guard only covers API handlers that call `requireUser`. Features that write directly from the browser to Firestore, or use other authorization helpers, need their own audited support-session authorization before they can be operated this way. This draft does not claim every platform feature is already covered. Do not treat it as complete until all user-capable actions have been inventoried and verified.
+
+
+## Support workspace UI
+
+Open `/admin-support.html` while signed in with an admin account. The workspace provides customer lookup, explicit 30-minute support-session start/end, a persistent audited-session banner, customer summary and read-only views for investments, savings, stakes, tickets, transfers, deposits, withdrawals, loans, draw tickets, announcements, security events and login history. Every customer data read requires a live session bound to the selected customer and is recorded in `admin_activity`.
+
+The workspace also exposes global pause/restore, the configurable minimum amount (default $1.00), and per-customer auto-reinvest overrides. “Use customer's own setting” clears the admin override; global pause does not modify that preference.
+
+**Important boundaries:** This UI intentionally does not submit money-moving transactions or execute payouts. The session-aware shared `requireUser` guard covers only endpoints already using that guard; direct Firestore operations and handlers with separate authorization still need explicit integration before claiming universal platform-wide support actions. Review the session audit trail and run staging tests before production. No deployment or live transaction testing is part of this change.
