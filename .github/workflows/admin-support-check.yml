@@ -1,0 +1,50 @@
+name: Admin support static checks
+
+on:
+  pull_request:
+    paths:
+      - 'admin-support.html'
+      - 'index.html'
+      - 'api/[...path].js'
+      - 'server.js'
+      - 'server-handlers/admin-controls.js'
+      - 'server-handlers/admin-support-*.js'
+      - 'server-handlers/_lib/pg-auth.js'
+      - '.github/workflows/admin-support-check.yml'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check backend JavaScript syntax
+        run: |
+          node --check server.js
+          node --check 'api/[...path].js'
+          node --check server-handlers/admin-controls.js
+          node --check server-handlers/admin-support-action.js
+          node --check server-handlers/admin-support-data.js
+          node --check server-handlers/_lib/pg-auth.js
+      - name: Check support workspace inline scripts
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          page = Path('admin-support.html').read_text()
+          scripts = re.findall(r'<script>(.*?)</script>', page, re.S)
+          if not scripts:
+              raise SystemExit('No inline support workspace script found')
+          Path('/tmp/admin-support-inline.js').write_text(scripts[-1])
+
+          index = Path('index.html').read_text()
+          match = re.search(r'<script>\s*(\(function initAdminSupportShortcut\(\).*?)</script>', index, re.S)
+          if not match:
+              raise SystemExit('Admin support shortcut script not found')
+          Path('/tmp/admin-support-shortcut.js').write_text(match.group(1))
+          PY
+          node --check /tmp/admin-support-inline.js
+          node --check /tmp/admin-support-shortcut.js
