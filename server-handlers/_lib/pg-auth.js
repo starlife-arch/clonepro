@@ -1,4 +1,5 @@
 import { query } from './postgres.js';
+import { admin, getDb } from './firebase.js';
 
 export async function findUser(id) {
   const { rows } = await query('SELECT id, role FROM users WHERE id = $1', [id]);
@@ -63,4 +64,33 @@ export async function requireAdmin(req, res, expectedUid) {
     return null;
   }
   return admin;
+}
+
+/** Verify the Firebase ID token and bind it to the admin UID header. */
+export async function requireVerifiedAdmin(req, res) {
+  const authorization = req.get('authorization') || '';
+  const match = /^Bearer\\s+(.+)$/i.exec(String(authorization));
+  const adminUid = req.get('x-admin-uid');
+  if (!match || !adminUid) {
+    res.status(401).json({ error: 'A valid Firebase ID token and admin identity are required' });
+    return null;
+  }
+  try {
+    getDb();
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (decoded.uid !== adminUid) {
+      res.status(401).json({ error: 'Authenticated identity does not match admin identity' });
+      return null;
+    }
+    const user = await findUser(decoded.uid);
+    if (!user || user.role !== 'admin') {
+      res.status(403).json({ error: 'Administrator access required' });
+      return null;
+    }
+    return user;
+  } catch (error) {
+    console.warn('[pg-auth] verified admin authentication failed:', error.message);
+    res.status(401).json({ error: 'Invalid or expired Firebase ID token' });
+    return null;
+  }
 }

@@ -1,4 +1,6 @@
 import adminControlsHandler from '../server-handlers/admin-controls.js';
+import adminSupportDataHandler from '../server-handlers/admin-support-data.js';
+import adminSupportActionHandler from '../server-handlers/admin-support-action.js';
 import handler0 from '../server-handlers/admin-delete-login-video.js';
 import handler1 from '../server-handlers/admin-sign-login-video-upload.js';
 import handler2 from '../server-handlers/admin-upload-login-video.js';
@@ -53,6 +55,8 @@ import handler50 from '../server-handlers/verify-2fa.js';
 
 const handlers = {
   'admin-controls': adminControlsHandler,
+  'admin-support-data': adminSupportDataHandler,
+  'admin-support-action': adminSupportActionHandler,
   "admin-delete-login-video": handler0,
   "admin-sign-login-video-upload": handler1,
   "admin-upload-login-video": handler2,
@@ -137,7 +141,7 @@ export default async function handler(req, res) {
   // CORS headers on EVERY request — not just 404s
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-admin-uid, x-cron-secret, x-migration-secret');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-token, x-user-uid, x-admin-uid, x-support-session-id, x-cron-secret, x-migration-secret');
 
   // Handle preflight
   if (req.method === 'OPTIONS') return res.status(200).end();

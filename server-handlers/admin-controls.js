@@ -1,12 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import { query, pool } from './_lib/postgres.js';
-import { requireAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
 async function audit(adminId, action, targetUser, meta = {}) {
   await query(
     'INSERT INTO admin_activity (admin_id, action, target_user, meta) VALUES ($1,$2,$3,$4::jsonb)',
     [adminId, action, targetUser || null, JSON.stringify(meta)]
   );
+}
+async function requireActiveSupportSession(adminId, targetUid, sessionId, res) {
+  if (!targetUid || !sessionId) {
+    res.status(400).json({ error: 'targetUid and sessionId are required for customer-scoped controls' });
+    return false;
+  }
+  const { rows } = await query(
+    "SELECT id FROM admin_support_sessions WHERE id=$1 AND admin_id=$2 AND target_user_id=$3 AND status='active' AND expires_at>NOW()",
+    [sessionId, adminId, targetUid]
+  );
+  if (!rows[0]) {
+    res.status(403).json({ error: 'A valid active support session for this customer is required' });
+    return false;
+  }
+  return true;
 }
 async function settingValue(key, fallback) {
   const { rows } = await query('SELECT value FROM admin_settings WHERE key=$1', [key]);
@@ -20,7 +35,7 @@ async function globalDisabled() {
 
 export default async function adminControls(req, res) {
   try {
-    const admin = await requireAdmin(req, res);
+    const admin = await requireVerifiedAdmin(req, res);
     if (!admin) return;
     const { action } = req.body || {};
     if (req.method === 'GET' || action === 'status') {
@@ -42,8 +57,9 @@ export default async function adminControls(req, res) {
       return res.json({ success: true, minimumReinvestAmount: amount });
     }
     if (action === 'set-user-auto-invest') {
-      const { targetUid, enabled } = req.body || {};
+      const { targetUid, enabled, sessionId } = req.body || {};
       if (!targetUid || typeof enabled !== 'boolean') return res.status(400).json({ error: 'targetUid and boolean enabled are required' });
+      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
       const target = await query('SELECT id,role FROM users WHERE id=$1', [targetUid]);
       if (!target.rows[0]) return res.status(404).json({ error: 'User not found' });
       if (target.rows[0].role === 'admin') return res.status(400).json({ error: 'Select a customer account' });
@@ -51,10 +67,22 @@ export default async function adminControls(req, res) {
       await audit(admin.id, enabled ? 'auto_invest_user_enabled' : 'auto_invest_user_disabled', targetUid, { enabled });
       return res.json({ success: true, targetUid, enabled, globallyPaused: await globalDisabled() });
     }
-    if (action === 'get-user-auto-invest') {
-      const { targetUid } = req.body || {};
+    if (action === 'clear-user-auto-invest') {
+      const { targetUid, sessionId } = req.body || {};
       if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
+      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
+      const target = await query("SELECT id FROM users WHERE id=$1 AND role <> 'admin'", [targetUid]);
+      if (!target.rows[0]) return res.status(404).json({ error: 'Customer account not found' });
+      await query('DELETE FROM user_auto_invest_preferences WHERE user_id=$1', [targetUid]);
+      await audit(admin.id, 'auto_invest_user_override_cleared', targetUid, { fallsBackToCustomerPreference: true });
+      return res.json({ success: true, targetUid, override: null, fallsBackToCustomerPreference: true });
+    }
+    if (action === 'get-user-auto-invest') {
+      const { targetUid, sessionId } = req.body || {};
+      if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
+      if (!await requireActiveSupportSession(admin.id, targetUid, sessionId, res)) return;
       const { rows } = await query("SELECT u.id, p.enabled AS admin_override_enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.id=$1 AND u.role <> 'admin'", [targetUid]);
+      await audit(admin.id, 'auto_invest_user_override_viewed', targetUid, { sessionId });
       if (!rows[0]) return res.status(404).json({ error: 'User not found' });
       const disabled = await globalDisabled();
       return res.json({ ...rows[0], globalDisabled: disabled, minimumReinvestAmount: Number(await settingValue('auto_reinvest_minimum_amount', 1)) });
