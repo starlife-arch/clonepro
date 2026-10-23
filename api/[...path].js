@@ -1,4 +1,5 @@
 import adminControlsHandler from '../server-handlers/admin-controls.js';
+import adminSupportDataHandler from '../server-handlers/admin-support-data.js';
 import handler0 from '../server-handlers/admin-delete-login-video.js';
 import handler1 from '../server-handlers/admin-sign-login-video-upload.js';
 import handler2 from '../server-handlers/admin-upload-login-video.js';
@@ -53,6 +54,7 @@ import handler50 from '../server-handlers/verify-2fa.js';
 
 const handlers = {
   'admin-controls': adminControlsHandler,
+  'admin-support-data': adminSupportDataHandler,
   "admin-delete-login-video": handler0,
   "admin-sign-login-video-upload": handler1,
   "admin-upload-login-video": handler2,
