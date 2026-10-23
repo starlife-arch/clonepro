@@ -51,6 +51,19 @@ export default async function adminSupportData(req, res) {
     );
     if (!sessions[0]) return res.status(403).json({ error: 'A valid active support session for this customer is required' });
 
+    if (action === 'session-activity') {
+      const { rows } = await query(
+        `SELECT id, action, target_user, meta, created_at
+         FROM admin_activity
+         WHERE admin_id=$1 AND target_user=$2
+           AND (meta->>'sessionId'=$3 OR action IN ('support_session_started','support_session_ended'))
+         ORDER BY created_at DESC LIMIT 50`,
+        [admin.id, targetUid, sessionId]
+      );
+      await audit(admin.id, 'support_session_activity_viewed', targetUid, { sessionId, count: rows.length });
+      return res.json(rows);
+    }
+
     if (action === 'customer-summary') {
       const { rows } = await query(
         `SELECT u.id,u.name,u.email,u.phone,u.role,u.status,u.kyc_status,u.country,u.created_at,
