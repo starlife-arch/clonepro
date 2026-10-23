@@ -16,7 +16,7 @@
 <div id="sessionBanner" class="banner" role="status">ADMIN SUPPORT SESSION ACTIVE — CUSTOMER ACTIONS AND DATA ACCESS ARE AUDITED. Verify the selected customer before proceeding.</div>
 <section class="card">
 <h2>Admin identity</h2>
-<p class="muted">Enter your existing admin account ID. The server validates the role on every request. This page does not ask for or store passwords.</p>
+<p class="muted">Open this workspace using the Admin Support shortcut inside the app while signed in. The workspace uses your Firebase ID token and the server verifies it against your admin account. The UID field is an identifier, not a password.</p>
 <div class="grid">
 <label>Admin account ID<input id="adminUid" autocomplete="off" placeholder="Admin UID"></label>
 <label>Find customer<input id="search" placeholder="Name, email, phone or UID"></label>
@@ -93,7 +93,8 @@
   function customerUid(){return $('customer').value}
   async function api(path, body, method='POST'){
     const uid=adminUid(); if(!uid) throw new Error('Enter your admin account ID first.');
-    const response=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json','x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
+    const token=sessionStorage.getItem('adminSupportIdToken')||''; if(!token) throw new Error('Open Admin Support from the signed-in app so a verified Firebase token is available.');
+    const response=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'x-admin-uid':uid,'x-support-session-id':session?.id||''},body:method==='GET'?undefined:JSON.stringify(body||{})});
     const data=await response.json().catch(()=>({error:'Invalid server response'}));
     if(!response.ok) throw new Error(data.error||('Request failed ('+response.status+')'));
     return data;
