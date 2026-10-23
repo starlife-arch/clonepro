@@ -66,31 +66,24 @@ export async function requireAdmin(req, res, expectedUid) {
   return admin;
 }
 
-/** Verify the Firebase ID token and bind it to the admin UID header. */
+/** Verify Firebase identity and authorize admins from the Firestore user document.
+ * Accept existing custom claims and the app's stored role fields; never trust UID headers alone.
+ */
 export async function requireVerifiedAdmin(req, res) {
   const authorization = req.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(String(authorization));
+  const match = /^Bearer\\s+(.+)$/i.exec(String(authorization));
   const adminUid = req.get('x-admin-uid');
   if (!match || !adminUid) {
     res.status(401).json({ error: 'A valid Firebase ID token and admin identity are required' });
     return null;
   }
 
-  // Keep Firebase token verification separate from the PostgreSQL role lookup.
-  // A database failure must not be misreported to the browser as an expired token.
-  try {
-    getDb();
-  } catch (error) {
-    console.error('[pg-auth] Firebase Admin SDK initialization failed:', error.message);
-    res.status(503).json({ error: 'Server authentication service is not configured correctly' });
-    return null;
-  }
-
   let decoded;
   try {
+    getDb();
     decoded = await admin.auth().verifyIdToken(match[1]);
   } catch (error) {
-    console.warn('[pg-auth] Firebase ID token verification failed:', error.message);
+    console.warn('[firebase-auth] ID token verification failed:', error.message);
     res.status(401).json({ error: 'Invalid or expired Firebase ID token' });
     return null;
   }
@@ -100,10 +93,20 @@ export async function requireVerifiedAdmin(req, res) {
     return null;
   }
 
-  const user = await findUser(decoded.uid);
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ error: 'Administrator access required' });
+  try {
+    const db = getDb();
+    const snap = await db.collection('users').doc(decoded.uid).get();
+    const user = snap.exists ? snap.data() : {};
+    const role = decoded.adminRole || decoded.role || user.adminRole || user.role;
+    const isAdmin = decoded.isAdmin === true || user.isAdmin === true || ['admin', 'superadmin'].includes(String(role || '').toLowerCase());
+    if (!snap.exists || !isAdmin) {
+      res.status(403).json({ error: 'Administrator access required' });
+      return null;
+    }
+    return { id: decoded.uid, ...user, role: role || 'admin' };
+  } catch (error) {
+    console.error('[firebase-auth] Firestore admin lookup failed:', error.message);
+    res.status(503).json({ error: 'Could not verify administrator in Firestore' });
     return null;
   }
-  return user;
 }
