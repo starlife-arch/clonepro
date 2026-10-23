@@ -1,111 +1,90 @@
-import { query } from './_lib/postgres.js';
+import { getDb } from './_lib/firebase.js';
 import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
-// Only these user-capable handlers can be called from an audited support session.
-// No arbitrary import paths or admin-only/global handlers are accepted.
-const operations = {
-  'profile.read': { module: './pg-user.js', exportName: 'default', method: 'GET', write: false },
-  'profile.update': { module: './pg-user-update.js', exportName: 'default', method: 'POST', write: true },
-  'investments.list': { module: './pg-investments.js', exportName: 'default', method: 'GET', write: false },
-  'savings.list': { module: './pg-savings.js', exportName: 'listSavings', method: 'GET', write: false },
-  'stakes.list': { module: './pg-stakes.js', exportName: 'listStakes', method: 'GET', write: false },
-  'tickets.list': { module: './pg-tickets.js', exportName: 'tickets', method: 'GET', write: false },
-  'tickets.create': { module: './pg-tickets.js', exportName: 'createTicket', method: 'POST', write: true },
-  'tickets.message': { module: './pg-tickets.js', exportName: 'ticketMessage', method: 'POST', write: true },
-  'transfers.list': { module: './pg-transfers.js', exportName: 'transfers', method: 'GET', write: false },
-  'withdrawals.list': { module: './pg-withdrawals.js', exportName: 'default', method: 'GET', write: false },
-  'deposits.list': { module: './pg-deposits.js', exportName: 'default', method: 'GET', write: false },
-  'loans.list': { module: './pg-loans.js', exportName: 'default', method: 'GET', write: false },
-  'messages.list': { module: './pg-messages.js', exportName: 'listMessages', method: 'GET', write: false },
-  'messages.send': { module: './pg-messages.js', exportName: 'sendMessage', method: 'POST', write: true },
-  'notifications.list': { module: './pg-notifications.js', exportName: 'default', method: 'GET', write: false },
-  'activity.list': { module: './pg-activity.js', exportName: 'default', method: 'GET', write: false },
-  'security.list': { module: './pg-security.js', exportName: 'security', method: 'GET', write: false }
+const readCollections = {
+  'profile.read': ['users', 'profile'],
+  'investments.list': ['investments', 'uid'],
+  'savings.list': ['savings', 'uid'],
+  'stakes.list': ['stakes', 'uid'],
+  'tickets.list': ['tickets', 'uid'],
+  'transfers.list': ['transfers', 'transfer'],
+  'withdrawals.list': ['withdrawals', 'uid'],
+  'deposits.list': ['deposits', 'uid'],
+  'loans.list': ['loans', 'uid'],
+  'messages.list': ['messages', 'message'],
+  'notifications.list': ['notifications', 'uid'],
+  'activity.list': ['activity', 'uid'],
+  'security.list': ['security', 'uid']
 };
-
-async function audit(adminId, action, targetUid, meta) {
-  await query(
-    'INSERT INTO admin_activity(admin_id,action,target_user,meta) VALUES($1,$2,$3,$4::jsonb)',
-    [adminId, action, targetUid, JSON.stringify(meta || {})]
-  );
+const asDate = v => v?.toDate ? v.toDate().toISOString() : v ?? null;
+const plain = d => { const x=d.data(); return {id:d.id,...x,created_at:asDate(x.createdAt ?? x.created_at),updated_at:asDate(x.updatedAt ?? x.updated_at)}; };
+async function audit(db, adminId, action, targetUid, meta={}) {
+  await db.collection('adminActivity').add({adminId,action,targetUid,meta,createdAt:new Date()});
 }
+async function verifySession(db, adminId, targetUid, sessionId) {
+  if (!sessionId) return false;
+  const ref=db.collection('adminSupportSessions').doc(String(sessionId));
+  const snap=await ref.get(); if(!snap.exists)return false;
+  const s=snap.data(), expiry=s.expiresAt?.toDate ? s.expiresAt.toDate() : new Date(s.expiresAt || s.expires_at || 0);
+  return (s.adminUid || s.admin_id)===adminId && (s.targetUid || s.target_user_id)===targetUid && (s.status || 'active')==='active' && expiry>new Date();
+}
+function ownerMatch(row, uid) { return [row.uid,row.userId,row.user_id,row.senderUid,row.senderId,row.from].includes(uid); }
 
-export default async function adminSupportAction(req, res) {
-  const admin = await requireVerifiedAdmin(req, res);
-  if (!admin) return;
-  const { action, targetUid, sessionId, payload = {}, confirmed, reason } = req.body || {};
-  const op = operations[String(action || '')];
-  if (!op) return res.status(400).json({ error: 'Unsupported customer action' });
-  if (!targetUid || !sessionId) return res.status(400).json({ error: 'targetUid and sessionId are required' });
-
-  const { rows: sessions } = await query(
-    "SELECT id FROM admin_support_sessions WHERE id=$1 AND admin_id=$2 AND target_user_id=$3 AND status='active' AND expires_at>NOW()",
-    [sessionId, admin.id, targetUid]
-  );
-  if (!sessions[0]) return res.status(403).json({ error: 'A valid active support session for this customer is required' });
-
-  if (op.write && (confirmed !== true || typeof reason !== 'string' || reason.trim().length < 8)) {
-    await audit(admin.id, 'support_action_rejected', targetUid, { sessionId, action, reason: 'missing confirmation or insufficient reason' });
-    return res.status(400).json({ error: 'Write actions require confirmed=true and a reason of at least 8 characters' });
-  }
-
-  // Force customer ownership fields server-side; never trust a target UID in the payload.
-  const body = { ...(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) };
-  if (action === 'profile.update' || action === 'tickets.create' || action === 'tickets.message') body.uid = targetUid;
-  if (action === 'messages.send') body.senderUid = targetUid;
-
-  if (action === 'messages.send' && (!body.receiverUid || body.receiverUid === targetUid || !String(body.content || '').trim())) return res.status(400).json({ error: 'A different recipient and message content are required' });
-  if (action === 'tickets.message' && (!body.ticketId || !String(body.message || '').trim())) return res.status(400).json({ error: 'ticketId and message are required' });
-  if (action === 'tickets.message') {
-    const ownedTicket = await query('SELECT id FROM tickets WHERE id=$1 AND user_id=$2', [body.ticketId, targetUid]);
-    if (!ownedTicket.rows[0]) return res.status(404).json({ error: 'Ticket not found for selected customer' });
-  }
-  if (action === 'tickets.create' && (!String(body.subject || '').trim() || !String(body.category || '').trim())) return res.status(400).json({ error: 'Ticket subject and category are required' });
-
-  const route = '/api/support-session/' + String(action).slice(0, 80);
-  await audit(admin.id, 'support_action_started', targetUid, {
-    sessionId, action, method: op.method, route, write: op.write,
-    financial: !!op.financial, reason: op.write ? reason.trim().slice(0, 500) : undefined
-  });
-
-  let statusCode = 200;
-  let responseBody;
-  let completed = false;
-  const mockRes = {
-    headersSent: false,
-    status(code) { statusCode = code; return this; },
-    json(data) { responseBody = data; completed = true; this.headersSent = true; return this; },
-    send(data) { responseBody = data; completed = true; this.headersSent = true; return this; },
-    end(data) { responseBody = data; completed = true; this.headersSent = true; return this; },
-    setHeader() { return this; }
-  };
-  const mockReq = {
-    method: op.method, body, params: { uid: targetUid }, query: {},
-    originalUrl: route, url: route,
-    get(name) {
-      const values = {
-        'x-user-uid': targetUid,
-        'x-admin-uid': admin.id,
-        'x-support-session-id': sessionId
-      };
-      return values[String(name || '').toLowerCase()];
-    }
-  };
-
+export default async function adminSupportAction(req,res) {
   try {
-    const mod = await import(op.module);
-    const handler = op.exportName === 'default' ? mod.default : mod[op.exportName];
-    if (typeof handler !== 'function') throw new Error('Configured customer action handler is unavailable');
-    await handler(mockReq, mockRes);
-    if (!completed) {
-      statusCode = 502;
-      responseBody = { error: 'Customer handler did not return a result; no success was assumed' };
+    const admin=await requireVerifiedAdmin(req,res); if(!admin)return;
+    const db=getDb();
+    const {action,targetUid,sessionId,payload={},confirmed,reason}=req.body||{};
+    if(!targetUid || !sessionId)return res.status(400).json({error:'targetUid and sessionId are required'});
+    if(!await verifySession(db,admin.id,targetUid,sessionId))return res.status(403).json({error:'A valid active support session for this customer is required'});
+    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send']);
+    const write=writes.has(action);
+    if(write && (confirmed!==true || typeof reason!=='string' || reason.trim().length<8)) {
+      await audit(db,admin.id,'support_action_rejected',targetUid,{sessionId,action});
+      return res.status(400).json({error:'Write actions require confirmed=true and a reason of at least 8 characters'});
     }
-    await audit(admin.id, statusCode < 400 ? 'support_action_completed' : 'support_action_failed', targetUid, { sessionId, action, statusCode, success: statusCode < 400 });
-    return res.status(statusCode).json(responseBody);
-  } catch (error) {
-    console.error('[admin-support-action] failed', { action, message: error.message });
-    await audit(admin.id, 'support_action_failed', targetUid, { sessionId, action, statusCode: 500, error: String(error.message || error).slice(0, 180) });
-    return res.status(500).json({ error: 'Support action failed; the audit event was recorded' });
+    let result;
+    if(action==='profile.update') {
+      const fields=payload.fields||{};
+      const allowed={name:'name',phone:'phone',country:'country'};
+      const safe=Object.fromEntries(Object.entries(fields).filter(([k,v])=>allowed[k] && typeof v==='string').map(([k,v])=>[allowed[k],v.trim().slice(0,200)]));
+      if(!Object.keys(safe).length)return res.status(400).json({error:'No supported profile fields supplied'});
+      await db.collection('users').doc(String(targetUid)).update({...safe,updatedAt:new Date()});
+      result={success:true,updatedFields:Object.keys(safe)};
+    } else if(action==='tickets.create') {
+      if(!String(payload.subject||'').trim() || !String(payload.category||'').trim())return res.status(400).json({error:'Ticket subject and category are required'});
+      const ref=await db.collection('tickets').add({uid:targetUid,userId:targetUid,subject:String(payload.subject).trim().slice(0,200),category:String(payload.category).trim().slice(0,80),priority:payload.priority||'normal',status:'open',createdAt:new Date(),updatedAt:new Date()});
+      result={success:true,ticketId:ref.id};
+    } else if(action==='tickets.message') {
+      if(!payload.ticketId || !String(payload.message||'').trim())return res.status(400).json({error:'ticketId and message are required'});
+      const ref=db.collection('tickets').doc(String(payload.ticketId)), snap=await ref.get();
+      if(!snap.exists || (snap.data().uid||snap.data().userId)!==targetUid)return res.status(404).json({error:'Ticket not found for selected customer'});
+      await ref.collection('messages').add({uid:targetUid,senderUid:admin.id,senderRole:'admin',message:String(payload.message).trim().slice(0,5000),createdAt:new Date()});
+      await ref.update({updatedAt:new Date()});
+      result={success:true};
+    } else if(action==='messages.send') {
+      const receiverUid=String(payload.receiverUid||'');
+      if(!receiverUid || receiverUid===targetUid || !String(payload.content||'').trim())return res.status(400).json({error:'A different recipient and message content are required'});
+      const receiver=await db.collection('users').doc(receiverUid).get();
+      if(!receiver.exists)return res.status(404).json({error:'Receiver not found'});
+      const ref=await db.collection('messages').add({senderUid:targetUid,receiverUid,content:String(payload.content).trim().slice(0,5000),type:'text',read:false,createdAt:new Date()});
+      result={success:true,message:{id:ref.id,senderUid:targetUid,receiverUid,content:String(payload.content).trim(),type:'text',read:false}};
+    } else if(readCollections[action]) {
+      const [collection,kind]=readCollections[action];
+      if(kind==='profile') {
+        const snap=await db.collection(collection).doc(String(targetUid)).get();
+        if(!snap.exists)return res.status(404).json({error:'Customer not found'});
+        const u=snap.data(); result={id:snap.id,...u};
+      } else {
+        const snap=await db.collection(collection).limit(1000).get();
+        result=snap.docs.map(plain).filter(row => kind==='message' ? [row.senderUid,row.receiverUid,row.senderId,row.receiverId].includes(targetUid) : kind==='transfer' ? [row.senderUid,row.receiverUid,row.senderId,row.receiverId,row.from,row.to].includes(targetUid) : ownerMatch(row,targetUid)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,100);
+      }
+    } else return res.status(400).json({error:'Unsupported customer action'});
+
+    await audit(db,admin.id,'support_action_completed',targetUid,{sessionId,action,write,reason:write?reason.trim().slice(0,500):undefined});
+    return res.json(result);
+  } catch(error) {
+    console.error('[admin-support-action] failed',{message:error.message});
+    return res.status(500).json({error:'Support action failed'});
   }
 }
