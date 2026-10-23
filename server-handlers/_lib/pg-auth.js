@@ -69,28 +69,41 @@ export async function requireAdmin(req, res, expectedUid) {
 /** Verify the Firebase ID token and bind it to the admin UID header. */
 export async function requireVerifiedAdmin(req, res) {
   const authorization = req.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(String(authorization));
+  const match = /^Bearer\\s+(.+)$/i.exec(String(authorization));
   const adminUid = req.get('x-admin-uid');
   if (!match || !adminUid) {
     res.status(401).json({ error: 'A valid Firebase ID token and admin identity are required' });
     return null;
   }
+
+  // Keep Firebase token verification separate from the PostgreSQL role lookup.
+  // A database failure must not be misreported to the browser as an expired token.
   try {
     getDb();
-    const decoded = await admin.auth().verifyIdToken(match[1]);
-    if (decoded.uid !== adminUid) {
-      res.status(401).json({ error: 'Authenticated identity does not match admin identity' });
-      return null;
-    }
-    const user = await findUser(decoded.uid);
-    if (!user || user.role !== 'admin') {
-      res.status(403).json({ error: 'Administrator access required' });
-      return null;
-    }
-    return user;
   } catch (error) {
-    console.warn('[pg-auth] verified admin authentication failed:', error.message);
+    console.error('[pg-auth] Firebase Admin SDK initialization failed:', error.message);
+    res.status(503).json({ error: 'Server authentication service is not configured correctly' });
+    return null;
+  }
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch (error) {
+    console.warn('[pg-auth] Firebase ID token verification failed:', error.message);
     res.status(401).json({ error: 'Invalid or expired Firebase ID token' });
     return null;
   }
+
+  if (decoded.uid !== adminUid) {
+    res.status(401).json({ error: 'Authenticated identity does not match admin identity' });
+    return null;
+  }
+
+  const user = await findUser(decoded.uid);
+  if (!user || user.role !== 'admin') {
+    res.status(403).json({ error: 'Administrator access required' });
+    return null;
+  }
+  return user;
 }
