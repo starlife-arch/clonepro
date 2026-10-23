@@ -8,9 +8,14 @@ async function audit(adminId, action, targetUser, meta = {}) {
     [adminId, action, targetUser || null, JSON.stringify(meta)]
   );
 }
+async function settingValue(key, fallback) {
+  const { rows } = await query('SELECT value FROM admin_settings WHERE key=$1', [key]);
+  if (!rows[0]) return fallback;
+  return rows[0].value;
+}
 async function globalDisabled() {
-  const { rows } = await query("SELECT value FROM admin_settings WHERE key='auto_invest_global_disabled'");
-  return rows[0]?.value === true || rows[0]?.value === 'true';
+  const value = await settingValue('auto_invest_global_disabled', false);
+  return value === true || value === 'true';
 }
 
 export default async function adminControls(req, res) {
@@ -21,13 +26,20 @@ export default async function adminControls(req, res) {
     if (req.method === 'GET' || action === 'status') {
       const disabled = await globalDisabled();
       const { rows } = await query("SELECT COUNT(*)::int AS total_users, COUNT(*) FILTER (WHERE p.enabled)::int AS individually_enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.role <> 'admin'");
-      return res.json({ globalDisabled: disabled, ...rows[0] });
+      return res.json({ globalDisabled: disabled, minimumReinvestAmount: Number(await settingValue('auto_reinvest_minimum_amount', 1)), ...rows[0] });
     }
     if (action === 'set-global-auto-invest') {
       if (typeof req.body.disabled !== 'boolean') return res.status(400).json({ error: 'disabled must be a boolean' });
       await query("INSERT INTO admin_settings(key,value,updated_at) VALUES('auto_invest_global_disabled',$1::jsonb,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()", [JSON.stringify(req.body.disabled)]);
       await audit(admin.id, req.body.disabled ? 'auto_invest_global_disabled' : 'auto_invest_global_restored', null, { disabled: req.body.disabled, preferencesPreserved: true });
       return res.json({ success: true, globalDisabled: req.body.disabled, preferencesPreserved: true });
+    }
+    if (action === 'set-minimum-reinvest-amount') {
+      const amount = Number(req.body?.amount);
+      if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) return res.status(400).json({ error: 'amount must be between 0 and 1,000,000' });
+      await query("INSERT INTO admin_settings(key,value,updated_at) VALUES('auto_reinvest_minimum_amount',$1::jsonb,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()", [JSON.stringify(amount)]);
+      await audit(admin.id, 'auto_reinvest_minimum_amount_updated', null, { amount });
+      return res.json({ success: true, minimumReinvestAmount: amount });
     }
     if (action === 'set-user-auto-invest') {
       const { targetUid, enabled } = req.body || {};
@@ -42,10 +54,10 @@ export default async function adminControls(req, res) {
     if (action === 'get-user-auto-invest') {
       const { targetUid } = req.body || {};
       if (!targetUid) return res.status(400).json({ error: 'targetUid is required' });
-      const { rows } = await query("SELECT u.id, COALESCE(p.enabled,TRUE) AS enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.id=$1 AND u.role <> 'admin'", [targetUid]);
+      const { rows } = await query("SELECT u.id, p.enabled AS admin_override_enabled FROM users u LEFT JOIN user_auto_invest_preferences p ON p.user_id=u.id WHERE u.id=$1 AND u.role <> 'admin'", [targetUid]);
       if (!rows[0]) return res.status(404).json({ error: 'User not found' });
       const disabled = await globalDisabled();
-      return res.json({ ...rows[0], globalDisabled: disabled, effectiveEnabled: rows[0].enabled && !disabled });
+      return res.json({ ...rows[0], globalDisabled: disabled, minimumReinvestAmount: Number(await settingValue('auto_reinvest_minimum_amount', 1)) });
     }
     if (action === 'approve-withdrawal') {
       const { withdrawalId, confirmed, reason } = req.body || {};
@@ -76,7 +88,7 @@ export default async function adminControls(req, res) {
       const id = randomUUID();
       const { rows } = await query("INSERT INTO admin_support_sessions(id,admin_id,target_user_id,reason,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '30 minutes') RETURNING id,admin_id,target_user_id,reason,status,started_at,expires_at", [id,admin.id,targetUid,reason.trim()]);
       await audit(admin.id, 'support_session_started', targetUid, { sessionId:id, reason:reason.trim(), expiresInMinutes:30 });
-      return res.status(201).json({ session:rows[0], banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED', permittedActions:['view_account','manage_auto_invest','approve_withdrawal_with_explicit_confirmation'] });
+      return res.status(201).json({ session:rows[0], banner:'SUPPORT SESSION — ADMIN ACTIONS ARE AUDITED', permittedActions:['all_customer_actions_through_existing_authorized_endpoints'] });
     }
     if (action === 'end-support-session') {
       const { sessionId } = req.body || {};
