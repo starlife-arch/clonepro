@@ -19545,6 +19545,12 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
 .moving-ticker-item > i.ic-megaphone { position:relative !important; display:inline-block !important; float:none !important; inset:auto !important; transform:none !important; width:18px !important; min-width:18px !important; height:18px !important; margin:0 4px 0 0 !important; background-color:currentColor !important; vertical-align:middle !important; flex:0 0 18px !important; }
 #moving-ticker-belt { display:flex !important; align-items:center !important; gap:16px !important; width:max-content !important; }
 #moving-ticker-belt .moving-ticker-divider { flex:0 0 auto !important; }
+
+[data-theme="light"] .bell-wrap { color:#1d2939 !important; background:#f4f6fa !important; border:1px solid #667085 !important; opacity:1 !important; visibility:visible !important; }
+[data-theme="light"] .bell-wrap .bell-ico { stroke:#1d2939 !important; color:#1d2939 !important; opacity:1 !important; visibility:visible !important; }
+[data-theme="light"] .bell-badge { color:#fff !important; background:#c62828 !important; }
+[data-theme="light"] #notif-panel { color:#172033 !important; background:#fff !important; border-color:#667085 !important; }
+[data-theme="light"] #notif-list, [data-theme="light"] #notif-list * { color:#172033; }
 </style>
 </head><body style="font-family:Arial;padding:24px"><h2>Starlife Wallet Statement</h2><p>${window.CU.name || ''} · ${window.CU.email || ''}</p><table border="1" cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%"><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th></tr>${rows.map(r => `<tr><td>${r.date}</td><td>${r.type}</td><td>${r.description}</td><td>${r.amount}</td><td>${r.status}</td></tr>`).join('')}</table>
 </body></html>`); win.document.close(); win.focus(); win.print();
