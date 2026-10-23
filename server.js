@@ -42,6 +42,10 @@ function route(app, method, path, handlerPath) {
   });
 }
 
+// Audited administrative controls (also available through the Vercel catch-all API route).
+route(app, 'post', '/api/admin-controls', './server-handlers/admin-controls.js');
+route(app, 'get', '/api/admin-controls', './server-handlers/admin-controls.js');
+
 // All routes
 route(app, 'post', '/api/printpay-stk-push',        './server-handlers/printpay-stk-push.js');
 route(app, 'post', '/api/printpay-check-status',    './server-handlers/printpay-check-status.js');
