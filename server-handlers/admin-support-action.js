@@ -1,5 +1,5 @@
 import { query } from './_lib/postgres.js';
-import { requireAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/pg-auth.js';
 
 // Only these user-capable handlers can be called from an audited support session.
 // No arbitrary import paths or admin-only/global handlers are accepted.
@@ -31,7 +31,7 @@ async function audit(adminId, action, targetUid, meta) {
 }
 
 export default async function adminSupportAction(req, res) {
-  const admin = await requireAdmin(req, res);
+  const admin = await requireVerifiedAdmin(req, res);
   if (!admin) return;
   const { action, targetUid, sessionId, payload = {}, confirmed, reason } = req.body || {};
   const op = operations[String(action || '')];
