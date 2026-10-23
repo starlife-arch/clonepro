@@ -19577,6 +19577,22 @@ You will receive $${fmt(receive)} (+${_vaultPlan.rate}%) on ${unlock.toLocaleDat
 [data-theme="light"] .bell-badge { color:#fff !important; background:#c62828 !important; }
 [data-theme="light"] #notif-panel { color:#172033 !important; background:#fff !important; border-color:#667085 !important; }
 [data-theme="light"] #notif-list, [data-theme="light"] #notif-list * { color:#172033; }
+
+/* Official account icon labels must never render as overlapping text fallbacks. */
+.ic-megaphone,.ic-headset,.ic-shield,.ic-badge-check,.ic-badge-check *,
+.dm-list-item.official i[class^="ic-"],
+.pub-profile-body i[class^="ic-"],
+.profile-header i[class^="ic-"] {
+  font-size:0 !important; line-height:0 !important; text-indent:-9999px !important;
+  overflow:hidden !important; white-space:nowrap !important; vertical-align:middle !important;
+  position:relative !important; inset:auto !important; transform:none !important;
+}
+.dm-list-item.official .dm-av { position:relative; flex:0 0 42px; width:42px; height:42px; overflow:hidden; }
+.dm-list-item.official .dm-info,.dm-list-item.official .dm-details,
+.dm-list-item.official .dm-name,.dm-list-item.official .dm-preview { min-width:0; max-width:100%; }
+.dm-list-item.official .dm-name { display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-wrap:anywhere; }
+.dm-list-item.official .official-badge { margin-left:0;flex:0 0 auto;white-space:nowrap; }
+.dm-list-item.official .dm-preview { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 </style>
 </head><body style="font-family:Arial;padding:24px"><h2>Starlife Wallet Statement</h2><p>${window.CU.name || ''} · ${window.CU.email || ''}</p><table border="1" cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%"><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th></tr>${rows.map(r => `<tr><td>${r.date}</td><td>${r.type}</td><td>${r.description}</td><td>${r.amount}</td><td>${r.status}</td></tr>`).join('')}</table>
 </body></html>`); win.document.close(); win.focus(); win.print();
@@ -23928,7 +23944,7 @@ sync();
         const currentAuth = typeof auth !== 'undefined' ? auth : (typeof firebase !== 'undefined' ? firebase.auth() : null);
         const firebaseUser = currentAuth && currentAuth.currentUser;
         if (!firebaseUser) throw new Error('Your sign-in has expired. Sign in again first.');
-        const idToken = await firebaseUser.getIdToken();
+        const idToken = await firebaseUser.getIdToken(true);
         sessionStorage.setItem('adminSupportIdToken', idToken);
         window.location.href = link.href;
       } catch (error) { alert(error.message || 'Could not authenticate admin support session.'); }
