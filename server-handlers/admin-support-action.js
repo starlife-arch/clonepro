@@ -18,8 +18,19 @@ const readCollections = {
 };
 const asDate = v => v?.toDate ? v.toDate().toISOString() : v ?? null;
 const plain = d => { const x=d.data(); return {id:d.id,...x,created_at:asDate(x.createdAt ?? x.created_at),updated_at:asDate(x.updatedAt ?? x.updated_at)}; };
+function omitUndefined(value) {
+  if (Array.isArray(value)) return value.filter(item => item !== undefined).map(omitUndefined);
+  if (!value || typeof value !== 'object' || value instanceof Date) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => [key, omitUndefined(item)])
+  );
+}
 async function audit(db, adminId, action, targetUid, meta={}) {
-  await db.collection('adminActivity').add({adminId,action,targetUid,meta,createdAt:new Date()});
+  await db.collection('adminActivity').add({
+    adminId, action, targetUid, meta: omitUndefined(meta), createdAt: new Date()
+  });
 }
 async function verifySession(db, adminId, targetUid, sessionId) {
   if (!sessionId) return false;
