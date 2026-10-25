@@ -1,5 +1,4 @@
 import { getDb, admin } from './_lib/firebase.js';
-import { query } from './_lib/postgres.js';
 
 const DEFAULT_INVESTMENT_DAILY_RATE = 0.02;
 const BATCH_FLUSH = 400;
@@ -28,18 +27,24 @@ async function loadInvestmentDailyRate(db) {
 }
 
 
-async function loadAutoReinvestControls() {
+async function loadAutoReinvestControls(db) {
   try {
-    const { rows } = await query("SELECT key, value FROM admin_settings WHERE key IN ('auto_invest_global_disabled','auto_reinvest_minimum_amount')");
-    const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
-    const { rows: prefs } = await query('SELECT user_id, enabled FROM user_auto_invest_preferences WHERE enabled IS NOT NULL');
+    const [globalSetting, minimumSetting, prefs] = await Promise.all([
+      db.collection('adminSettings').doc('auto_invest_global_disabled').get(),
+      db.collection('adminSettings').doc('auto_reinvest_minimum_amount').get(),
+      db.collection('userAutoInvestPreferences').get()
+    ]);
+    const globalValue = globalSetting.exists ? globalSetting.data()?.value : false;
+    const minimumValue = minimumSetting.exists ? minimumSetting.data()?.value : 1;
     return {
-      globalDisabled: values.auto_invest_global_disabled === true || values.auto_invest_global_disabled === 'true',
-      minimumAmount: Math.max(0, Number(values.auto_reinvest_minimum_amount ?? 1)),
-      perUser: new Map(prefs.map(row => [row.user_id, row.enabled]))
+      globalDisabled: globalValue === true || globalValue === 'true',
+      minimumAmount: Math.max(0, Number(minimumValue ?? 1)),
+      perUser: new Map(prefs.docs
+        .filter(doc => typeof doc.data()?.enabled === 'boolean')
+        .map(doc => [doc.id, doc.data().enabled]))
     };
   } catch (error) {
-    console.error('[run-daily-profits] auto-reinvest controls unavailable; reinvestment paused', error);
+    console.error('[run-daily-profits] Firestore auto-reinvest controls unavailable; reinvestment paused', error);
     return { globalDisabled: true, minimumAmount: 1, perUser: new Map() };
   }
 }
@@ -74,7 +79,7 @@ export async function runDailyProfits() {
   const inc = admin.firestore.FieldValue.increment;
   const serverTimestamp = admin.firestore.FieldValue.serverTimestamp;
   const platformRate = await loadInvestmentDailyRate(db);
-  const autoReinvestControls = await loadAutoReinvestControls();
+  const autoReinvestControls = await loadAutoReinvestControls(db);
 
   try {
     const invSnap = await db.collection('investments').where('status', '==', 'active').get();
