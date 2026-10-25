@@ -63,6 +63,7 @@ export default async function adminSupportAction(req,res) {
       if(!Number.isFinite(amount)||amount<=0||amount>100000000) return res.status(400).json({error:'Enter a valid withdrawal amount greater than zero.'});
       if(!/^\\+?254[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,'')) && !/^0[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,''))) return res.status(400).json({error:'Enter a valid Kenyan M-Pesa number (07…, 01…, +2547…, or +2541…).'});
       if(!['mpesa','bank','other'].includes(method)) return res.status(400).json({error:'Choose a supported withdrawal method.'});
+      if(String(payload.authorizationNote||'').trim().length<8) return res.status(400).json({error:'Record how the customer authorized this withdrawal (at least 8 characters).'});
       if(!['KES','USD'].includes(currency)) return res.status(400).json({error:'Currency must be KES or USD.'});
       const userSnap=await db.collection('users').doc(String(targetUid)).get();
       if(!userSnap.exists) return res.status(404).json({error:'Customer account not found.'});
