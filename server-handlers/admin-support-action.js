@@ -48,14 +48,30 @@ export default async function adminSupportAction(req,res) {
     const {action,targetUid,sessionId,payload={},confirmed,reason}=req.body||{};
     if(!targetUid || !sessionId)return res.status(400).json({error:'targetUid and sessionId are required'});
     if(!await verifySession(db,admin.id,targetUid,sessionId))return res.status(403).json({error:'A valid active support session for this customer is required'});
-    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send']);
+    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve']);
     const write=writes.has(action);
     if(write && (confirmed!==true || typeof reason!=='string' || reason.trim().length<8)) {
       await audit(db,admin.id,'support_action_rejected',targetUid,{sessionId,action});
       return res.status(400).json({error:'Write actions require confirmed=true and a reason of at least 8 characters'});
     }
     let result;
-    if(action==='profile.update') {
+    if(action==='withdrawals.approve') {
+      const withdrawalId=String(payload.withdrawalId||'').trim();
+      if(!withdrawalId)return res.status(400).json({error:'Withdrawal ID is required'});
+      const ref=db.collection('withdrawals').doc(withdrawalId);
+      const outcome=await db.runTransaction(async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists)return {error:'Withdrawal not found',status:404};
+        const w=snap.data();
+        const owner=String(w.uid||w.userId||w.user_id||'');
+        if(owner!==String(targetUid))return {error:'Withdrawal does not belong to the selected customer',status:403};
+        if(String(w.status||'').toLowerCase()!=='pending')return {error:'Withdrawal is no longer pending; no change was made',status:409};
+        tx.update(ref,{status:'approved',approvedBy:admin.id,approvedAt:new Date(),updatedAt:new Date(),supportSessionId:String(sessionId),approvalReason:reason.trim().slice(0,500)});
+        return {success:true,withdrawal:{id:snap.id,amount:w.amount,status:'approved',approvedBy:admin.id}};
+      });
+      if(outcome.error)return res.status(outcome.status).json({error:outcome.error});
+      result={...outcome,note:'Approval recorded only. This does not send money; payout execution remains in the configured payment workflow.'};
+    } else if(action==='profile.update') {
       const fields=payload.fields||{};
       const allowed={name:'name',phone:'phone',country:'country'};
       const safe=Object.fromEntries(Object.entries(fields).filter(([k,v])=>allowed[k] && typeof v==='string').map(([k,v])=>[allowed[k],v.trim().slice(0,200)]));
