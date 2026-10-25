@@ -40,7 +40,7 @@
 </div>
 <details><summary>More task options</summary>
 <label id="actionPickerWrap">Choose a specific task<select id="supportAction">
-<option value="profile.read">View profile</option><option value="profile.update">Update profile fields</option><option value="investments.list">List investments</option><option value="savings.list">List savings</option><option value="stakes.list">List stakes</option><option value="tickets.list">List support tickets</option><option value="tickets.create">Create support ticket</option><option value="tickets.message">Reply to support ticket</option><option value="transfers.list">List transfers</option><option value="withdrawals.list">List withdrawals</option><option value="withdrawals.approve">Approve pending withdrawal</option><option value="deposits.list">List deposits</option><option value="loans.list">List loans</option><option value="messages.list">List messages</option><option value="messages.send">Send message</option><option value="notifications.list">List notifications</option><option value="activity.list">List activity</option><option value="security.list">View security history</option>
+<option value="profile.read">View profile</option><option value="profile.update">Update profile fields</option><option value="investments.list">List investments</option><option value="savings.list">List savings</option><option value="stakes.list">List stakes</option><option value="tickets.list">List support tickets</option><option value="tickets.create">Create support ticket</option><option value="tickets.message">Reply to support ticket</option><option value="transfers.list">List transfers</option><option value="withdrawals.list">List withdrawals</option><option value="withdrawals.create-request">Create customer withdrawal request (finance approval required)</option><option value="withdrawals.approve">Record approval for pending withdrawal (does not send money)</option><option value="deposits.list">List deposits</option><option value="loans.list">List loans</option><option value="messages.list">List messages</option><option value="messages.send">Send message</option><option value="notifications.list">List notifications</option><option value="activity.list">List activity</option><option value="security.list">View security history</option>
 </select></label>
 </details>
 <div id="actionFields" class="stack"></div>
@@ -68,9 +68,10 @@ const actionFields={
 'tickets.create':[{key:'subject',label:'Ticket subject',type:'text',required:true},{key:'category',label:'Category',type:'select',options:['account','deposit','withdrawal','investment','technical','other']},{key:'priority',label:'Priority',type:'select',options:['low','normal','high']}],
 'tickets.message':[{key:'ticketId',label:'Ticket ID',type:'text',required:true},{key:'message',label:'Reply message',type:'textarea',required:true}],
 'messages.send':[{key:'receiverUid',label:'Recipient user ID',type:'text',required:true},{key:'content',label:'Message',type:'textarea',required:true}],
-'withdrawals.approve':[{key:'withdrawalId',label:'Pending withdrawal ID',type:'text',required:true}]
+'withdrawals.approve':[{key:'withdrawalId',label:'Pending withdrawal ID',type:'text',required:true}],
+'withdrawals.create-request':[{key:'amount',label:'Withdrawal amount',type:'number',required:true},{key:'currency',label:'Currency',type:'select',options:['KES','USD']},{key:'method',label:'Withdrawal method',type:'select',options:['mpesa','bank','other']},{key:'phone',label:'Customer-confirmed M-Pesa number',type:'tel',required:true},{key:'authorizationNote',label:'How did the customer authorize this request?',type:'textarea',required:true}]
 };
-const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve']);
+const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve','withdrawals.create-request']);
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',4500)}
 function uid(){return activeAdminUid||$('adminUid')?.value.trim()||''}
 async function api(path,body,method='POST'){
