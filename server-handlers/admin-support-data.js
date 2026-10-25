@@ -1,5 +1,5 @@
 import { getDb } from './_lib/firebase.js';
-import { requireVerifiedAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/firebase-auth.js';
 
 const datasets = {
   investments: ['investments', 'uid', 'userId'],
