@@ -84,7 +84,7 @@ export default async function adminSupportAction(req,res) {
     await audit(db,admin.id,'support_action_completed',targetUid,{sessionId,action,write,reason:write?reason.trim().slice(0,500):undefined});
     return res.json(result);
   } catch(error) {
-    console.error('[admin-support-action] failed',{message:error.message});
-    return res.status(500).json({error:'Support action failed'});
+    console.error('[admin-support-action] failed',{message:error.message, name:error.name, code:error.code});
+    return res.status(500).json({error:'Support action failed', detail: process.env.NODE_ENV === 'production' ? 'The server could not complete this task. Check the backend logs using the request timestamp.' : String(error.message || 'Unknown error').slice(0,240)});
   }
 }
