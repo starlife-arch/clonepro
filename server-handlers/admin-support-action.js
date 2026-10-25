@@ -48,14 +48,44 @@ export default async function adminSupportAction(req,res) {
     const {action,targetUid,sessionId,payload={},confirmed,reason}=req.body||{};
     if(!targetUid || !sessionId)return res.status(400).json({error:'targetUid and sessionId are required'});
     if(!await verifySession(db,admin.id,targetUid,sessionId))return res.status(403).json({error:'A valid active support session for this customer is required'});
-    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve']);
+    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve','withdrawals.create-request']);
     const write=writes.has(action);
     if(write && (confirmed!==true || typeof reason!=='string' || reason.trim().length<8)) {
       await audit(db,admin.id,'support_action_rejected',targetUid,{sessionId,action});
       return res.status(400).json({error:'Write actions require confirmed=true and a reason of at least 8 characters'});
     }
     let result;
-    if(action==='withdrawals.approve') {
+    if(action==='withdrawals.create-request') {
+      const amount=Number(payload.amount);
+      const phone=String(payload.phone||'').trim();
+      const method=String(payload.method||'').trim();
+      const currency=String(payload.currency||'KES').trim().toUpperCase();
+      if(!Number.isFinite(amount)||amount<=0||amount>100000000) return res.status(400).json({error:'Enter a valid withdrawal amount greater than zero.'});
+      if(!/^\\+?254[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,'')) && !/^0[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,''))) return res.status(400).json({error:'Enter a valid Kenyan M-Pesa number (07…, 01…, +2547…, or +2541…).'});
+      if(!['mpesa','bank','other'].includes(method)) return res.status(400).json({error:'Choose a supported withdrawal method.'});
+      if(!['KES','USD'].includes(currency)) return res.status(400).json({error:'Currency must be KES or USD.'});
+      const userSnap=await db.collection('users').doc(String(targetUid)).get();
+      if(!userSnap.exists) return res.status(404).json({error:'Customer account not found.'});
+      const now=new Date();
+      const withdrawalRef=db.collection('withdrawals').doc();
+      const record={
+        uid:String(targetUid), userId:String(targetUid), amount, currency,
+        phone:phone.replace(/[\\s()-]/g,''), method,
+        status:'pending', approvalStatus:'pending',
+        requestSource:'admin_support', initiatedByAdmin:admin.id,
+        supportSessionId:String(sessionId), customerAuthorized:true,
+        customerAuthorizationNote:String(payload.authorizationNote||'').trim().slice(0,500),
+        reason:reason.trim().slice(0,500),
+        requiresFinanceApproval:true,
+        createdAt:now, updatedAt:now
+      };
+      await db.runTransaction(async tx=>{
+        const fresh=await tx.get(db.collection('users').doc(String(targetUid)));
+        if(!fresh.exists) throw new Error('Customer account not found.');
+        tx.create(withdrawalRef,record);
+      });
+      result={success:true,withdrawal:{id:withdrawalRef.id,...record},note:'Withdrawal request created for finance-team review. No funds were sent and no customer balance was changed.'};
+    } else if(action==='withdrawals.approve') {
       const withdrawalId=String(payload.withdrawalId||'').trim();
       if(!withdrawalId)return res.status(400).json({error:'Withdrawal ID is required'});
       const ref=db.collection('withdrawals').doc(withdrawalId);
