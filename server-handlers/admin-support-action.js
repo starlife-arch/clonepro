@@ -48,14 +48,61 @@ export default async function adminSupportAction(req,res) {
     const {action,targetUid,sessionId,payload={},confirmed,reason}=req.body||{};
     if(!targetUid || !sessionId)return res.status(400).json({error:'targetUid and sessionId are required'});
     if(!await verifySession(db,admin.id,targetUid,sessionId))return res.status(403).json({error:'A valid active support session for this customer is required'});
-    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send']);
+    const writes=new Set(['profile.update','tickets.create','tickets.message','messages.send','withdrawals.approve','withdrawals.create-request']);
     const write=writes.has(action);
     if(write && (confirmed!==true || typeof reason!=='string' || reason.trim().length<8)) {
       await audit(db,admin.id,'support_action_rejected',targetUid,{sessionId,action});
       return res.status(400).json({error:'Write actions require confirmed=true and a reason of at least 8 characters'});
     }
     let result;
-    if(action==='profile.update') {
+    if(action==='withdrawals.create-request') {
+      const amount=Number(payload.amount);
+      const phone=String(payload.phone||'').trim();
+      const method=String(payload.method||'').trim();
+      const currency=String(payload.currency||'KES').trim().toUpperCase();
+      if(!Number.isFinite(amount)||amount<=0||amount>100000000) return res.status(400).json({error:'Enter a valid withdrawal amount greater than zero.'});
+      if(!/^\+?254[17]\d{8}$/.test(phone.replace(/[\s()-]/g,'')) && !/^0[17]\d{8}$/.test(phone.replace(/[\s()-]/g,''))) return res.status(400).json({error:'Enter a valid Kenyan M-Pesa number (07…, 01…, +2547…, or +2541…).'});
+      if(!['mpesa','bank','other'].includes(method)) return res.status(400).json({error:'Choose a supported withdrawal method.'});
+      if(String(payload.authorizationNote||'').trim().length<8) return res.status(400).json({error:'Record how the customer authorized this withdrawal (at least 8 characters).'});
+      if(!['KES','USD'].includes(currency)) return res.status(400).json({error:'Currency must be KES or USD.'});
+      const userSnap=await db.collection('users').doc(String(targetUid)).get();
+      if(!userSnap.exists) return res.status(404).json({error:'Customer account not found.'});
+      const now=new Date();
+      const withdrawalRef=db.collection('withdrawals').doc();
+      const record={
+        uid:String(targetUid), userId:String(targetUid), amount, currency,
+        phone:phone.replace(/[\s()-]/g,''), method,
+        status:'pending', approvalStatus:'pending',
+        requestSource:'admin_support', initiatedByAdmin:admin.id,
+        supportSessionId:String(sessionId), customerAuthorized:true,
+        customerAuthorizationNote:String(payload.authorizationNote||'').trim().slice(0,500),
+        reason:reason.trim().slice(0,500),
+        requiresFinanceApproval:true,
+        createdAt:now, updatedAt:now
+      };
+      await db.runTransaction(async tx=>{
+        const fresh=await tx.get(db.collection('users').doc(String(targetUid)));
+        if(!fresh.exists) throw new Error('Customer account not found.');
+        tx.create(withdrawalRef,record);
+      });
+      result={success:true,withdrawal:{id:withdrawalRef.id,...record},note:'Withdrawal request created for finance-team review. No funds were sent and no customer balance was changed.'};
+    } else if(action==='withdrawals.approve') {
+      const withdrawalId=String(payload.withdrawalId||'').trim();
+      if(!withdrawalId)return res.status(400).json({error:'Withdrawal ID is required'});
+      const ref=db.collection('withdrawals').doc(withdrawalId);
+      const outcome=await db.runTransaction(async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists)return {error:'Withdrawal not found',status:404};
+        const w=snap.data();
+        const owner=String(w.uid||w.userId||w.user_id||'');
+        if(owner!==String(targetUid))return {error:'Withdrawal does not belong to the selected customer',status:403};
+        if(String(w.status||'').toLowerCase()!=='pending')return {error:'Withdrawal is no longer pending; no change was made',status:409};
+        tx.update(ref,{status:'approved',approvedBy:admin.id,approvedAt:new Date(),updatedAt:new Date(),supportSessionId:String(sessionId),approvalReason:reason.trim().slice(0,500)});
+        return {success:true,withdrawal:{id:snap.id,amount:w.amount,status:'approved',approvedBy:admin.id}};
+      });
+      if(outcome.error)return res.status(outcome.status).json({error:outcome.error});
+      result={...outcome,note:'Approval recorded only. This does not send money; payout execution remains in the configured payment workflow.'};
+    } else if(action==='profile.update') {
       const fields=payload.fields||{};
       const allowed={name:'name',phone:'phone',country:'country'};
       const safe=Object.fromEntries(Object.entries(fields).filter(([k,v])=>allowed[k] && typeof v==='string').map(([k,v])=>[allowed[k],v.trim().slice(0,200)]));
