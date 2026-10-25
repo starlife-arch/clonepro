@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from './_lib/firebase.js';
-import { requireVerifiedAdmin } from './_lib/pg-auth.js';
+import { requireVerifiedAdmin } from './_lib/firebase-auth.js';
 
 const dateValue = (v) => v?.toDate ? v.toDate() : (v ? new Date(v) : null);
 async function audit(db, adminId, action, targetUid, meta = {}) {
