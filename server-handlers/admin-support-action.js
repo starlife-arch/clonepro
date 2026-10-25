@@ -61,7 +61,7 @@ export default async function adminSupportAction(req,res) {
       const method=String(payload.method||'').trim();
       const currency=String(payload.currency||'KES').trim().toUpperCase();
       if(!Number.isFinite(amount)||amount<=0||amount>100000000) return res.status(400).json({error:'Enter a valid withdrawal amount greater than zero.'});
-      if(!/^\\+?254[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,'')) && !/^0[17]\\d{8}$/.test(phone.replace(/[\\s()-]/g,''))) return res.status(400).json({error:'Enter a valid Kenyan M-Pesa number (07…, 01…, +2547…, or +2541…).'});
+      if(!/^\+?254[17]\d{8}$/.test(phone.replace(/[\s()-]/g,'')) && !/^0[17]\d{8}$/.test(phone.replace(/[\s()-]/g,''))) return res.status(400).json({error:'Enter a valid Kenyan M-Pesa number (07…, 01…, +2547…, or +2541…).'});
       if(!['mpesa','bank','other'].includes(method)) return res.status(400).json({error:'Choose a supported withdrawal method.'});
       if(String(payload.authorizationNote||'').trim().length<8) return res.status(400).json({error:'Record how the customer authorized this withdrawal (at least 8 characters).'});
       if(!['KES','USD'].includes(currency)) return res.status(400).json({error:'Currency must be KES or USD.'});
@@ -71,7 +71,7 @@ export default async function adminSupportAction(req,res) {
       const withdrawalRef=db.collection('withdrawals').doc();
       const record={
         uid:String(targetUid), userId:String(targetUid), amount, currency,
-        phone:phone.replace(/[\\s()-]/g,''), method,
+        phone:phone.replace(/[\s()-]/g,''), method,
         status:'pending', approvalStatus:'pending',
         requestSource:'admin_support', initiatedByAdmin:admin.id,
         supportSessionId:String(sessionId), customerAuthorized:true,
