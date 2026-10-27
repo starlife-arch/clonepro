@@ -1,4 +1,4 @@
-import { getDb } from './_lib/firebase.js';
+import { getDb, admin } from './_lib/firebase.js';
 import { requireVerifiedAdmin } from './_lib/firebase-auth.js';
 
 const readCollections = {
@@ -106,9 +106,37 @@ export default async function adminSupportAction(req,res) {
       const fields=payload.fields||{};
       const allowed={name:'name',phone:'phone',country:'country'};
       const safe=Object.fromEntries(Object.entries(fields).filter(([k,v])=>allowed[k] && typeof v==='string').map(([k,v])=>[allowed[k],v.trim().slice(0,200)]));
-      if(!Object.keys(safe).length)return res.status(400).json({error:'No supported profile fields supplied'});
-      await db.collection('users').doc(String(targetUid)).update({...safe,updatedAt:new Date()});
-      result={success:true,updatedFields:Object.keys(safe)};
+      const emailProvided=Object.prototype.hasOwnProperty.call(fields,'email');
+      const newEmail=emailProvided ? String(fields.email||'').trim().toLowerCase() : '';
+      if(emailProvided && (!newEmail || newEmail.length>254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(newEmail))) {
+        return res.status(400).json({error:'Enter a valid email address'});
+      }
+      if(!Object.keys(safe).length && !emailProvided)return res.status(400).json({error:'No supported profile fields supplied'});
+      const userRef=db.collection('users').doc(String(targetUid));
+      const userSnap=await userRef.get();
+      if(!userSnap.exists)return res.status(404).json({error:'Customer account not found'});
+      let authEmailChanged=false;
+      let previousAuthEmail=null;
+      if(emailProvided) {
+        const authUser=await admin.auth().getUser(String(targetUid));
+        previousAuthEmail=authUser.email || null;
+        if(previousAuthEmail?.toLowerCase()!==newEmail) {
+          await admin.auth().updateUser(String(targetUid),{email:newEmail});
+          authEmailChanged=true;
+        }
+      }
+      try {
+        const update={...safe,updatedAt:new Date()};
+        if(emailProvided)update.email=newEmail;
+        await userRef.update(update);
+      } catch(updateError) {
+        if(authEmailChanged && previousAuthEmail) {
+          try { await admin.auth().updateUser(String(targetUid),{email:previousAuthEmail}); }
+          catch(rollbackError) { console.error('[admin-support-action] Auth email rollback failed', {targetUid,message:rollbackError.message}); }
+        }
+        throw updateError;
+      }
+      result={success:true,updatedFields:[...Object.keys(safe),...(emailProvided?['email']:[])]};
     } else if(action==='tickets.create') {
       if(!String(payload.subject||'').trim() || !String(payload.category||'').trim())return res.status(400).json({error:'Ticket subject and category are required'});
       const ref=await db.collection('tickets').add({uid:targetUid,userId:targetUid,subject:String(payload.subject).trim().slice(0,200),category:String(payload.category).trim().slice(0,80),priority:payload.priority||'normal',status:'open',createdAt:new Date(),updatedAt:new Date()});
