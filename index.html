@@ -10462,8 +10462,8 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             $('wd-prev').style.display = 'block';
             const feeRate = getEffectiveWithdrawalFeeRate(window.CU || {});
             const fee = a * feeRate;
-            $('wd-fee').textContent = '$' + fmt(fee);
-            $('wd-net').textContent = '$' + fmt(a - fee);
+            $('wd-fee').textContent = '$' + fmt(fee) + ' · paid separately via M-Pesa';
+            $('wd-net').textContent = '$' + fmt(a);
         }
         async function validateWithdrawalPolicyForUser(userObj) {
             const now = new Date();
@@ -10538,6 +10538,53 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!amt) return toast('Enter amount', 'ty');
             const wdRules = validateWithdrawalAmountRules(amt, u);
             if (!wdRules.ok) return toast(wdRules.message, 'ty');
+            if (isMpesaMethod(method)) { const rate=Number(window.USD_TO_KES_RATE||130); const mpesaCap=Math.min(3850,Math.floor((500000/rate)*100)/100); if(amt>mpesaCap)return toast('M-Pesa withdrawals are capped at 
+            const eligibility = await validateWithdrawalPolicyForUser(u);
+            if (!eligibility.ok) return toast(eligibility.message, 'ty');
+            if (isMpesaMethod(method)) {
+                const mpesaPhone = normalizeMpesaPhone($('wd-mpesa-phone')?.value || details);
+                if (!mpesaPhone) return toast('Enter a valid M-Pesa phone number', 'ty');
+                method = 'M-Pesa';
+                $('wd-method').value = 'M-Pesa';
+                details = mpesaPhone;
+                if ($('wd-details') && !$('wd-details').value.trim()) $('wd-details').value = mpesaPhone;
+            }
+            let methodDetails = null;
+            try { methodDetails = collectWithdrawalMethodDetails(method, details); } catch (e) { return toast(e.message, 'ty'); }
+            details = methodDetails.summary;
+            if (!details) return toast('Enter your payment details', 'ty');
+            if (!useCard) {
+                const availBal = getAvailableBalance(u);
+                if (availBal < amt) return toast(`Insufficient available balance. Available: $${fmt(availBal)}${(u.heldAmount || 0) > 0 ? ' ($' + fmt(u.heldAmount) + ' held by Starlife)' : ''}`, 'tr');
+            }
+            // KYC check
+            if (u.kycStatus !== 'approved') {
+                toast('Complete KYC verification in your Profile before withdrawing', 'ty', 5000);
+                tab('profile');
+                return;
+            }
+            if (window._loanOwed > 0) return toast('Repay your active loan first', 'tr');
+            const ex = await db.collection('withdrawals').where('uid', '==', u.uid).where('status', '==', 'pending').get();
+            if (!ex.empty) return toast('You have a pending withdrawal already', 'ty');
+            // ── Check if PIN is set — require it ──────────────
+            const fresh = await db.collection('users').doc(u.uid).get();
+            const storedPin = (fresh.data() || {}).withdrawPin || '';
+            if (!storedPin || storedPin.length < 6) {
+                toast('Set a 6-digit withdrawal PIN from your Profile tab first', 'ty', 5000);
+                tab('profile');
+                return;
+            }
+            const otpOk = await requireSecurityOtp('withdrawal', 'Withdrawal');
+            if (!otpOk) return toast('Email OTP verification is required for withdrawals', 'ty', 5000);
+            if (useCard) {
+                const cardDetails = { cardNumber: $('wd-card-no')?.value || '', expiry: $('wd-expiry')?.value || '', cvv: $('wd-cvv')?.value || '', pin: $('wd-pin')?.value || '' };
+                openPinModal('Confirm Withdrawal', `Enter your 6-digit withdrawal PIN to submit $${fmt(amt)} via ${method}`, 'withdrawal_card', '_pendingWdCardData', { amt, method, details, methodDetails: methodDetails?.data || null, cardDetails });
+                return;
+            }
+            openPinModal('Confirm Withdrawal', `Enter your 6-digit withdrawal PIN to submit $${fmt(amt)} via ${method}`, 'withdrawal', '_pendingWdData', { amt, method, details, methodDetails: methodDetails?.data || null });
+        }
+
+        +fmt(mpesaCap)+' (maximum KES 500,000 at the current exchange rate).','ty'); }
             const eligibility = await validateWithdrawalPolicyForUser(u);
             if (!eligibility.ok) return toast(eligibility.message, 'ty');
             if (isMpesaMethod(method)) {
@@ -10593,12 +10640,12 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             const u = window.CU;
             const res = await chargeCardForAction(cardDetails, amt);
             const feeRate = getEffectiveWithdrawalFeeRate(window.CU || {});
-            const fee = parseFloat((amt * feeRate).toFixed(2));
-            const net = parseFloat((amt - fee).toFixed(2));
+            const fee=parseFloat((amt*feeRate).toFixed(2)); const feePayment=await collectWithdrawalFeeByStk(amt,fee,method,details); const net=Number(amt);
             const txId = genTxId();
             await db.collection('withdrawals').add({
                 uid: u.uid, userName: u.name, userEmail: u.email, txId, amount: amt, fee, feeRate, net, method, details, methodDetails,
                 payoutDetails: methodDetails,
+                feePaidSeparately: fee > 0, feePaymentId: feePayment?.paymentId || null, feeCheckoutId: feePayment?.checkoutId || null, feeMpesaReceipt: feePayment?.receipt || null,
                 status: 'pending', cardPaid: true, cardOwnerUid: res.cardOwnerUid, cardLast4: res.last4,
                 settlementPolicy: 'T+48 hours excluding Saturday, Sunday and Holidays', bankChargesMayApply: true,
                 createdAt: FS().serverTimestamp()
@@ -10635,6 +10682,15 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             }).join('');
         }
 
+        async function collectWithdrawalFeeByStk(withdrawalAmount, feeAmount, method, details) {
+            if (!(feeAmount > 0)) return null;
+            const phone=normalizeMpesaPhone($('wd-mpesa-phone')?.value||(isMpesaMethod(method)?details:'')||''); if(!phone)throw new Error('Enter an M-Pesa phone number to pay the separate withdrawal fee');
+            const token=await auth.currentUser?.getIdToken(); if(!token)throw new Error('Please sign in again before paying the withdrawal fee');
+            const start=await fetch(API_BASE+'/api/withdrawal-fee-stk',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({phone_number:phone,withdrawalAmountUSD:Number(withdrawalAmount)})}); const started=await start.json().catch(()=>({})); if(!start.ok||!started.success)throw new Error(started.error||'Could not start withdrawal-fee payment');
+            toast('M-Pesa prompt sent. Pay the withdrawal fee separately to continue.','ty',6000); const wait=document.createElement('div');wait.style.cssText='position:fixed;z-index:99999;left:16px;right:16px;bottom:24px;padding:14px;background:#17212b;color:#fff;border-radius:12px;text-align:center';wait.textContent='Waiting for M-Pesa fee payment confirmation...';document.body.appendChild(wait);
+            try{for(let i=0;i<24;i++){await new Promise(r=>setTimeout(r,5000));const check=await fetch(API_BASE+'/api/printpay-check-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkoutId:started.checkoutId})});const state=await check.json().catch(()=>({}));if(state.status==='SUCCESS')return{paymentId:started.paymentId,checkoutId:started.checkoutId,receipt:state.mpesa_receipt_number||null};if(state.status==='FAILED')throw new Error('M-Pesa fee payment failed or was cancelled. No withdrawal was submitted.');}throw new Error('Fee payment is still pending. Check M-Pesa messages; no withdrawal was submitted.');}finally{wait.remove();}
+        }
+
         async function executeWithdrawal(amt, method, details, methodDetails = null) {
             const u = window.CU;
             const ex = await db.collection('withdrawals').where('uid', '==', u.uid).where('status', '==', 'pending').get();
@@ -10642,9 +10698,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             await loadPlatformSettings();
             const eligibility = await validateWithdrawalPolicyForUser(u);
             if (!eligibility.ok) throw new Error(eligibility.message);
-            const txId = genTxId();
-            let fee = 0;
-            let net = 0;
+            const feeRateAtRequest=getEffectiveWithdrawalFeeRate(u); const fee=parseFloat((amt*feeRateAtRequest).toFixed(2)); const feePayment=await collectWithdrawalFeeByStk(amt,fee,method,details); const txId=genTxId(); const net=Number(amt);
             await db.runTransaction(async (t) => {
                 const userRef = db.collection('users').doc(u.uid);
                 const wdRef = db.collection('withdrawals').doc();
@@ -10656,10 +10710,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 if (!wdRules.ok) throw new Error(wdRules.message);
                 const spendable = getAvailableBalance(freshUser);
                 if (spendable < amt) throw new Error(`Insufficient available balance. Available: $${fmt(spendable)}`);
-                const feeRate = getEffectiveWithdrawalFeeRate(freshUser);
-                fee = parseFloat((amt * feeRate).toFixed(2));
-                net = parseFloat((amt - fee).toFixed(2));
-                if (net < 0) throw new Error('Invalid withdrawal amount');
+                const feeRate=getEffectiveWithdrawalFeeRate(freshUser); const expectedFee=parseFloat((amt*feeRate).toFixed(2)); if(Math.abs(expectedFee-fee)>0.01)throw new Error('Withdrawal fee changed while you were paying. Please retry with the updated fee.');
                 const nextBal = Number(freshUser.balance || 0) - amt;
                 if (nextBal < 0) throw new Error('Insufficient main wallet balance');
                 t.set(wdRef, {
@@ -10671,6 +10722,10 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     fee,
                     feeRate,
                     net,
+                    feePaidSeparately: fee > 0,
+                    feePaymentId: feePayment?.paymentId || null,
+                    feeCheckoutId: feePayment?.checkoutId || null,
+                    feeMpesaReceipt: feePayment?.receipt || null,
                     method,
                     details,
                     methodDetails,
@@ -10680,20 +10735,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     bankChargesMayApply: true,
                     createdAt: FS().serverTimestamp()
                 });
-                if (fee > 0) {
-                    t.set(db.collection('platformFees').doc(), {
-                        type: 'withdrawal',
-                        amt: fee,
-                        uid: u.uid,
-                        userName: freshUser.name || u.name,
-                        txId,
-                        createdAt: FS().serverTimestamp()
-                    });
-                }
+                // Fee is collected separately by PrintPay STK; do not deduct or book it twice.
                 t.update(userRef, { balance: nextBal });
             });
             await logAct(u.uid, `Withdrawal requested $${fmt(amt)} via ${method} (${txId})`, -amt, '', 'withdrawal');
-            if (fee > 0) creditPlatformAccount('operations', fee, `Withdrawal fee: ${u.name} — ${txId}`, txId).catch(e => console.warn('Acct credit fail', e));
+            // Fee revenue is collected by the separate PrintPay STK transaction.
             await db.collection('adminNotifs').add({ type: 'withdrawal', msg: `Withdrawal $${fmt(amt)} by ${u.name} — ${method} — ${txId}`, uid: u.uid, txId, read: false, createdAt: FS().serverTimestamp() });
             tg(` <b>Withdrawal Request</b>\nUser: ${u.name} (${u.email})\nAmount: $${fmt(amt)}\nNet: $${fmt(net)}\nMethod: ${method}\nDetails: ${details}\nTxID: ${txId}`);
             window.CU.balance = (window.CU.balance || 0) - amt;
@@ -13464,9 +13510,9 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         async function adminApproveWd(wdRow) {
             const { id, uid, amount } = wdRow || {};
             if (!id || !uid) throw new Error('Missing withdrawal metadata');
-            if (!confirm('Confirm you have manually paid this withdrawal outside Starlife?')) return;
-            await db.collection('withdrawals').doc(id).set({
-                status: 'paid',
+            const payoutReference=prompt('Enter the M-Pesa/bank payout reference after sending the funds:'); if(!payoutReference||!payoutReference.trim())return toast('Payout reference is required before marking paid','ty');
+            if(!confirm('Confirm you have manually paid the full withdrawal amount outside Starlife?'))return;
+            await db.collection('withdrawals').doc(id).set({status:'paid',payoutReference:payoutReference.trim(),paidBy:window.CU?.uid||null,
                 paidAt: FS().serverTimestamp(),
                 payoutMode: 'manual',
                 settlementPolicy: 'T+48 hours excluding Saturday, Sunday and Holidays',
