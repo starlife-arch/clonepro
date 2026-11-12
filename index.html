@@ -10390,7 +10390,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         function updateWithdrawMethodUI() {
             const method = $('wd-method')?.value || '';
             const wrap = $('wd-mpesa-phone-wrap');
-            if (wrap) wrap.style.display = isMpesaMethod(method) ? 'block' : 'none';
+            if (wrap) wrap.style.display = 'block'; // The fee is always collected separately via M-Pesa, regardless of payout method.
             const extraKey = withdrawalMethodExtraKey(method);
             const extraWrap = $('wd-method-extra');
             if (extraWrap) extraWrap.style.display = extraKey ? 'block' : 'none';
