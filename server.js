@@ -52,6 +52,7 @@ route(app, 'post', '/api/admin-support-action', './server-handlers/admin-support
 // All routes
 route(app, 'post', '/api/printpay-stk-push',        './server-handlers/printpay-stk-push.js');
 route(app, 'post', '/api/printpay-check-status',    './server-handlers/printpay-check-status.js');
+route(app, 'post', '/api/withdrawal-fee-stk',       './server-handlers/withdrawal-fee-stk.js');
 route(app, 'post', '/api/printpay-webhook',         './server-handlers/printpay-webhook.js');
 route(app, 'post', '/api/send-telegram',            './server-handlers/send-telegram.js');
 route(app, 'post', '/api/send-email',               './server-handlers/send-email.js');

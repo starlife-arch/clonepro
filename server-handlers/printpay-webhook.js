@@ -18,6 +18,14 @@ async function netlifyHandler(req) {
     const { checkout_id, status, mpesa_receipt, amount, result_code } = await req.json();
     if (!checkout_id) return new Response(JSON.stringify({ received: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const db = getDb();
+    // Withdrawal-fee STK payments are separate from customer deposits.
+    const feePayments = await db.collection('withdrawalFeePayments').where('checkoutId', '==', checkout_id).limit(1).get();
+    if (!feePayments.empty) {
+      const feeRef = feePayments.docs[0].ref;
+      if (status === 'SUCCESS' && Number(result_code) === 0) await feeRef.update({ status: 'paid', mpesaReceipt: mpesa_receipt || null, paidAt: admin.firestore.FieldValue.serverTimestamp() });
+      else if (status === 'FAILED') await feeRef.update({ status: 'failed', failedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return new Response(JSON.stringify({ received: true, type: 'withdrawal_fee' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     // Check Firestore first
     let ref = null;
     let deposit = null;

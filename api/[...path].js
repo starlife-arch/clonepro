@@ -1,4 +1,5 @@
 import adminControlsHandler from '../server-handlers/admin-controls.js';
+import withdrawalFeeStkHandler from '../server-handlers/withdrawal-fee-stk.js';
 import adminSupportDataHandler from '../server-handlers/admin-support-data.js';
 import adminSupportActionHandler from '../server-handlers/admin-support-action.js';
 import handler0 from '../server-handlers/admin-delete-login-video.js';
@@ -55,6 +56,7 @@ import handler50 from '../server-handlers/verify-2fa.js';
 
 const handlers = {
   'admin-controls': adminControlsHandler,
+  'withdrawal-fee-stk': withdrawalFeeStkHandler,
   'admin-support-data': adminSupportDataHandler,
   'admin-support-action': adminSupportActionHandler,
   "admin-delete-login-video": handler0,
