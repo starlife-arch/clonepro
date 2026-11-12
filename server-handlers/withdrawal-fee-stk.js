@@ -29,7 +29,7 @@ export default async function handler(req,res) {
     const privileges=user.privileges||{};
     let rate=Number(settings.withdrawFeeRate ?? 0.0549);
     if(privileges.freeWithdrawFees===true) rate=0;
-    else if(user.promoAccessEnabled===true && Number.isFinite(Number(privileges.customWithdrawFeeRate))) rate=Number(privileges.customWithdrawFeeRate);
+    else if(privileges.promoAccessEnabled===true && Number.isFinite(Number(privileges.customWithdrawFeeRate))) rate=Number(privileges.customWithdrawFeeRate);
     if(!Number.isFinite(rate)||rate<0||rate>1) return res.status(500).json({success:false,error:'Withdrawal fee setting is invalid'});
     const feeUSD=Number((withdrawalAmount*rate).toFixed(2));
     if(feeUSD<=0) return res.status(400).json({success:false,error:'No withdrawal fee is due for this account'});
