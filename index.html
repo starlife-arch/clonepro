@@ -10526,7 +10526,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
         async function doWithdraw() {
             if (!checkKycGate()) return;
             if (!checkAdminBlock('withdrawals')) return;
-            // KYC check first
             const kycOk = await checkKYCForWithdrawal();
             if (!kycOk) return;
             const amt = parseFloat($('wd-amt').value);
@@ -10538,7 +10537,11 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!amt) return toast('Enter amount', 'ty');
             const wdRules = validateWithdrawalAmountRules(amt, u);
             if (!wdRules.ok) return toast(wdRules.message, 'ty');
-            if (isMpesaMethod(method)) { const rate=Number(window.USD_TO_KES_RATE||130); const mpesaCap=Math.min(3850,Math.floor((500000/rate)*100)/100); if(amt>mpesaCap)return toast('M-Pesa withdrawals are capped at 
+            if (isMpesaMethod(method)) {
+                const rate = Number(window.USD_TO_KES_RATE || 130);
+                const mpesaCap = Math.min(3850, Math.floor((500000 / rate) * 100) / 100);
+                if (amt > mpesaCap) return toast('M-Pesa withdrawals are capped at $' + fmt(mpesaCap) + ' (maximum KES 500,000 at the current exchange rate).', 'ty');
+            }
             const eligibility = await validateWithdrawalPolicyForUser(u);
             if (!eligibility.ok) return toast(eligibility.message, 'ty');
             if (isMpesaMethod(method)) {
@@ -10557,7 +10560,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                 const availBal = getAvailableBalance(u);
                 if (availBal < amt) return toast(`Insufficient available balance. Available: $${fmt(availBal)}${(u.heldAmount || 0) > 0 ? ' ($' + fmt(u.heldAmount) + ' held by Starlife)' : ''}`, 'tr');
             }
-            // KYC check
             if (u.kycStatus !== 'approved') {
                 toast('Complete KYC verification in your Profile before withdrawing', 'ty', 5000);
                 tab('profile');
@@ -10566,53 +10568,6 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (window._loanOwed > 0) return toast('Repay your active loan first', 'tr');
             const ex = await db.collection('withdrawals').where('uid', '==', u.uid).where('status', '==', 'pending').get();
             if (!ex.empty) return toast('You have a pending withdrawal already', 'ty');
-            // ── Check if PIN is set — require it ──────────────
-            const fresh = await db.collection('users').doc(u.uid).get();
-            const storedPin = (fresh.data() || {}).withdrawPin || '';
-            if (!storedPin || storedPin.length < 6) {
-                toast('Set a 6-digit withdrawal PIN from your Profile tab first', 'ty', 5000);
-                tab('profile');
-                return;
-            }
-            const otpOk = await requireSecurityOtp('withdrawal', 'Withdrawal');
-            if (!otpOk) return toast('Email OTP verification is required for withdrawals', 'ty', 5000);
-            if (useCard) {
-                const cardDetails = { cardNumber: $('wd-card-no')?.value || '', expiry: $('wd-expiry')?.value || '', cvv: $('wd-cvv')?.value || '', pin: $('wd-pin')?.value || '' };
-                openPinModal('Confirm Withdrawal', `Enter your 6-digit withdrawal PIN to submit $${fmt(amt)} via ${method}`, 'withdrawal_card', '_pendingWdCardData', { amt, method, details, methodDetails: methodDetails?.data || null, cardDetails });
-                return;
-            }
-            openPinModal('Confirm Withdrawal', `Enter your 6-digit withdrawal PIN to submit $${fmt(amt)} via ${method}`, 'withdrawal', '_pendingWdData', { amt, method, details, methodDetails: methodDetails?.data || null });
-        }
-
-        +fmt(mpesaCap)+' (maximum KES 500,000 at the current exchange rate).','ty'); }
-            const eligibility = await validateWithdrawalPolicyForUser(u);
-            if (!eligibility.ok) return toast(eligibility.message, 'ty');
-            if (isMpesaMethod(method)) {
-                const mpesaPhone = normalizeMpesaPhone($('wd-mpesa-phone')?.value || details);
-                if (!mpesaPhone) return toast('Enter a valid M-Pesa phone number', 'ty');
-                method = 'M-Pesa';
-                $('wd-method').value = 'M-Pesa';
-                details = mpesaPhone;
-                if ($('wd-details') && !$('wd-details').value.trim()) $('wd-details').value = mpesaPhone;
-            }
-            let methodDetails = null;
-            try { methodDetails = collectWithdrawalMethodDetails(method, details); } catch (e) { return toast(e.message, 'ty'); }
-            details = methodDetails.summary;
-            if (!details) return toast('Enter your payment details', 'ty');
-            if (!useCard) {
-                const availBal = getAvailableBalance(u);
-                if (availBal < amt) return toast(`Insufficient available balance. Available: $${fmt(availBal)}${(u.heldAmount || 0) > 0 ? ' ($' + fmt(u.heldAmount) + ' held by Starlife)' : ''}`, 'tr');
-            }
-            // KYC check
-            if (u.kycStatus !== 'approved') {
-                toast('Complete KYC verification in your Profile before withdrawing', 'ty', 5000);
-                tab('profile');
-                return;
-            }
-            if (window._loanOwed > 0) return toast('Repay your active loan first', 'tr');
-            const ex = await db.collection('withdrawals').where('uid', '==', u.uid).where('status', '==', 'pending').get();
-            if (!ex.empty) return toast('You have a pending withdrawal already', 'ty');
-            // ── Check if PIN is set — require it ──────────────
             const fresh = await db.collection('users').doc(u.uid).get();
             const storedPin = (fresh.data() || {}).withdrawPin || '';
             if (!storedPin || storedPin.length < 6) {
