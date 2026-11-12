@@ -4562,7 +4562,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                         </select></div>
                     <div class="fg"><label class="fl">Payment Details</label><textarea class="fi" id="wd-details"
                             placeholder="Bank account, Airtel Money, phone number, wallet address, etc."></textarea></div>
-                    <div class="fg" id="wd-mpesa-phone-wrap" style="display:none"><label class="fl">M-Pesa Phone Number</label><input class="fi" id="wd-mpesa-phone" placeholder="0712345678"></div>
+                    <div class="fg" id="wd-mpesa-phone-wrap" style="display:block"><label class="fl">M-Pesa Number for Fee Payment</label><input class="fi" id="wd-mpesa-phone" placeholder="0712345678"></div>
                     <div id="wd-method-extra" style="display:none">
                         <div class="fg" data-wd-extra="bank faster ach wire achwire eft sepa paypal remitly sendwave interac"><label class="fl" id="wd-account-holder-label">Account Holder Name</label><input class="fi" id="wd-account-holder"></div>
                         <div class="fg" data-wd-extra="bank ach wire achwire sepa"><label class="fl">Bank Name</label><input class="fi" id="wd-bank-name"></div>
@@ -10678,7 +10678,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!list.length) { el.innerHTML = '<div class="es"><div class="ei"><i class=ic-inbox></i></div>No withdrawals yet</div>'; return; }
             el.innerHTML = list.map(w => {
                 const b = w.status === 'paid' ? '<span class="badge bg">Paid</span>' : w.status === 'approved' ? '<span class="badge bg">Approved</span>' : w.status === 'pending' ? '<span class="badge bgold">Pending (Hold)</span>' : w.status === 'rejected' ? '<span class="badge br">Rejected+Refunded</span>' : '<span class="badge bmut">' + w.status + '</span>';
-                return `<div class="ai"><div class="ai-l"><div class="ai-ico r"><i class=ic-arrow-up-right></i></div><div><div class="ai-desc">$${fmt(w.amount)} via ${w.method}</div><div class="ai-time">Net: $${fmt(w.net)} · ${fmtDT(w.createdAt)} · ${w.txId || ''}</div></div></div>${b}</div>`;
+                return `<div class="ai"><div class="ai-l"><div class="ai-ico r"><i class=ic-arrow-up-right></i></div><div><div class="ai-desc">$${fmt(w.amount)} via ${w.method}</div><div class="ai-time">Payout: ${fmt(w.amount)} · Fee paid separately: ${fmt(w.fee || 0)} · ${fmtDT(w.createdAt)} · ${w.txId || ''}${w.payoutReference ? ' · Payout ref: ' + w.payoutReference : ''}</div></div></div>${b}</div>`;
             }).join('');
         }
 
@@ -10686,7 +10686,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
             if (!(feeAmount > 0)) return null;
             const phone=normalizeMpesaPhone($('wd-mpesa-phone')?.value||(isMpesaMethod(method)?details:'')||''); if(!phone)throw new Error('Enter an M-Pesa phone number to pay the separate withdrawal fee');
             const token=await auth.currentUser?.getIdToken(); if(!token)throw new Error('Please sign in again before paying the withdrawal fee');
-            const start=await fetch(API_BASE+'/api/withdrawal-fee-stk',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({phone_number:phone,withdrawalAmountUSD:Number(withdrawalAmount)})}); const started=await start.json().catch(()=>({})); if(!start.ok||!started.success)throw new Error(started.error||'Could not start withdrawal-fee payment');
+            const start=await fetch(API_BASE+'/api/withdrawal-fee-stk',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({phone_number:phone,withdrawalAmountUSD:Number(withdrawalAmount),method})}); const started=await start.json().catch(()=>({})); if(!start.ok||!started.success)throw new Error(started.error||'Could not start withdrawal-fee payment');
             toast('M-Pesa prompt sent. Pay the withdrawal fee separately to continue.','ty',6000); const wait=document.createElement('div');wait.style.cssText='position:fixed;z-index:99999;left:16px;right:16px;bottom:24px;padding:14px;background:#17212b;color:#fff;border-radius:12px;text-align:center';wait.textContent='Waiting for M-Pesa fee payment confirmation...';document.body.appendChild(wait);
             try{for(let i=0;i<24;i++){await new Promise(r=>setTimeout(r,5000));const check=await fetch(API_BASE+'/api/printpay-check-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkoutId:started.checkoutId})});const state=await check.json().catch(()=>({}));if(state.status==='SUCCESS')return{paymentId:started.paymentId,checkoutId:started.checkoutId,receipt:state.mpesa_receipt_number||null};if(state.status==='FAILED')throw new Error('M-Pesa fee payment failed or was cancelled. No withdrawal was submitted.');}throw new Error('Fee payment is still pending. Check M-Pesa messages; no withdrawal was submitted.');}finally{wait.remove();}
         }
@@ -13490,6 +13490,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     + '<div class="ar-name">' + (w.userName || 'User') + ' &mdash; $' + fmt(w.amount) + ' ' + wBadge + '</div>'
                     + '<div class="ar-sub">' + (w.userEmail || '') + ' &middot; ' + w.method + ' &middot; Net: <strong>$' + fmt(w.net) + '</strong></div>'
                     + '<div class="ar-sub" style="color:var(--gold)">Pay to: ' + w.details + '</div>'
+                    + (w.payoutReference ? '<div class="ar-sub">Payout reference: <strong>' + w.payoutReference + '</strong></div>' : '')
                     + '<div class="ar-sub">TxID: ' + (w.txId || '&mdash;') + ' &middot; ' + fmtDT(w.createdAt) + '</div>'
                     + '<div class="ar-sub" style="color:var(--t3);font-size:.72rem">&#9888; Manual payout only · Settlement T+48h excluding weekends/holidays · Bank charges may apply · Balance deducted on submission</div>'
                     + '</div></div><div class="ar-acts">' + wActs + '</div></div>';
