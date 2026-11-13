@@ -3500,6 +3500,35 @@ body:not(.sl-app-active) #theme-toggle-btn.sl-hide-outside{display:none}
         function openSetPin() { _safe('openSetPin'); }
         function sendBroadcast() { _safe('sendBroadcast'); }
         function searchUsers() { _safe('searchUsers'); }
+        function exportUserPhonesCSV(btn) {
+            if (!(window.CU && (window.CU.isAdmin === true || window.CU.role === 'admin' || window.CU.role === 'superadmin' || window.CU.role === 'finance'))) {
+                return toast('Admin access required', 'tr');
+            }
+            const users = window.AU || [];
+            const rows = [['Name', 'Phone', 'Email', 'User ID']];
+            const seen = new Set();
+            users.forEach(u => {
+                const phone = String(u.phone || '').trim();
+                if (!phone) return;
+                const key = phone.replace(/[\\s()-]/g, '');
+                if (seen.has(key)) return;
+                seen.add(key);
+                rows.push([u.name || '', phone, u.email || '', u.id || u.uid || '']);
+            });
+            if (rows.length === 1) return toast('No user phone numbers found in the loaded user list', 'ty');
+            const csv = '\\uFEFF' + rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\\r\\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'starlife-user-phone-numbers-' + new Date().toISOString().slice(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+            toast('Downloaded ' + (rows.length - 1) + ' user phone numbers', 'tg');
+        }
+
         function exportCSV() { _safe('exportCSV'); }
         function redeemPrizeCode() { _safe('redeemPrizeCode'); }
         function submitSurvey() { _safe('submitSurvey'); }
@@ -6779,6 +6808,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     <div id="rev-txns"></div>
                 </div>
                 <button class="btn btn-p btn-sm" onclick="exportCSV()"><i class=ic-download></i>Export Users CSV</button>
+                <button class="btn btn-sky btn-sm" style="margin-left:8px" onclick="exportUserPhonesCSV(this)"><i class=ic-download></i>Download User Phone Numbers</button>
                 <div style="font-size:.74rem;color:var(--t2);margin-top:8px">CSV export only — no built-in PDF report
                     generator yet.</div>
                 <button class="btn btn-gold btn-sm" style="margin-left:8px" onclick="openModal('m-deal')"><i class=ic-percent></i>Set
