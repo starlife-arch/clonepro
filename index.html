@@ -3500,6 +3500,42 @@ body:not(.sl-app-active) #theme-toggle-btn.sl-hide-outside{display:none}
         function openSetPin() { _safe('openSetPin'); }
         function sendBroadcast() { _safe('sendBroadcast'); }
         function searchUsers() { _safe('searchUsers'); }
+        // Export registered member phone numbers for authorized admin roles only.
+        function downloadAllUserPhonesCsv(btn) {
+            if (!hasAdminAccess('revenue')) return toast('You do not have permission to export member phone numbers', 'tr');
+            const original = btn ? btn.innerHTML : '';
+            try {
+                if (btn) { btn.disabled = true; btn.textContent = 'Preparing CSV...'; }
+                const users = window.AU || [];
+                const rows = [['Name', 'Phone Number']];
+                const seen = new Set();
+                users.forEach(u => {
+                    const phone = String(u.phone || '').trim();
+                    if (!phone) return;
+                    const key = phone.replace(/[\\s()-]/g, '');
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    rows.push([u.name || '', phone]);
+                });
+                if (rows.length === 1) return toast('No user phone numbers are available to export', 'ty');
+                const csv = '\\uFEFF' + rows.map(row => row.map(value => '"' + String(value ?? '').replace(/"/g, '""') + '"').join(',')).join('\\r\\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'starlife-user-phone-numbers-' + new Date().toISOString().slice(0, 10) + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+                toast('Downloaded ' + (rows.length - 1) + ' unique phone numbers', 'tg');
+            } catch (err) {
+                toast(err.message || 'Phone number export failed', 'tr');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            }
+        }
+
         function exportCSV() { _safe('exportCSV'); }
         function redeemPrizeCode() { _safe('redeemPrizeCode'); }
         function submitSurvey() { _safe('submitSurvey'); }
@@ -6779,6 +6815,7 @@ function loadMyTickets() { if (window._real_loadMyTickets) window._real_loadMyTi
                     <div id="rev-txns"></div>
                 </div>
                 <button class="btn btn-p btn-sm" onclick="exportCSV()"><i class=ic-download></i>Export Users CSV</button>
+                <button class="btn btn-gh btn-sm" style="margin-left:8px;margin-top:8px" onclick="downloadAllUserPhonesCsv(this)"><i class=ic-download></i>Download All User Phone Numbers</button>
                 <div style="font-size:.74rem;color:var(--t2);margin-top:8px">CSV export only — no built-in PDF report
                     generator yet.</div>
                 <button class="btn btn-gold btn-sm" style="margin-left:8px" onclick="openModal('m-deal')"><i class=ic-percent></i>Set
